@@ -15,6 +15,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [ubicacion, setUbicacion] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [checklist, setChecklist] = useState({})
+  const [checklistObservaciones, setChecklistObservaciones] = useState({}) // NUEVO: Observaciones por ítem
   const [fotos, setFotos] = useState([])
   const [inspeccionEnvioRelacionada, setInspeccionEnvioRelacionada] = useState('')
   const [inspeccionesEnvio, setInspeccionesEnvio] = useState([])
@@ -154,7 +155,8 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           item_nombre: template.item_nombre,
           categoria: template.categoria,
           estado: estado,
-          es_critico: template.es_critico
+          es_critico: template.es_critico,
+          observacion: checklistObservaciones[templateId] || null // NUEVO: Agregar observación
         }
       })
 
@@ -384,16 +386,36 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
               <div key={categoria} style={{ marginBottom: '1.5rem' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#667eea', marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '2px solid #e5e7eb' }}>{categoria}</h4>
                 {items.map(item => (
-                  <div key={item.id} style={{ padding: '1rem', background: '#f9fafb', borderRadius: '8px', marginBottom: '0.75rem' }}>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <span style={{ fontWeight: '500' }}>{item.item_nombre}</span>
+                  <div key={item.id} style={{ padding: '1rem', background: '#ffffff', border: '2px solid #e5e7eb', borderRadius: '8px', marginBottom: '0.75rem' }}>
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <span style={{ fontWeight: '600', fontSize: '1rem', color: '#1f2937' }}>{item.item_nombre}</span>
                       {item.es_critico && <span style={{ marginLeft: '0.5rem', background: '#fecaca', color: '#991b1b', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>CRÍTICO</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => updateChecklist(item.id, 'ok')} style={{ flex: 1, padding: '0.5rem', background: checklist[item.id] === 'ok' ? '#10b981' : '#e5e7eb', color: checklist[item.id] === 'ok' ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>✓ OK</button>
-                      <button onClick={() => updateChecklist(item.id, 'warning')} style={{ flex: 1, padding: '0.5rem', background: checklist[item.id] === 'warning' ? '#f59e0b' : '#e5e7eb', color: checklist[item.id] === 'warning' ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>⚠ Aviso</button>
-                      <button onClick={() => updateChecklist(item.id, 'fail')} style={{ flex: 1, padding: '0.5rem', background: checklist[item.id] === 'fail' ? '#ef4444' : '#e5e7eb', color: checklist[item.id] === 'fail' ? 'white' : '#6b7280', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>✗ Falla</button>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <button onClick={() => updateChecklist(item.id, 'ok')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'ok' ? '#10b981' : '#e5e7eb', color: checklist[item.id] === 'ok' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✓ OK</button>
+                      <button onClick={() => updateChecklist(item.id, 'warning')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'warning' ? '#f59e0b' : '#e5e7eb', color: checklist[item.id] === 'warning' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>⚠ Aviso</button>
+                      <button onClick={() => updateChecklist(item.id, 'fail')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'fail' ? '#ef4444' : '#e5e7eb', color: checklist[item.id] === 'fail' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✗ Falla</button>
                     </div>
+                    {/* Campo de observación por ítem */}
+                    {(checklist[item.id] === 'warning' || checklist[item.id] === 'fail') && (
+                      <input
+                        type="text"
+                        placeholder="Observación (ej: No tiene ancla, falta repuesto, etc.)"
+                        value={checklistObservaciones[item.id] || ''}
+                        onChange={(e) => setChecklistObservaciones({
+                          ...checklistObservaciones,
+                          [item.id]: e.target.value
+                        })}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          marginTop: '0.5rem'
+                        }}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
