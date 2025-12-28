@@ -55,6 +55,9 @@ function SubidaFotos({ onFotosChange, fotosExistentes = [] }) {
     setFotos(fotosActualizadas)
     onFotosChange(fotosActualizadas)
     
+    console.log('📸 Fotos actualizadas:', fotosActualizadas)
+    console.log('📸 Llamando onFotosChange con:', fotosActualizadas)
+    
     setSubiendo(false)
     e.target.value = '' // Limpiar input
   }

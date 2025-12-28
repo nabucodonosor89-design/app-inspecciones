@@ -1,0 +1,55 @@
+/* Prevenir scroll horizontal global */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Asegurar que ningún elemento se salga */
+* {
+  max-width: 100%;
+}
+
+/* Fix específico para inputs en móvil */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  max-width: 100%;
+  font-size: 16px !important; /* Prevenir zoom en iOS */
+  box-sizing: border-box;
+}
+
+/* Prevenir que los botones rompan el layout */
+button {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Contenedores responsive */
+.app-container,
+.page-container {
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Fix para grids que puedan romper */
+[style*="grid"] {
+  max-width: 100%;
+}
+
+/* Resetear zoom después de interacción con inputs */
+@media (max-width: 768px) {
+  input:focus,
+  select:focus,
+  textarea:focus {
+    font-size: 16px !important;
+  }
+}
