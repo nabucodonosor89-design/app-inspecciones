@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import NuevoPedidoCompra from './NuevoPedidoCompra'
+import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
 import { generarPDFPedidoCompra } from './utils/pdfPedidoCompra'
 
 function ListaPedidosCompra({ usuario }) {
