@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import HistorialInspecciones from './HistorialInspecciones'
+import HistorialInspecciones from './HistorialInspecciones.jsx'
+import EstadoOperativoModal from './EstadoOperativoModal.jsx'
 
 function EquiposList({ onInspeccionarEquipo }) {
   const [equipos, setEquipos] = useState([])
@@ -9,9 +10,11 @@ function EquiposList({ onInspeccionarEquipo }) {
   const [filtroUbicacion, setFiltroUbicacion] = useState('Todos')
   const [filtroSemaforo, setFiltroSemaforo] = useState('Todos')
   const [filtroInspeccion, setFiltroInspeccion] = useState('Todos')
+  const [filtroEstadoOp, setFiltroEstadoOp] = useState('Todos')
   const [busqueda, setBusqueda] = useState('')
-  const [ordenarPor, setOrdenarPor] = useState('ubicacion') // NUEVO
+  const [ordenarPor, setOrdenarPor] = useState('ubicacion')
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null)
+  const [equipoEstadoModal, setEquipoEstadoModal] = useState(null)
 
   useEffect(() => {
     getEquipos()
@@ -58,6 +61,16 @@ function EquiposList({ onInspeccionarEquipo }) {
     }
   }
 
+  // Función helper para estado operativo
+  function getEstadoOperativoInfo(estado) {
+    const estados = {
+      'operativo': { emoji: '✅', label: 'Operativo', color: '#10b981' },
+      'operativo_restricciones': { emoji: '⚠️', label: 'Con restricciones', color: '#f59e0b' },
+      'fuera_servicio': { emoji: '❌', label: 'Fuera de servicio', color: '#ef4444' }
+    }
+    return estados[estado] || estados['operativo']
+  }
+
   // Si hay un equipo seleccionado, mostrar el historial
   if (equipoSeleccionado) {
     return <HistorialInspecciones equipo={equipoSeleccionado} onVolver={() => setEquipoSeleccionado(null)} />
@@ -82,36 +95,35 @@ function EquiposList({ onInspeccionarEquipo }) {
     } else if (filtroInspeccion === 'Sin inspecciones') {
       matchInspeccion = equipo.dias_sin_inspeccion === null
     }
+
+    // Filtro de estado operativo
+    const matchEstadoOp = filtroEstadoOp === 'Todos' || equipo.estado_operativo === filtroEstadoOp
     
-    return matchTipo && matchUbicacion && matchSemaforo && matchBusqueda && matchInspeccion
+    return matchTipo && matchUbicacion && matchSemaforo && matchBusqueda && matchInspeccion && matchEstadoOp
   })
 
-  // NUEVO: Función para ordenar equipos
+  // Función para ordenar equipos
   const equiposOrdenados = [...equiposFiltrados].sort((a, b) => {
     switch (ordenarPor) {
       case 'nombre':
         return a.numero_identificacion.localeCompare(b.numero_identificacion)
       
       case 'dias_desc':
-        // Más días sin inspección primero
         const diasA = a.dias_sin_inspeccion ?? 9999
         const diasB = b.dias_sin_inspeccion ?? 9999
         return diasB - diasA
       
       case 'dias_asc':
-        // Menos días sin inspección primero
         const diasA2 = a.dias_sin_inspeccion ?? -1
         const diasB2 = b.dias_sin_inspeccion ?? -1
         return diasA2 - diasB2
       
       case 'semaforo':
-        // Rojo -> Amarillo -> Verde
         const semaforoOrden = { 'rojo': 0, 'amarillo': 1, 'verde': 2, null: 3 }
         return (semaforoOrden[a.semaforo_actual] ?? 3) - (semaforoOrden[b.semaforo_actual] ?? 3)
       
       case 'ubicacion':
       default:
-        // Por ubicación y luego por nombre
         if (a.ubicacion_actual === b.ubicacion_actual) {
           return a.numero_identificacion.localeCompare(b.numero_identificacion)
         }
@@ -170,6 +182,11 @@ function EquiposList({ onInspeccionarEquipo }) {
   const equiposProximos = equipos.filter(e => e.dias_sin_inspeccion !== null && e.dias_sin_inspeccion >= 20 && e.dias_sin_inspeccion <= 30).length
   const equiposAlDia = equipos.filter(e => e.dias_sin_inspeccion !== null && e.dias_sin_inspeccion < 20).length
 
+  // Estadísticas de estado operativo
+  const equiposOperativos = equipos.filter(e => e.estado_operativo === 'operativo' || !e.estado_operativo).length
+  const equiposConRestriccion = equipos.filter(e => e.estado_operativo === 'operativo_restricciones').length
+  const equiposFueraServicio = equipos.filter(e => e.estado_operativo === 'fuera_servicio').length
+
   if (loading) {
     return <div style={{ padding: 'clamp(1rem, 2vw, 2rem)', textAlign: 'center' }}>
       <p style={{ fontSize: '1.2rem' }}>Cargando equipos...</p>
@@ -190,43 +207,111 @@ function EquiposList({ onInspeccionarEquipo }) {
           padding: '1.5rem',
           borderRadius: '12px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          borderLeft: '4px solid #10b981'
+          border: '3px solid #ef4444'
         }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981' }}>
-            {equiposAlDia}
+          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: '600' }}>
+            🔴 Urgente
           </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-            🟢 Equipos al día
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '1.5rem',
-          borderRadius: '12px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          borderLeft: '4px solid #f59e0b'
-        }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f59e0b' }}>
-            {equiposProximos}
-          </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-            🟡 Próximos a inspeccionar
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '1.5rem',
-          borderRadius: '12px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          borderLeft: '4px solid #ef4444'
-        }}>
           <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ef4444' }}>
             {equiposUrgentes}
           </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-            🔴 Urgente / Sin inspecciones
+        </div>
+
+        <div style={{
+          background: 'white',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '3px solid #f59e0b'
+        }}>
+          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: '600' }}>
+            🟡 Próximo
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f59e0b' }}>
+            {equiposProximos}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'white',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '3px solid #10b981'
+        }}>
+          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: '600' }}>
+            🟢 Al día
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981' }}>
+            {equiposAlDia}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'white',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '3px solid #667eea'
+        }}>
+          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem', fontWeight: '600' }}>
+            📊 Total
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#667eea' }}>
+            {equipos.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Estadísticas de Estado Operativo */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '1rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '2px solid #10b981'
+        }}>
+          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem', fontWeight: '600' }}>
+            ✅ Operativos
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#10b981' }}>
+            {equiposOperativos}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'white',
+          padding: '1rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '2px solid #f59e0b'
+        }}>
+          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem', fontWeight: '600' }}>
+            ⚠️ Con Restricciones
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#f59e0b' }}>
+            {equiposConRestriccion}
+          </div>
+        </div>
+
+        <div style={{
+          background: 'white',
+          padding: '1rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '2px solid #ef4444'
+        }}>
+          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem', fontWeight: '600' }}>
+            ❌ Fuera de Servicio
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>
+            {equiposFueraServicio}
           </div>
         </div>
       </div>
@@ -240,10 +325,10 @@ function EquiposList({ onInspeccionarEquipo }) {
         marginBottom: '2rem'
       }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem' }}>
-          🔍 Buscar y Ordenar Equipos
+          🔍 Buscar Equipos
         </h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
               Buscar por código
@@ -261,30 +346,6 @@ function EquiposList({ onInspeccionarEquipo }) {
                 fontSize: '0.875rem'
               }}
             />
-          </div>
-
-          {/* NUEVO: Selector de ordenamiento */}
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
-              Ordenar por
-            </label>
-            <select
-              value={ordenarPor}
-              onChange={(e) => setOrdenarPor(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                border: '2px solid #e5e7eb',
-                borderRadius: '6px',
-                fontSize: '0.875rem'
-              }}
-            >
-              <option value="ubicacion">📍 Ubicación</option>
-              <option value="nombre">🔤 Nombre (A-Z)</option>
-              <option value="semaforo">🚦 Semáforo (críticos primero)</option>
-              <option value="dias_desc">⏰ Más días sin inspección</option>
-              <option value="dias_asc">✅ Menos días sin inspección</option>
-            </select>
           </div>
 
           <div>
@@ -355,6 +416,29 @@ function EquiposList({ onInspeccionarEquipo }) {
 
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+              Ordenar por
+            </label>
+            <select
+              value={ordenarPor}
+              onChange={(e) => setOrdenarPor(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '2px solid #e5e7eb',
+                borderRadius: '6px',
+                fontSize: '0.875rem'
+              }}
+            >
+              <option value="ubicacion">📍 Ubicación</option>
+              <option value="nombre">🔤 Nombre</option>
+              <option value="dias_desc">⏰ Más días sin inspección</option>
+              <option value="dias_asc">✅ Menos días sin inspección</option>
+              <option value="semaforo">🚦 Semáforo (peor primero)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
               Estado de Inspección
             </label>
             <select
@@ -373,6 +457,28 @@ function EquiposList({ onInspeccionarEquipo }) {
               <option value="Próximo">🟡 Próximo (20-30 días)</option>
               <option value="Al día">🟢 Al día (&lt;20 días)</option>
               <option value="Sin inspecciones">⚪ Sin inspecciones</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+              Estado Operativo
+            </label>
+            <select
+              value={filtroEstadoOp}
+              onChange={(e) => setFiltroEstadoOp(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '2px solid #e5e7eb',
+                borderRadius: '6px',
+                fontSize: '0.875rem'
+              }}
+            >
+              <option>Todos</option>
+              <option value="operativo">✅ Operativo</option>
+              <option value="operativo_restricciones">⚠️ Con restricciones</option>
+              <option value="fuera_servicio">❌ Fuera de servicio</option>
             </select>
           </div>
         </div>
@@ -402,6 +508,7 @@ function EquiposList({ onInspeccionarEquipo }) {
           <div style={{ display: 'grid', gap: '1rem' }}>
             {equiposGrupo.map(equipo => {
               const estadoInspeccion = getEstadoInspeccion(equipo.dias_sin_inspeccion)
+              const estadoOp = getEstadoOperativoInfo(equipo.estado_operativo || 'operativo')
               
               return (
                 <div
@@ -448,11 +555,48 @@ function EquiposList({ onInspeccionarEquipo }) {
                         }}>
                           {estadoInspeccion.emoji} {estadoInspeccion.texto}
                         </span>
+
+                        {/* Badge de estado operativo (solo si NO es operativo) */}
+                        {equipo.estado_operativo && equipo.estado_operativo !== 'operativo' && (
+                          <span style={{
+                            background: estadoOp.color + '20',
+                            color: estadoOp.color,
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '12px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}>
+                            {estadoOp.emoji} {estadoOp.label}
+                          </span>
+                        )}
                       </div>
 
                       <p style={{ color: '#666', marginBottom: '0.5rem' }}>
                         {equipo.denominacion || 'Sin descripción'}
                       </p>
+
+                      {/* Observaciones operativas */}
+                      {equipo.observaciones_operativo && (
+                        <p style={{ 
+                          fontSize: '0.875rem', 
+                          color: '#6b7280', 
+                          marginBottom: '0.5rem',
+                          fontStyle: 'italic',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.5rem',
+                          padding: '0.5rem',
+                          background: '#fef3c7',
+                          borderRadius: '6px',
+                          border: '1px solid #f59e0b'
+                        }}>
+                          <span>ℹ️</span>
+                          <span><strong>Restricción:</strong> {equipo.observaciones_operativo}</span>
+                        </p>
+                      )}
 
                       <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem', color: '#6b7280', flexWrap: 'wrap' }}>
                         <span>📦 {equipo.fabricante || 'N/A'} {equipo.modelo || ''}</span>
@@ -480,6 +624,25 @@ function EquiposList({ onInspeccionarEquipo }) {
                       }}>
                         {equipo.semaforo_actual?.toUpperCase() || 'SIN DATOS'}
                       </div>
+
+                      <button
+                        onClick={() => setEquipoEstadoModal(equipo)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: '#8b5cf6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#7c3aed'}
+                        onMouseLeave={(e) => e.target.style.background = '#8b5cf6'}
+                      >
+                        🔧 Estado Operativo
+                      </button>
 
                       <button
                         onClick={() => onInspeccionarEquipo(equipo)}
@@ -538,6 +701,18 @@ function EquiposList({ onInspeccionarEquipo }) {
           <p style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>No se encontraron equipos</p>
           <p style={{ fontSize: '0.875rem' }}>Intenta cambiar los filtros de búsqueda</p>
         </div>
+      )}
+
+      {/* Modal de estado operativo */}
+      {equipoEstadoModal && (
+        <EstadoOperativoModal
+          equipo={equipoEstadoModal}
+          onCerrar={() => setEquipoEstadoModal(null)}
+          onActualizar={() => {
+            getEquipos()
+            setEquipoEstadoModal(null)
+          }}
+        />
       )}
     </div>
   )
