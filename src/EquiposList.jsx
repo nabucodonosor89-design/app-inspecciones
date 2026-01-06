@@ -527,7 +527,7 @@ function EquiposList({ onInspeccionar }) {
                         <span style={{ fontSize: '1.5rem' }}>
                           {getSemaforoEmoji(equipo.semaforo_actual)}
                         </span>
-                        <p style={{ fontWeight: 'bold', fontSize: '1.2rem', margin: 0 }}>
+                        <p style={{ fontWeight: 'bold', fontSize: '1.2rem', margin: 0, color: '#1f2937' }}>
                           {equipo.numero_identificacion}
                         </p>
                         <span style={{
@@ -574,7 +574,7 @@ function EquiposList({ onInspeccionar }) {
                         )}
                       </div>
 
-                      <p style={{ color: '#666', marginBottom: '0.5rem' }}>
+                      <p style={{ color: '#4b5563', marginBottom: '0.5rem' }}>
                         {equipo.denominacion || 'Sin descripción'}
                       </p>
 
@@ -598,7 +598,7 @@ function EquiposList({ onInspeccionar }) {
                         </p>
                       )}
 
-                      <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem', color: '#6b7280', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem', color: '#4b5563', flexWrap: 'wrap' }}>
                         <span>📦 {equipo.fabricante || 'N/A'} {equipo.modelo || ''}</span>
                         {equipo.matricula && equipo.matricula !== 'N/A' && (
                           <span>🚗 {equipo.matricula}</span>
