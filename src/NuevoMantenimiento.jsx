@@ -75,7 +75,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
         .from('inspecciones')
         .select('id, fecha_hora, tipo_inspeccion')
         .eq('equipo_id', equipoId)
-        .eq('tipo_inspeccion', 'Entrada a Taller')
+        .ilike('tipo_inspeccion', 'taller')
         .order('fecha_hora', { ascending: false })
 
       if (error) throw error

@@ -316,9 +316,9 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
         )}
 
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>Datos de la Inspección</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem', color: '#1f2937' }}>Datos de la Inspección</h3>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Tipo de Inspección *</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Tipo de Inspección *</label>
             <select value={tipoInspeccion} onChange={(e) => setTipoInspeccion(e.target.value)} style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }}>
               <option value="">Seleccionar...</option>
               <option value="periodica">🔍 Inspección Periódica</option>
@@ -363,11 +363,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           )}
 
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Horómetro/Odómetro *</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Horómetro/Odómetro *</label>
             <input type="number" value={horometro} onChange={(e) => setHorometro(e.target.value)} style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }} placeholder="Ej: 12500" />
           </div>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Ubicación/Obra *</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Ubicación/Obra *</label>
             <select value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }}>
               <option value="">Seleccionar ubicación...</option>
               <option value="Complejo Ypane">Complejo Ypane</option>
