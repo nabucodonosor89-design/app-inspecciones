@@ -206,7 +206,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Buscar
             </label>
             <input
@@ -225,7 +225,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Tipo
             </label>
             <select
@@ -246,7 +246,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Estado
             </label>
             <select
@@ -268,7 +268,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Pedido (Para obra)
             </label>
             <select
@@ -289,7 +289,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Prioridad
             </label>
             <select

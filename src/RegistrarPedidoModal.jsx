@@ -169,7 +169,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Número de Pedido <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -191,7 +191,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Obra <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <select
@@ -215,7 +215,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Email Solicitante <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -234,7 +234,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Fecha de Recepción <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -314,7 +314,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
                       Tipo de Equipo <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
@@ -334,7 +334,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
                       Cantidad
                     </label>
                     <input
@@ -354,7 +354,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
                   </div>
 
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
                       Observaciones del Formulario
                     </label>
                     <textarea

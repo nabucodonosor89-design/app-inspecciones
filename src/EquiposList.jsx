@@ -330,7 +330,7 @@ function EquiposList({ onInspeccionar }) {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Buscar por código
             </label>
             <input
@@ -349,7 +349,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Tipo de Equipo
             </label>
             <select
@@ -372,7 +372,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Ubicación
             </label>
             <select
@@ -393,7 +393,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Semáforo
             </label>
             <select
@@ -415,7 +415,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Ordenar por
             </label>
             <select
@@ -438,7 +438,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Estado de Inspección
             </label>
             <select
@@ -461,7 +461,7 @@ function EquiposList({ onInspeccionar }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
               Estado Operativo
             </label>
             <select

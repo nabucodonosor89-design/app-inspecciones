@@ -119,7 +119,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Código/Identificación <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -146,7 +146,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Tipo de Equipo <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -167,7 +167,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Clase de Vehículo
                 </label>
                 <input
@@ -188,7 +188,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                 Denominación
               </label>
               <input
@@ -221,7 +221,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Fabricante
                 </label>
                 <input
@@ -241,7 +241,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Modelo
                 </label>
                 <input
@@ -261,7 +261,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Matrícula
                 </label>
                 <input
@@ -281,7 +281,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Año de Construcción
                 </label>
                 <input
@@ -303,7 +303,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Centro de Costo
                 </label>
                 <input
@@ -337,7 +337,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Ubicación Actual
                 </label>
                 <input
@@ -357,7 +357,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                   Estado Operativo
                 </label>
                 <select
@@ -380,7 +380,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
                 Observaciones Operativas
               </label>
               <textarea
