@@ -10,11 +10,12 @@ import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
 import DashboardEjecutivo from './DashboardEjecutivo.jsx'
 import ModuloPedidosEquipos from './ModuloPedidosEquipos.jsx'
+import ModuloEquipos from './ModuloEquipos.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'pedidos', 'mantenimientos', 'dashboard-ejecutivo', 'pedidos-equipos'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'pedidos', 'mantenimientos', 'dashboard-ejecutivo', 'pedidos-equipos', 'equipos'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva'
@@ -112,7 +113,7 @@ function App() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            🏗️ Sistema de Gestión TyE
+            Sistema de Gestión TyE
           </h1>
           <p style={{ color: '#6b7280', fontSize: 'clamp(0.9rem, 2vw, 1.1rem)' }}>
             Bienvenido, <strong>{user.nombre_completo}</strong>
@@ -309,6 +310,40 @@ function App() {
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
               Seguimiento de solicitudes de obras
+            </p>
+          </div>
+
+          {/* Card Gestión de Equipos */}
+          <div
+            onClick={() => setModulo('equipos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
+              e.currentTarget.style.borderColor = '#f59e0b'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📦
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+              Gestión de Equipos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Alta, baja y modificación de equipos
             </p>
           </div>
         </div>
@@ -551,6 +586,18 @@ function App() {
   if (modulo === 'pedidos-equipos') {
     return (
       <ModuloPedidosEquipos
+        usuario={user}
+        onVolver={volverAlMenu}
+      />
+    )
+  }
+
+  // ============================================
+  // MÓDULO GESTIÓN DE EQUIPOS
+  // ============================================
+  if (modulo === 'equipos') {
+    return (
+      <ModuloEquipos
         usuario={user}
         onVolver={volverAlMenu}
       />
