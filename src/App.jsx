@@ -8,11 +8,13 @@ import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
 import NuevoMantenimiento from './NuevoMantenimiento.jsx'
 import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
+import DashboardEjecutivo from './DashboardEjecutivo.jsx'
+import ModuloPedidosEquipos from './ModuloPedidosEquipos.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'pedidos', 'mantenimientos'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'pedidos', 'mantenimientos', 'dashboard-ejecutivo', 'pedidos-equipos'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva'
@@ -135,11 +137,45 @@ function App() {
         {/* Cards de Módulos */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: '2rem',
-          maxWidth: '1200px',
+          maxWidth: '1400px',
           margin: '0 auto'
         }}>
+          {/* Card Dashboard Ejecutivo */}
+          <div
+            onClick={() => setModulo('dashboard-ejecutivo')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(139, 92, 246, 0.3)'
+              e.currentTarget.style.borderColor = '#8b5cf6'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📊
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#8b5cf6' }}>
+              Estado de Equipos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Vista general y programación de inspecciones
+            </p>
+          </div>
+
           {/* Card Inspecciones */}
           <div
             onClick={() => setModulo('inspecciones')}
@@ -241,7 +277,52 @@ function App() {
               Avisos y órdenes de mantenimiento
             </p>
           </div>
+
+          {/* Card Pedidos de Equipos */}
+          <div
+            onClick={() => setModulo('pedidos-equipos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
+              e.currentTarget.style.borderColor = '#f59e0b'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📋
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+              Pedidos de Equipos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Seguimiento de solicitudes de obras
+            </p>
+          </div>
         </div>
+      </div>
+    )
+  }
+
+  // ============================================
+  // MÓDULO ESTADO DE EQUIPOS
+  // ============================================
+  if (modulo === 'dashboard-ejecutivo') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', padding: 'clamp(1rem, 2vw, 2rem)' }}>
+        <DashboardEjecutivo onVolver={volverAlMenu} />
       </div>
     )
   }
@@ -461,6 +542,18 @@ function App() {
           />
         )}
       </div>
+    )
+  }
+
+  // ============================================
+  // MÓDULO PEDIDOS DE EQUIPOS
+  // ============================================
+  if (modulo === 'pedidos-equipos') {
+    return (
+      <ModuloPedidosEquipos
+        usuario={user}
+        onVolver={volverAlMenu}
+      />
     )
   }
 
