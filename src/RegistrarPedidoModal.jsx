@@ -1,6 +1,149 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 
+// Lista completa de tipos de equipos
+const TIPOS_EQUIPOS = [
+  'CAMIONETA',
+  'AUTOMOVIL',
+  'MOVIL ANFIBIO',
+  'AMBULANCIA',
+  'MOTOCICLETA',
+  'CAMIÓN VOLQUETE',
+  'TRACTO CAMIÓN',
+  'CAMIÓN REGADOR DE AGUA',
+  'CAMIÓN REGADOR DE ASFALTO',
+  'CAMIÓN CANASTA',
+  'CAMIÓN CON GRUA',
+  'CAMIÓN COMBUSTIBLERO',
+  'CAMIÓN SELLADOR DE FISURAS',
+  'CAMIÓN DE CARGAS',
+  'CAMIÓN MIXER',
+  'CAMIÓN DE MANTENIMIENTO',
+  'CAMIÓN PORTA CONTENEDOR',
+  'CAMIÓN PLAYERO',
+  'OMNIBUS',
+  'CAZAMBA',
+  'CARRETA GRANELERA',
+  'PLANCHA TRANSPORTADORA',
+  'CARRO COMPENSADOR',
+  'ACOPLADO',
+  'DESLIZADORAS',
+  'REMOLCADORES',
+  'DRAGAS',
+  'LANCHA CARGADORA',
+  'ARENERA',
+  'BALSA',
+  'EXCAVADORA A ORUGAS',
+  'MAQUINA PILOTERA',
+  'CARRO PERFORADOR',
+  'FRESADORA',
+  'CORDONERA DE HORMIGON',
+  'PLANTA TRITURADORA MOVIL',
+  'ESPARCIDORA DE ASFALTO',
+  'ZARANDA MOVIL',
+  'TOPADORA',
+  'EXCAVADORA CON NEUMÁTICOS',
+  'TRACTOR AGRÍCOLA',
+  'TRACTOR ZANJADOR',
+  'MINICARGADORA',
+  'PALA CARGADORA',
+  'RETROEXCAVADORA',
+  'MOTONIVELADORA',
+  'COMPACTADOR NEUMÁTICO',
+  'COMPACTADOR LISO',
+  'COMPACTADOR PATA DE CABRA',
+  'COMPACTADOR DOBLE LISO',
+  'COMPACTADOR MIXTO',
+  'RECICLADORA',
+  'MICROPAVIMENTADORA DE ASFALTO',
+  'GRAVILLADORA',
+  'AUTOHORMIGONERA',
+  'GRUA',
+  'MONTACARGA',
+  'MOTOTRAILLA',
+  'CAMIÓN VOLQUETE ARTICULADO',
+  'PLANTA DE SUELO',
+  'PLANTA ASFALTICA',
+  'PLANTA DE TRITURACIÓN',
+  'PLANTA DE HORMIGÓN',
+  'MOTOBOMBA DE AGUA ELECTRICA',
+  'TORRE DE ILUMINACIÓN ELECTRICA',
+  'COMPRESOR DE AIRE ELECTRICO',
+  'HORMIGONERA ELECTRICA',
+  'PERFORADOR ELECTRICO',
+  'HIDROLAVADORA ELECTRICA',
+  'SIERRA CIRCULAR',
+  'PRENSA UNION DE CAÑO',
+  'MOLINETE',
+  'MOTOR ELECTRICO',
+  'SURTIDOR DE COMBUSTIBLE',
+  'BASCULA PESA CAMIONES',
+  'RADIO BASE',
+  'RADIO PORTABLE',
+  'VIBRADOR ELECTRICO',
+  'MOTOSIERRA',
+  'HIDROLAVADORA A COMBUSTIÓN',
+  'VIBRADOR A COMBUSTIÓN',
+  'HORMIGONERA A COMBUSTIÓN',
+  'MOTOBOMBA DE AGUA A COMBUSTIÓN',
+  'BARREDORA',
+  'MOTOR A COMBUSTIÓN',
+  'COMPRESOR DE AIRE A COMBUSTIÓN',
+  'CABRESTANTE',
+  'PERFORADOR A COMBUSTIÓN',
+  'CARRO DE PINTURA VIAL',
+  'BOMBA ESTÁTICA DE HORMIGÓN',
+  'SELLADOR DE FISURAS',
+  'SOPLADORA A MOCHILA',
+  'DESMALEZADORA',
+  'SAPITO COMPACTADOR',
+  'MAQUINA CORTADORA',
+  'PISÓN COMPACTADOR',
+  'GRUPO GENERADOR',
+  'TORRE DE ILUMINACIÓN A COMBUSTIÓN',
+  'ARADO',
+  'RASTRA',
+  'TRAILLA',
+  'ROTATIVA',
+  'TOLVA PARA CONCRETO',
+  'MARTILLETE',
+  'PAVIMENTADORA',
+  'MOTOBOMBA DE AGUA',
+  'PONTÓN ANFIBIO',
+  'IMPLEMENTO DREN',
+  'PULVIMIXER',
+  'PERFORADOR HIDRAULICO',
+  'MANGOTE',
+  'ESTACIÓN TOTAL',
+  'GPS',
+  'NIVEL AUTOMÁTICO',
+  'TEODOLÍTO',
+  'CINTA METRICA',
+  'EQUIPOS QUE NO SE CALIBRAN',
+  'BALANZA',
+  'TAMIZ',
+  'PRENSA',
+  'TERMOMETRO',
+  'CALIBRE PIE DE REY',
+  'INSTRUMENTOS DE MEDICIÓN LV',
+  'ALCOHOLÍMETRO',
+  'DETERM. DE ARENA',
+  'EXTENSOMETRO',
+  'VISCOSÍMETRO',
+  'ESTUFA PARA SECADO',
+  'TELURÓMETRO',
+  'BAÑO MARIA',
+  'PH METRO',
+  'ARO DINAMOMÉTRICO',
+  'DINAMÓMETRO',
+  'EQUIPO DE BATIMETRÍA',
+  'TANQUE',
+  'CALDERA',
+  'EQUIPOS DE TALLER',
+  'CASETA',
+  'CONTENEDOR'
+].sort() // Ordenar alfabéticamente
+
 function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
   const [obras, setObras] = useState([])
   const [loading, setLoading] = useState(false)
@@ -16,7 +159,9 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
     {
       tipo_equipo: '',
       cantidad: 1,
-      observaciones: ''
+      observaciones: '',
+      busquedaTipo: '', // Para el filtrado
+      mostrarLista: false // Para mostrar/ocultar dropdown
     }
   ])
 
@@ -43,7 +188,9 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
     setLineas([...lineas, {
       tipo_equipo: '',
       cantidad: 1,
-      observaciones: ''
+      observaciones: '',
+      busquedaTipo: '',
+      mostrarLista: false
     }])
   }
 
@@ -59,6 +206,23 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
     const nuevasLineas = [...lineas]
     nuevasLineas[index][campo] = valor
     setLineas(nuevasLineas)
+  }
+
+  function seleccionarTipo(index, tipo) {
+    const nuevasLineas = [...lineas]
+    nuevasLineas[index].tipo_equipo = tipo
+    nuevasLineas[index].busquedaTipo = tipo
+    nuevasLineas[index].mostrarLista = false
+    setLineas(nuevasLineas)
+  }
+
+  function filtrarTipos(busqueda) {
+    if (!busqueda.trim()) return TIPOS_EQUIPOS
+    
+    const busquedaLower = busqueda.toLowerCase()
+    return TIPOS_EQUIPOS.filter(tipo => 
+      tipo.toLowerCase().includes(busquedaLower)
+    )
   }
 
   async function guardar() {
@@ -313,15 +477,20 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
-                  <div>
+                  {/* Tipo de Equipo con búsqueda */}
+                  <div style={{ position: 'relative' }}>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.875rem', color: '#1f2937' }}>
                       Tipo de Equipo <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
                       type="text"
-                      value={linea.tipo_equipo}
-                      onChange={(e) => actualizarLinea(index, 'tipo_equipo', e.target.value)}
-                      placeholder="Ej: Volquete Triple Eje, Camión, Excavadora..."
+                      value={linea.busquedaTipo}
+                      onChange={(e) => {
+                        actualizarLinea(index, 'busquedaTipo', e.target.value)
+                        actualizarLinea(index, 'mostrarLista', true)
+                      }}
+                      onFocus={() => actualizarLinea(index, 'mostrarLista', true)}
+                      placeholder="Escriba para buscar..."
                       disabled={loading}
                       style={{
                         width: '100%',
@@ -331,6 +500,48 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
                         fontSize: '0.875rem'
                       }}
                     />
+                    
+                    {/* Dropdown filtrado */}
+                    {linea.mostrarLista && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        background: 'white',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        marginTop: '0.25rem',
+                        zIndex: 100,
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}>
+                        {filtrarTipos(linea.busquedaTipo).length > 0 ? (
+                          filtrarTipos(linea.busquedaTipo).map((tipo, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => seleccionarTipo(index, tipo)}
+                              style={{
+                                padding: '0.75rem',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #e5e7eb',
+                                fontSize: '0.875rem',
+                                ':hover': { background: '#f3f4f6' }
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                            >
+                              {tipo}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ padding: '0.75rem', color: '#6b7280', fontSize: '0.875rem' }}>
+                            No se encontraron coincidencias
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>

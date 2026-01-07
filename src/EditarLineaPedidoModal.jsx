@@ -107,6 +107,33 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
         return
       }
 
+      // 🔒 VALIDACIÓN: Verificar que el equipo no esté asignado a otro pedido
+      if (equipoAsignadoId && equipoAsignadoId !== linea.equipo_asignado_id) {
+        const { data: equiposAsignados, error: errorCheck } = await supabase
+          .from('pedidos_equipos_lineas')
+          .select('id, numero_pedido, email_solicitante')
+          .eq('equipo_asignado_id', equipoAsignadoId)
+          .neq('id', linea.id) // Excluir la línea actual
+          .in('estado_entrega', ['pendiente_asignacion', 'asignado']) // Solo pedidos activos
+
+        if (errorCheck) throw errorCheck
+
+        if (equiposAsignados && equiposAsignados.length > 0) {
+          const equipoInfo = equipos.find(e => e.id === equipoAsignadoId)
+          const otroPedido = equiposAsignados[0]
+          
+          alert(
+            `⚠️ EQUIPO YA ASIGNADO\n\n` +
+            `El equipo ${equipoInfo?.numero_identificacion || 'seleccionado'} ya está asignado a:\n` +
+            `• Pedido: ${otroPedido.numero_pedido}\n` +
+            `• Solicitante: ${otroPedido.email_solicitante}\n\n` +
+            `No se puede asignar el mismo equipo a múltiples pedidos activos.`
+          )
+          setLoading(false)
+          return
+        }
+      }
+
       const { error } = await supabase
         .from('pedidos_equipos_lineas')
         .update({

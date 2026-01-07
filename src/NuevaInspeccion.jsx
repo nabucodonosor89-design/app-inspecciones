@@ -19,6 +19,12 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [fotos, setFotos] = useState([])
   const [inspeccionEnvioRelacionada, setInspeccionEnvioRelacionada] = useState('')
   const [inspeccionesEnvio, setInspeccionesEnvio] = useState([])
+  
+  // NUEVO: Estados para motivo de envío
+  const [motivoEnvio, setMotivoEnvio] = useState('')
+  const [pedidoEquipoLineaId, setPedidoEquipoLineaId] = useState('')
+  const [pedidosDisponibles, setPedidosDisponibles] = useState([])
+  const [observacionesEnvio, setObservacionesEnvio] = useState('')
 
   useEffect(() => {
     getEquipos()
@@ -33,6 +39,13 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   useEffect(() => {
     if (tipoInspeccion === 'recepcion' && equipoSeleccionado) {
       getInspeccionesEnvio(equipoSeleccionado.id)
+    }
+  }, [tipoInspeccion, equipoSeleccionado])
+
+  // NUEVO: Cargar pedidos aprobados cuando se selecciona tipo "envio"
+  useEffect(() => {
+    if (tipoInspeccion === 'envio' && equipoSeleccionado) {
+      cargarPedidosDisponibles(equipoSeleccionado.tipo_equipo)
     }
   }, [tipoInspeccion, equipoSeleccionado])
 
@@ -82,6 +95,40 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     setInspeccionesEnvio(data || [])
   }
 
+  // NUEVO: Función para cargar pedidos disponibles
+  async function cargarPedidosDisponibles(tipoEquipo) {
+    try {
+      // Buscar pedidos donde este equipo específico está asignado
+      // pero aún no ha sido entregado (estado = asignado)
+      const { data, error } = await supabase
+        .from('pedidos_equipos_lineas')
+        .select(`
+          id,
+          numero_pedido,
+          email_solicitante,
+          tipo_equipo_solicitado,
+          cantidad_solicitada,
+          obras!inner(nombre_obra)
+        `)
+        .eq('equipo_asignado_id', equipoSeleccionado.id)  // ← Cambio principal: buscar por equipo específico
+        .eq('estado_aprobacion', 'aprobado')
+        .eq('estado_entrega', 'asignado')  // Solo "asignado" (no entregado aún)
+        .order('fecha_recepcion', { ascending: false })
+
+      if (error) {
+        console.error('Error cargando pedidos:', error)
+        setPedidosDisponibles([])
+        return
+      }
+
+      console.log('📋 Pedidos para equipo ' + equipoSeleccionado.numero_identificacion + ':', data)
+      setPedidosDisponibles(data || [])
+    } catch (error) {
+      console.error('Error:', error)
+      setPedidosDisponibles([])
+    }
+  }
+
   function seleccionarEquipo(equipo) {
     setEquipoSeleccionado(equipo)
     getChecklistTemplate(equipo.tipo_equipo)
@@ -125,6 +172,27 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   async function guardarInspeccion() {
     setLoading(true)
     try {
+      // NUEVO: Validaciones para envío a obra
+      if (tipoInspeccion === 'envio') {
+        if (!motivoEnvio) {
+          alert('⚠️ Debe seleccionar el motivo del envío')
+          setLoading(false)
+          return
+        }
+
+        if (motivoEnvio === 'pedido' && !pedidoEquipoLineaId) {
+          alert('⚠️ Debe seleccionar el pedido que se está cumpliendo')
+          setLoading(false)
+          return
+        }
+
+        if (motivoEnvio === 'reemplazo' && !observacionesEnvio.trim()) {
+          alert('⚠️ Debe especificar qué equipo se está reemplazando')
+          setLoading(false)
+          return
+        }
+      }
+
       // Calcular el semáforo
       const semaforoCalculado = calcularSemaforo()
 
@@ -140,7 +208,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           observaciones_generales: observaciones,
           semaforo: semaforoCalculado,
           estado: 'completa',
-          inspeccion_envio_relacionada: tipoInspeccion === 'recepcion' && inspeccionEnvioRelacionada ? inspeccionEnvioRelacionada : null
+          inspeccion_envio_relacionada: tipoInspeccion === 'recepcion' && inspeccionEnvioRelacionada ? inspeccionEnvioRelacionada : null,
+          // NUEVO: Campos de motivo de envío
+          motivo_envio: tipoInspeccion === 'envio' ? motivoEnvio : null,
+          pedido_equipo_linea_id: tipoInspeccion === 'envio' && motivoEnvio === 'pedido' ? pedidoEquipoLineaId : null,
+          observaciones_envio: tipoInspeccion === 'envio' && observacionesEnvio ? observacionesEnvio.trim() : null
         })
         .select()
         .single()
@@ -202,6 +274,16 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
       if (tipoInspeccion === 'envio') {
         updateData.ubicacion_actual = ubicacion
         console.log('📍 Actualizando ubicación del equipo a:', ubicacion)
+      }
+      
+      // NUEVO: Si es inspección de TALLER, marcar equipo como FUERA DE SERVICIO
+      if (tipoInspeccion === 'taller') {
+        updateData.estado_operativo = 'fuera_de_servicio'
+        updateData.ubicacion_actual = 'Taller'
+        updateData.restricciones_operativas = (equipoSeleccionado.restricciones_operativas || '') + 
+          (equipoSeleccionado.restricciones_operativas ? ' | ' : '') + 
+          'Equipo en taller para mantenimiento'
+        console.log('🔧 Equipo marcado como FUERA DE SERVICIO por inspección de taller')
       }
       
       const { error: errorEquipo } = await supabase
@@ -377,6 +459,94 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
               ))}
             </select>
           </div>
+
+          {/* NUEVO: Motivo de envío (solo para tipo "envio") */}
+          {tipoInspeccion === 'envio' && (
+            <>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>
+                  Motivo del Envío <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select 
+                  value={motivoEnvio} 
+                  onChange={(e) => {
+                    setMotivoEnvio(e.target.value)
+                    setPedidoEquipoLineaId('')
+                    setObservacionesEnvio('')
+                  }}
+                  style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }}
+                >
+                  <option value="">Seleccionar motivo...</option>
+                  <option value="pedido">📋 Cumplir Pedido de Equipo</option>
+                  <option value="reemplazo">🔄 Reemplazo de Equipo en Obra</option>
+                </select>
+              </div>
+
+              {motivoEnvio === 'pedido' && (
+                <div style={{ marginBottom: '1rem', padding: '1rem', background: '#eff6ff', borderRadius: '8px', border: '2px solid #3b82f6' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1e40af' }}>
+                    📋 Seleccionar Pedido a Cumplir <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  
+                  {pedidosDisponibles.length > 0 ? (
+                    <>
+                      <select 
+                        value={pedidoEquipoLineaId} 
+                        onChange={(e) => setPedidoEquipoLineaId(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '2px solid #3b82f6', borderRadius: '8px', fontSize: '1rem' }}
+                      >
+                        <option value="">Seleccionar pedido...</option>
+                        {pedidosDisponibles.map(pedido => (
+                          <option key={pedido.id} value={pedido.id}>
+                            Pedido {pedido.numero_pedido} - {pedido.obras.nombre_obra} - {pedido.tipo_equipo_solicitado} (x{pedido.cantidad_solicitada}) - {pedido.email_solicitante}
+                          </option>
+                        ))}
+                      </select>
+                      <p style={{ fontSize: '0.875rem', color: '#3b82f6', marginTop: '0.5rem', margin: '0.5rem 0 0 0' }}>
+                        ℹ️ Mostrando pedidos aprobados pendientes de entrega
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>
+                      No hay pedidos pendientes para este tipo de equipo
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {motivoEnvio && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>
+                    {motivoEnvio === 'reemplazo' ? 'Detalles del Reemplazo *' : 'Observaciones del Envío'}
+                  </label>
+                  <textarea
+                    value={observacionesEnvio}
+                    onChange={(e) => setObservacionesEnvio(e.target.value)}
+                    placeholder={
+                      motivoEnvio === 'reemplazo' 
+                        ? 'Ej: Reemplaza a VL-CN060 que presenta fallas en el motor'
+                        : 'Observaciones adicionales sobre el envío...'
+                    }
+                    rows="3"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                  />
+                  {motivoEnvio === 'reemplazo' && !observacionesEnvio.trim() && (
+                    <p style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '0.5rem', margin: '0.5rem 0 0 0' }}>
+                      ⚠️ Debe especificar qué equipo se está reemplazando y el motivo
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>Checklist de Inspección</h3>

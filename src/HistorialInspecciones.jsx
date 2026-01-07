@@ -218,105 +218,55 @@ function HistorialInspecciones({ equipo, onVolver }) {
               {getSemaforoEmoji(inspeccionSeleccionada.semaforo)}
             </span>
             <div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+              <h2 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.8rem)', margin: 0, fontWeight: 'bold' }}>
                 {getTipoLabel(inspeccionSeleccionada.tipo_inspeccion)}
               </h2>
-              <p style={{ fontSize: '1.1rem' }}>
-                {new Date(inspeccionSeleccionada.fecha_hora).toLocaleString('es-PY')}
+              <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9, fontSize: 'clamp(0.8rem, 2vw, 1rem)' }}>
+                Estado: {inspeccionSeleccionada.semaforo?.toUpperCase()}
               </p>
             </div>
           </div>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.3)', paddingTop: '1rem', marginTop: '1rem' }}>
-            <p><strong>Inspector:</strong> {inspeccionSeleccionada.inspector?.nombre_completo}</p>
-            <p><strong>Horómetro:</strong> {inspeccionSeleccionada.horometro_odometro}</p>
-            <p><strong>Ubicación:</strong> {inspeccionSeleccionada.ubicacion}</p>
+
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+            gap: '1rem',
+            fontSize: 'clamp(0.8rem, 2vw, 0.9rem)'
+          }}>
+            <div>
+              <strong>📅 Fecha:</strong><br />
+              {new Date(inspeccionSeleccionada.fecha_hora).toLocaleDateString('es-PY', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+            <div>
+              <strong>👤 Inspector:</strong><br />
+              {inspeccionSeleccionada.inspector?.nombre_completo}
+            </div>
+            <div>
+              <strong>📍 Ubicación:</strong><br />
+              {inspeccionSeleccionada.ubicacion}
+            </div>
+            <div>
+              <strong>🔢 Horómetro:</strong><br />
+              {inspeccionSeleccionada.horometro_odometro}
+            </div>
           </div>
+
+          {inspeccionSeleccionada.observaciones_generales && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.2)', borderRadius: '8px' }}>
+              <strong>💬 Observaciones:</strong><br />
+              {inspeccionSeleccionada.observaciones_generales}
+            </div>
+          )}
         </div>
 
-        {/* Checklist */}
-        <div style={{
-          background: 'white',
-          padding: 'clamp(0.5rem, 2vw, 2rem)',
-          borderRadius: '12px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          marginBottom: '2rem'
-        }}>
-          <h3 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem' }}>
-            Checklist de Inspección
-          </h3>
-
-          {categorias.map(categoria => {
-            const items = checklistItems.filter(i => i.categoria === categoria)
-            return (
-              <div key={categoria} style={{ marginBottom: '2rem' }}>
-                <h4 style={{
-                  fontSize: '1.1rem',
-                  fontWeight: '600',
-                  color: '#667eea',
-                  marginBottom: '1rem',
-                  paddingBottom: '0.5rem',
-                  borderBottom: '2px solid #e5e7eb'
-                }}>
-                  {categoria}
-                </h4>
-
-                {items.map(item => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '1rem',
-                      background: '#f9fafb',
-                      borderRadius: '8px',
-                      marginBottom: '0.75rem'
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontWeight: '500' }}>{item.item_nombre}</span>
-                      {item.es_critico && (
-                        <span style={{
-                          marginLeft: '0.5rem',
-                          background: '#fecaca',
-                          color: '#991b1b',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                          fontWeight: '600'
-                        }}>
-                          CRÍTICO
-                        </span>
-                      )}
-                      {item.observacion && (
-                        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                          {item.observacion}
-                        </p>
-                      )}
-                    </div>
-
-                    <span style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '6px',
-                      fontWeight: '600',
-                      fontSize: '0.875rem',
-                      background: item.estado === 'ok' ? '#d1fae5' : 
-                                 item.estado === 'warning' ? '#fef3c7' : '#fee2e2',
-                      color: item.estado === 'ok' ? '#065f46' : 
-                             item.estado === 'warning' ? '#92400e' : '#991b1b'
-                    }}>
-                      {item.estado === 'ok' ? '✓ OK' : 
-                       item.estado === 'warning' ? '⚠ Aviso' : '✗ Falla'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Observaciones */}
-        {inspeccionSeleccionada.observaciones_generales && (
+        {/* Checklist por categorías */}
+        {categorias.length > 0 && (
           <div style={{
             background: 'white',
             padding: 'clamp(0.5rem, 2vw, 2rem)',
@@ -324,16 +274,81 @@ function HistorialInspecciones({ equipo, onVolver }) {
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginBottom: '2rem'
           }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>
-              Observaciones Generales
+            <h3 style={{ fontSize: 'clamp(1rem, 2.5vw, 1.5rem)', marginBottom: '1.5rem', fontWeight: '600' }}>
+              ✅ Checklist de Inspección
             </h3>
-            <p style={{ color: '#4b5563', lineHeight: '1.6' }}>
-              {inspeccionSeleccionada.observaciones_generales}
-            </p>
+
+            {categorias.map(categoria => {
+              const itemsCategoria = checklistItems.filter(item => item.categoria === categoria)
+              
+              return (
+                <div key={categoria} style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ 
+                    fontSize: 'clamp(0.9rem, 2vw, 1.2rem)', 
+                    marginBottom: '1rem',
+                    paddingBottom: '0.5rem',
+                    borderBottom: '2px solid #e5e7eb',
+                    color: '#1f2937'
+                  }}>
+                    {categoria}
+                  </h4>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {itemsCategoria.map((item, index) => {
+                      const bgColor = item.estado === 'ok' ? '#f0fdf4' : 
+                                     item.estado === 'atencion' ? '#fef3c7' : '#fee2e2'
+                      const borderColor = item.estado === 'ok' ? '#10b981' : 
+                                         item.estado === 'atencion' ? '#f59e0b' : '#ef4444'
+                      const emoji = item.estado === 'ok' ? '✅' : 
+                                   item.estado === 'atencion' ? '⚠️' : '❌'
+
+                      return (
+                        <div
+                          key={index}
+                          style={{
+                            background: bgColor,
+                            border: `2px solid ${borderColor}`,
+                            padding: 'clamp(0.5rem, 2vw, 1rem)',
+                            borderRadius: '8px',
+                            fontSize: 'clamp(0.8rem, 2vw, 0.95rem)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'start', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.5rem' }}>{emoji}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                <strong style={{ color: '#1f2937' }}>{item.item_nombre}</strong>
+                                {item.es_critico && (
+                                  <span style={{
+                                    background: '#ef4444',
+                                    color: 'white',
+                                    padding: '0.125rem 0.5rem',
+                                    borderRadius: '8px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: '600'
+                                  }}>
+                                    CRÍTICO
+                                  </span>
+                                )}
+                              </div>
+                              {item.observacion && (
+                                <p style={{ color: '#6b7280', margin: '0.25rem 0 0 0', fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>
+                                  💬 {item.observacion}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
-        {/* Galería de Fotos */}
+        {/* Fotos */}
         {fotos.length > 0 && (
           <div style={{
             background: 'white',
@@ -341,41 +356,44 @@ function HistorialInspecciones({ equipo, onVolver }) {
             borderRadius: '12px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>
-              📸 Fotos de la Inspección ({fotos.length})
+            <h3 style={{ fontSize: 'clamp(1rem, 2.5vw, 1.5rem)', marginBottom: '1rem', fontWeight: '600' }}>
+              📸 Fotos ({fotos.length})
             </h3>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
               gap: '1rem'
             }}>
-              {fotos.map((foto) => (
-                <div
-                  key={foto.id}
-                  style={{
-                    background: '#f9fafb',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    border: '1px solid #e5e7eb',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => window.open(foto.url, '_blank')}
-                  title="Click para ver en tamaño completo"
-                >
+              {fotos.map((foto, index) => (
+                <div key={index} style={{
+                  position: 'relative',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}>
                   <img
                     src={foto.url}
-                    alt={foto.descripcion || 'Foto de inspección'}
+                    alt={foto.descripcion || `Foto ${index + 1}`}
                     style={{
                       width: '100%',
                       height: '200px',
-                      objectFit: 'cover'
+                      objectFit: 'cover',
+                      cursor: 'pointer'
                     }}
+                    onClick={() => window.open(foto.url, '_blank')}
                   />
                   {foto.descripcion && (
-                    <div style={{ padding: '0.75rem' }}>
-                      <p style={{ fontSize: '0.875rem', color: '#4b5563', margin: 0 }}>
-                        {foto.descripcion}
-                      </p>
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      padding: '0.5rem',
+                      fontSize: '0.75rem'
+                    }}>
+                      {foto.descripcion}
                     </div>
                   )}
                 </div>
@@ -387,19 +405,20 @@ function HistorialInspecciones({ equipo, onVolver }) {
     )
   }
 
-  // Lista de inspecciones
+  // Vista de lista de inspecciones
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: 'clamp(0.5rem, 2vw, 2rem)' }}>
       <button
         onClick={onVolver}
         style={{
-          padding: '0.5rem 1rem',
+          padding: '0.75rem 1.5rem',
           background: '#6b7280',
           color: 'white',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: '8px',
           cursor: 'pointer',
-          marginBottom: '1rem'
+          fontWeight: '600',
+          marginBottom: '2rem'
         }}
       >
         ← Volver
@@ -412,14 +431,14 @@ function HistorialInspecciones({ equipo, onVolver }) {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         marginBottom: '2rem'
       }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-          Historial de Inspecciones
-        </h1>
-        <p style={{ fontSize: '1.2rem', color: '#6b7280' }}>
+        <h2 style={{ fontSize: 'clamp(1.2rem, 3vw, 2rem)', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          📋 Historial de Inspecciones
+        </h2>
+        <p style={{ color: '#6b7280', margin: 0, fontSize: 'clamp(0.8rem, 2vw, 1rem)' }}>
           {equipo.numero_identificacion} - {equipo.denominacion}
         </p>
-        <p style={{ fontSize: '0.9rem', color: '#9ca3af', marginTop: '0.5rem' }}>
-          Total de inspecciones: {inspeccionesFiltradas.length}
+        <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+          Total: {inspeccionesFiltradas.length} inspecciones
           {inspeccionesFiltradas.length !== inspecciones.length && 
             ` (filtradas de ${inspecciones.length})`
           }

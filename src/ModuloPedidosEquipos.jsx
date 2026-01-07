@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import ListaPedidosEquipos from './ListaPedidosEquipos.jsx'
 import RegistrarPedidoModal from './RegistrarPedidoModal.jsx'
+import DashboardPedidosEquipos from './DashboardPedidosEquipos.jsx'
 
 function ModuloPedidosEquipos({ usuario, onVolver }) {
-  const [vista, setVista] = useState('lista') // 'lista', 'registrar'
+  const [vista, setVista] = useState('lista') // 'lista', 'registrar', 'dashboard'
   const [recargarLista, setRecargarLista] = useState(0)
 
   function handlePedidoRegistrado() {
@@ -30,20 +31,41 @@ function ModuloPedidosEquipos({ usuario, onVolver }) {
               Usuario: <strong>{usuario.nombre_completo}</strong>
             </p>
           </div>
-          <button
-            onClick={onVolver}
-            style={{
-              padding: '0.75rem 1.5rem',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600'
-            }}
-          >
-            ← Menú Principal
-          </button>
+          
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {/* Botón Dashboard */}
+            {vista !== 'dashboard' && (
+              <button
+                onClick={() => setVista('dashboard')}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                📊 Dashboard
+              </button>
+            )}
+            
+            <button
+              onClick={onVolver}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: '#6b7280',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              ← Menú Principal
+            </button>
+          </div>
         </div>
       </div>
 
@@ -61,6 +83,12 @@ function ModuloPedidosEquipos({ usuario, onVolver }) {
           onCerrar={() => setVista('lista')}
           onGuardado={handlePedidoRegistrado}
           usuario={usuario}
+        />
+      )}
+
+      {vista === 'dashboard' && (
+        <DashboardPedidosEquipos
+          onVolver={() => setVista('lista')}
         />
       )}
     </div>

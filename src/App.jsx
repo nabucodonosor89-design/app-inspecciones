@@ -3,26 +3,29 @@ import { useEffect, useState } from 'react'
 import Login from './Login.jsx'
 import EquiposList from './EquiposList.jsx'
 import NuevaInspeccion from './NuevaInspeccion.jsx'
+import HistorialInspeccionesCompleto from './HistorialInspeccionesCompleto.jsx'
+import DetalleInspeccion from './DetalleInspeccion.jsx'
+import ModuloEquipos from './ModuloEquipos.jsx'
+import ModuloPedidosEquipos from './ModuloPedidosEquipos.jsx'
+import DashboardEjecutivo from './DashboardEjecutivo.jsx'
 import ListaPedidosCompra from './ListaPedidosCompra.jsx'
 import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
 import NuevoMantenimiento from './NuevoMantenimiento.jsx'
 import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
-import DashboardEjecutivo from './DashboardEjecutivo.jsx'
-import ModuloPedidosEquipos from './ModuloPedidosEquipos.jsx'
-import ModuloEquipos from './ModuloEquipos.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'pedidos', 'mantenimientos', 'dashboard-ejecutivo', 'pedidos-equipos', 'equipos'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo'
   
   // Estados para Inspecciones
-  const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva'
+  const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null)
+  const [inspeccionSeleccionada, setInspeccionSeleccionada] = useState(null)
   
-  // Estados para Pedidos
-  const [vistaPedidos, setVistaPedidos] = useState('lista') // 'lista', 'nuevo'
+  // Estados para Pedidos de Compra
+  const [vistaPedidosCompra, setVistaPedidosCompra] = useState('lista') // 'lista', 'nuevo'
   
   // Estados para Mantenimientos
   const [vistaMantenimientos, setVistaMantenimientos] = useState('lista') // 'lista', 'nuevo', 'editar', 'dashboard'
@@ -55,10 +58,11 @@ function App() {
   function volverAlMenu() {
     setModulo('menu')
     setVistaInspecciones('equipos')
-    setVistaPedidos('lista')
+    setVistaPedidosCompra('lista')
     setVistaMantenimientos('lista')
     setEquipoSeleccionado(null)
     setMantenimientoEditar(null)
+    setInspeccionSeleccionada(null)
   }
 
   if (loading) {
@@ -113,7 +117,7 @@ function App() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            Sistema de Gestión TyE
+            🏗️ Sistema de Gestión TyE
           </h1>
           <p style={{ color: '#6b7280', fontSize: 'clamp(0.9rem, 2vw, 1.1rem)' }}>
             Bienvenido, <strong>{user.nombre_completo}</strong>
@@ -138,9 +142,9 @@ function App() {
         {/* Cards de Módulos */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '2rem',
-          maxWidth: '1200px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1.5rem',
+          maxWidth: '1400px',
           margin: '0 auto'
         }}>
           {/* Card Inspecciones */}
@@ -173,13 +177,13 @@ function App() {
               Inspecciones
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Gestión de equipos e inspecciones
+              Gestión de inspecciones de equipos
             </p>
           </div>
 
           {/* Card Pedidos de Compra */}
           <div
-            onClick={() => setModulo('pedidos')}
+            onClick={() => setModulo('pedidos-compra')}
             style={{
               background: 'white',
               padding: '2rem',
@@ -191,8 +195,8 @@ function App() {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-8px)'
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(16, 185, 129, 0.3)'
-              e.currentTarget.style.borderColor = '#10b981'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
+              e.currentTarget.style.borderColor = '#f59e0b'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)'
@@ -203,7 +207,7 @@ function App() {
             <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
               🛒
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#10b981' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
               Pedidos de Compra
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
@@ -259,8 +263,8 @@ function App() {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-8px)'
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
-              e.currentTarget.style.borderColor = '#f59e0b'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(139, 92, 246, 0.3)'
+              e.currentTarget.style.borderColor = '#8b5cf6'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)'
@@ -271,11 +275,11 @@ function App() {
             <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
               📊
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#8b5cf6' }}>
               Dashboard Ejecutivo
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Estado operativo de equipos
+              Vista general y estadísticas
             </p>
           </div>
 
@@ -293,8 +297,8 @@ function App() {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-8px)'
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
-              e.currentTarget.style.borderColor = '#f59e0b'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(16, 185, 129, 0.3)'
+              e.currentTarget.style.borderColor = '#10b981'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)'
@@ -303,13 +307,13 @@ function App() {
             }}
           >
             <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
-              📋
+              📦
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#10b981' }}>
               Pedidos de Equipos
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Seguimiento de solicitudes de obras
+              Solicitudes de equipos para obras
             </p>
           </div>
 
@@ -327,8 +331,8 @@ function App() {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-8px)'
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
-              e.currentTarget.style.borderColor = '#f59e0b'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(59, 130, 246, 0.3)'
+              e.currentTarget.style.borderColor = '#3b82f6'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)'
@@ -337,13 +341,13 @@ function App() {
             }}
           >
             <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
-              📦
+              🏗️
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#3b82f6' }}>
               Gestión de Equipos
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Alta, baja y modificación de equipos
+              Inventario y gestión de equipos
             </p>
           </div>
         </div>
@@ -374,33 +378,59 @@ function App() {
                 Usuario: <strong>{user.nombre_completo}</strong>
               </p>
             </div>
-            <button
-              onClick={volverAlMenu}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#6b7280',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '600'
-              }}
-            >
-              ← Menú Principal
-            </button>
+            
+            {/* Botones del header */}
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {/* Botón Ver Historial Completo - solo visible en vista de equipos o nueva */}
+              {(vistaInspecciones === 'equipos' || vistaInspecciones === 'nueva') && (
+                <button
+                  onClick={() => setVistaInspecciones('historial')}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  📋 Ver Todas las Inspecciones
+                </button>
+              )}
+
+              <button
+                onClick={volverAlMenu}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                ← Menú Principal
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Contenido */}
+        {/* Vista: Lista de equipos */}
         {vistaInspecciones === 'equipos' && (
           <EquiposList
-            onInspeccionar={(equipo) => {
+            onInspeccionarEquipo={(equipo) => {
               setEquipoSeleccionado(equipo)
               setVistaInspecciones('nueva')
             }}
           />
         )}
 
+        {/* Vista: Nueva inspección */}
         {vistaInspecciones === 'nueva' && equipoSeleccionado && (
           <NuevaInspeccion
             user={user}
@@ -411,6 +441,25 @@ function App() {
             equipoPreseleccionado={equipoSeleccionado}
           />
         )}
+
+        {/* Vista: Historial completo de inspecciones */}
+        {vistaInspecciones === 'historial' && (
+          <HistorialInspeccionesCompleto
+            onVolver={() => setVistaInspecciones('equipos')}
+            onVerDetalle={(inspeccion) => {
+              setInspeccionSeleccionada(inspeccion)
+              setVistaInspecciones('detalle')
+            }}
+          />
+        )}
+
+        {/* Vista: Detalle de inspección */}
+        {vistaInspecciones === 'detalle' && inspeccionSeleccionada && (
+          <DetalleInspeccion
+            inspeccion={inspeccionSeleccionada}
+            onVolver={() => setVistaInspecciones('historial')}
+          />
+        )}
       </div>
     )
   }
@@ -418,9 +467,9 @@ function App() {
   // ============================================
   // MÓDULO PEDIDOS DE COMPRA
   // ============================================
-  if (modulo === 'pedidos') {
+  if (modulo === 'pedidos-compra') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', padding: 'clamp(1rem, 2vw, 2rem)' }}>
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', padding: 'clamp(1rem, 2vw, 2rem)' }}>
         {/* Header */}
         <div style={{
           background: 'white',
@@ -456,16 +505,16 @@ function App() {
         </div>
 
         {/* Contenido */}
-        {vistaPedidos === 'lista' && (
+        {vistaPedidosCompra === 'lista' && (
           <ListaPedidosCompra
-            onNuevo={() => setVistaPedidos('nuevo')}
+            onNuevo={() => setVistaPedidosCompra('nuevo')}
             usuario={user}
           />
         )}
 
-        {vistaPedidos === 'nuevo' && (
+        {vistaPedidosCompra === 'nuevo' && (
           <NuevoPedidoCompra
-            onVolver={() => setVistaPedidos('lista')}
+            onVolver={() => setVistaPedidosCompra('lista')}
             usuario={user}
           />
         )}
@@ -496,13 +545,13 @@ function App() {
                 Usuario: <strong>{user.nombre_completo}</strong>
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {vistaMantenimientos === 'lista' && (
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {vistaMantenimientos !== 'dashboard' && (
                 <button
                   onClick={() => setVistaMantenimientos('dashboard')}
                   style={{
                     padding: '0.75rem 1.5rem',
-                    background: '#f59e0b',
+                    background: '#8b5cf6',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
@@ -570,12 +619,11 @@ function App() {
   }
 
   // ============================================
-  // DASHBOARD EJECUTIVO
+  // MÓDULO DASHBOARD EJECUTIVO
   // ============================================
   if (modulo === 'dashboard-ejecutivo') {
     return (
       <DashboardEjecutivo
-        usuario={user}
         onVolver={volverAlMenu}
       />
     )

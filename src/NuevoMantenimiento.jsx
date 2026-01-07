@@ -19,6 +19,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
   const [fechaLiberacion, setFechaLiberacion] = useState('')
   const [pedido, setPedido] = useState(false)
   const [ingresaTallerYpane, setIngresaTallerYpane] = useState(true)
+  const [tallerTercero, setTallerTercero] = useState('') // NUEVO: Nombre del taller tercero
   const [estado, setEstado] = useState('Taller Espera')
 
   // Buscador de equipo
@@ -103,6 +104,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
     setFechaLiberacion(mantenimientoEditar.fecha_liberacion || '')
     setPedido(mantenimientoEditar.pedido)
     setIngresaTallerYpane(mantenimientoEditar.ingresa_taller_ypane)
+    setTallerTercero(mantenimientoEditar.taller_tercero || '') // NUEVO
     setEstado(mantenimientoEditar.estado)
   }
 
@@ -194,6 +196,12 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
         return
       }
 
+      // NUEVO: Validación de taller tercero
+      if (!ingresaTallerYpane && !tallerTercero.trim()) {
+        alert('⚠️ Debes especificar el nombre del taller tercero')
+        return
+      }
+
       setGuardando(true)
 
       const equipoData = equipos.find(e => e.id === equipoSeleccionado)
@@ -211,6 +219,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
         fecha_liberacion: fechaLiberacion || null,
         pedido,
         ingresa_taller_ypane: ingresaTallerYpane,
+        taller_tercero: !ingresaTallerYpane && tallerTercero.trim() ? tallerTercero.trim() : null, // NUEVO
         estado
       }
 
@@ -735,6 +744,31 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
               </div>
             </label>
           </div>
+
+          {/* NUEVO: Campo de taller tercero (solo si NO va a Ypane) */}
+          {!ingresaTallerYpane && (
+            <div style={{ marginTop: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                🏢 Nombre del Taller Tercero <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={tallerTercero}
+                onChange={(e) => setTallerTercero(e.target.value)}
+                placeholder="Ej: Taller Mecánico López, Servicio Técnico ABC..."
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '1rem'
+                }}
+              />
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem', margin: '0.5rem 0 0 0' }}>
+                Especifique el nombre del taller externo donde se realizará el mantenimiento
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Botones */}
@@ -781,5 +815,4 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
 }
 
 export default NuevoMantenimiento
-
 
