@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import SubidaFotos from './SubidaFotos'
+import SubidaFotos from './SubidaFotos.jsx'
 
 function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [paso, setPaso] = useState(equipoPreseleccionado ? 2 : 1)
@@ -274,16 +274,6 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
       if (tipoInspeccion === 'envio') {
         updateData.ubicacion_actual = ubicacion
         console.log('📍 Actualizando ubicación del equipo a:', ubicacion)
-      }
-      
-      // NUEVO: Si es inspección de TALLER, marcar equipo como FUERA DE SERVICIO
-      if (tipoInspeccion === 'taller') {
-        updateData.estado_operativo = 'fuera_de_servicio'
-        updateData.ubicacion_actual = 'Taller'
-        updateData.restricciones_operativas = (equipoSeleccionado.restricciones_operativas || '') + 
-          (equipoSeleccionado.restricciones_operativas ? ' | ' : '') + 
-          'Equipo en taller para mantenimiento'
-        console.log('🔧 Equipo marcado como FUERA DE SERVICIO por inspección de taller')
       }
       
       const { error: errorEquipo } = await supabase
