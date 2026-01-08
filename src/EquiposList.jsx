@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import HistorialInspecciones from './HistorialInspecciones.jsx'
 import EstadoOperativoModal from './EstadoOperativoModal.jsx'
 
-function EquiposList({ onInspeccionar }) {
+function EquiposList({ onInspeccionarEquipo }) {
   const [equipos, setEquipos] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState('Todos')
@@ -645,7 +645,7 @@ function EquiposList({ onInspeccionar }) {
                       </button>
 
                       <button
-                        onClick={() => onInspeccionar(equipo)}
+                        onClick={() => onInspeccionarEquipo(equipo)}
                         style={{
                           padding: '0.5rem 1rem',
                           background: '#10b981',
