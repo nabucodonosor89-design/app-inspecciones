@@ -11,9 +11,10 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
   
   // Filtros
   const [filtroObra, setFiltroObra] = useState('todas')
-  const [filtroEstado, setFiltroEstado] = useState('todos')
+  const [filtroEstado, setFiltroEstado] = useState('pendientes') // CAMBIADO: por defecto mostrar pendientes
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('')
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('')
+  const [filtroEquipo, setFiltroEquipo] = useState('') // NUEVO: filtro por código de equipo
   
   // Edición
   const [lineaEditando, setLineaEditando] = useState(null)
@@ -64,6 +65,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
 
     // Filtro por estado (combinado)
     if (filtroEstado !== 'todos') {
+      if (filtroEstado === 'pendientes' && pedido.estado_entrega === 'entregado') return false // NUEVO: excluir entregados
       if (filtroEstado === 'pendiente_aprobacion' && pedido.estado_aprobacion !== 'pendiente_aprobacion') return false
       if (filtroEstado === 'aprobado_pendiente' && !(pedido.estado_aprobacion === 'aprobado' && pedido.estado_entrega === 'pendiente_asignacion')) return false
       if (filtroEstado === 'asignado' && pedido.estado_entrega !== 'asignado') return false
@@ -73,6 +75,14 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
     // Filtro por fechas
     if (filtroFechaDesde && pedido.fecha_recepcion < filtroFechaDesde) return false
     if (filtroFechaHasta && pedido.fecha_recepcion > filtroFechaHasta) return false
+
+    // NUEVO: Filtro por código de equipo
+    if (filtroEquipo.trim() !== '') {
+      const equipoNumero = pedido.equipo_asignado?.numero_identificacion || ''
+      if (!equipoNumero.toLowerCase().includes(filtroEquipo.toLowerCase())) {
+        return false
+      }
+    }
 
     return true
   })
@@ -228,11 +238,31 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
               }}
             >
               <option value="todos">Todos los estados</option>
+              <option value="pendientes">📋 Pendientes de entrega</option>
               <option value="pendiente_aprobacion">⏳ Pendiente Aprobación</option>
               <option value="aprobado_pendiente">⚪ Aprobado - Sin asignar</option>
               <option value="asignado">🔵 Asignado</option>
               <option value="entregado">✅ Entregado</option>
             </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '600', color: '#374151' }}>
+              Código de Equipo
+            </label>
+            <input
+              type="text"
+              value={filtroEquipo}
+              onChange={(e) => setFiltroEquipo(e.target.value)}
+              placeholder="Ej: EQ-001"
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '2px solid #e5e7eb',
+                borderRadius: '6px',
+                fontSize: '0.875rem'
+              }}
+            />
           </div>
 
           <div>
@@ -272,13 +302,14 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
           </div>
         </div>
 
-        {(filtroObra !== 'todas' || filtroEstado !== 'todos' || filtroFechaDesde || filtroFechaHasta) && (
+        {(filtroObra !== 'todas' || filtroEstado !== 'todos' || filtroFechaDesde || filtroFechaHasta || filtroEquipo) && (
           <button
             onClick={() => {
               setFiltroObra('todas')
-              setFiltroEstado('todos')
+              setFiltroEstado('pendientes') // Volver al filtro por defecto
               setFiltroFechaDesde('')
               setFiltroFechaHasta('')
+              setFiltroEquipo('') // Limpiar filtro de equipo
             }}
             style={{
               marginTop: '1rem',
@@ -296,149 +327,432 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
           </button>
         )}
       </div>
-
-      {/* Tabla */}
-      <div style={{
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        overflow: 'hidden'
+      {/* Vista Kanban - Tres Columnas */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: '1fr 1fr 1fr', 
+        gap: '1.5rem',
+        alignItems: 'start'
       }}>
-        {pedidosFiltrados.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#6b7280' }}>
-            <p style={{ fontSize: '1.2rem' }}>
-              {pedidos.length === 0 
-                ? 'No hay pedidos registrados aún'
-                : 'No hay pedidos que coincidan con los filtros'
-              }
-            </p>
+        {/* Columna 1: PENDIENTE APROBACIÓN */}
+        <div>
+          <div style={{
+            background: '#fef3c7',
+            padding: '1rem',
+            borderRadius: '8px 8px 0 0',
+            borderBottom: '3px solid #f59e0b',
+            marginBottom: '1rem'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1.1rem', 
+              fontWeight: '700',
+              color: '#92400e',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span>⏳ PENDIENTE APROBACIÓN</span>
+              <span style={{ 
+                background: '#f59e0b', 
+                color: 'white', 
+                padding: '0.25rem 0.75rem', 
+                borderRadius: '999px',
+                fontSize: '0.875rem'
+              }}>
+                {pedidosFiltrados.filter(p => p.estado_aprobacion === 'pendiente_aprobacion').length}
+              </span>
+            </h3>
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <tr>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>Pedido</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>Obra</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>Solicitante</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>Equipo Solicitado</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>Equipo Asignado</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', whiteSpace: 'nowrap' }}>Estado</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', whiteSpace: 'nowrap' }}>OT</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Comentarios</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pedidosFiltrados.map((pedido, index) => {
-                  const color = getEstadoColor(pedido.estado_aprobacion, pedido.estado_entrega)
-                  const bgFila = index % 2 === 0 ? 'white' : '#f9fafb'
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {pedidosFiltrados
+              .filter(pedido => pedido.estado_aprobacion === 'pendiente_aprobacion')
+              .map(pedido => {
+                const obra = pedido.obra || {}
+                const equipo = pedido.equipo_asignado || null
+                
+                return (
+                  <div
+                    key={pedido.id}
+                    style={{
+                      background: 'white',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: '2px solid #e5e7eb',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                    onClick={() => setLineaEditando(pedido)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {/* Header - Obra */}
+                    <div style={{ 
+                      fontSize: '1rem', 
+                      fontWeight: '700',
+                      color: '#1f2937',
+                      marginBottom: '0.75rem',
+                      borderBottom: '2px solid #f3f4f6',
+                      paddingBottom: '0.5rem'
+                    }}>
+                      🏗️ {obra.codigo_obra} - {obra.nombre_obra}
+                    </div>
 
-                  return (
-                    <tr key={pedido.id} style={{ borderBottom: '1px solid #e5e7eb', background: bgFila }}>
-                      <td style={{ padding: '0.75rem', fontWeight: '600' }}>
-                        {pedido.numero_pedido}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                          {pedido.obra?.codigo_obra}
+                    {/* Tipo de Equipo */}
+                    <div style={{ 
+                      fontSize: '0.875rem', 
+                      color: '#374151',
+                      marginBottom: '0.5rem',
+                      fontWeight: '600'
+                    }}>
+                      <span style={{ color: '#6b7280' }}>Tipo:</span> {pedido.tipo_equipo_solicitado}
+                    </div>
+
+                    {/* Equipo Asignado */}
+                    {equipo ? (
+                      <div style={{
+                        background: '#dbeafe',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1e40af' }}>
+                          📦 {equipo.numero_identificacion}
                         </div>
-                        <div style={{ fontWeight: '500' }}>
-                          {pedido.obra?.nombre_obra}
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          Estado: {equipo.estado_operativo}
                         </div>
-                      </td>
-                      <td style={{ padding: '0.75rem', fontSize: '0.8rem' }}>
-                        {pedido.email_solicitante}
-                      </td>
-                      <td style={{ padding: '0.75rem', fontWeight: '500' }}>
-                        {pedido.tipo_equipo_solicitado}
-                        {pedido.cantidad_solicitada > 1 && (
-                          <span style={{ marginLeft: '0.25rem', color: '#6b7280' }}>
-                            (x{pedido.cantidad_solicitada})
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        {pedido.equipo_asignado ? (
-                          <div>
-                            <div style={{ fontWeight: '600', color: '#10b981' }}>
-                              {pedido.equipo_asignado.numero_identificacion}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                              {pedido.equipo_asignado.estado_operativo === 'operativo' ? '✅ Operativo' :
-                               pedido.equipo_asignado.estado_operativo === 'fuera_servicio' ? '🔴 Fuera Servicio' :
-                               '⚠️ Con Restricción'}
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '0.25rem 0.5rem',
-                          background: color.bg,
-                          color: color.text,
-                          borderRadius: '6px',
-                          fontSize: '0.75rem',
-                          fontWeight: '600',
-                          whiteSpace: 'nowrap',
-                          display: 'inline-block'
-                        }}>
-                          {getEstadoLabel(pedido.estado_aprobacion, pedido.estado_entrega)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        {pedido.mantenimiento ? (
-                          <div>
-                            <div style={{ fontWeight: '600' }}>
-                              {pedido.mantenimiento.numero_aviso}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                              {pedido.mantenimiento.estado}
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem', maxWidth: '200px' }}>
-                        <div style={{ 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis', 
-                          whiteSpace: 'nowrap',
-                          fontSize: '0.8rem',
-                          color: '#4b5563'
-                        }}>
-                          {pedido.comentarios || '-'}
-                        </div>
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <button
-                          onClick={() => setLineaEditando(pedido)}
-                          style={{
-                            padding: '0.4rem 0.8rem',
-                            background: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            fontWeight: '600'
-                          }}
-                        >
-                          ✏️ Editar
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    ) : (
+                      <div style={{
+                        background: '#f3f4f6',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                        marginBottom: '0.5rem',
+                        fontSize: '0.875rem',
+                        color: '#6b7280',
+                        fontStyle: 'italic'
+                      }}>
+                        Sin equipo asignado
+                      </div>
+                    )}
+
+                    {/* Fecha */}
+                    <div style={{ 
+                      fontSize: '0.75rem',
+                      color: '#6b7280',
+                      marginTop: '0.5rem'
+                    }}>
+                      📅 {new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY')}
+                    </div>
+                  </div>
+                )
+              })}
+              
+            {pedidosFiltrados.filter(p => p.estado_aprobacion === 'pendiente_aprobacion').length === 0 && (
+              <div style={{
+                background: '#f9fafb',
+                padding: '2rem',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#9ca3af',
+                fontSize: '0.875rem'
+              }}>
+                No hay pedidos pendientes de aprobación
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Columna 2: APROBADO - SIN ASIGNAR */}
+        <div>
+          <div style={{
+            background: '#f3f4f6',
+            padding: '1rem',
+            borderRadius: '8px 8px 0 0',
+            borderBottom: '3px solid #9ca3af',
+            marginBottom: '1rem'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1.1rem', 
+              fontWeight: '700',
+              color: '#4b5563',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span>⚪ APROBADO - SIN ASIGNAR</span>
+              <span style={{ 
+                background: '#9ca3af', 
+                color: 'white', 
+                padding: '0.25rem 0.75rem', 
+                borderRadius: '999px',
+                fontSize: '0.875rem'
+              }}>
+                {pedidosFiltrados.filter(p => p.estado_aprobacion === 'aprobado' && p.estado_entrega === 'pendiente_asignacion').length}
+              </span>
+            </h3>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {pedidosFiltrados
+              .filter(pedido => pedido.estado_aprobacion === 'aprobado' && pedido.estado_entrega === 'pendiente_asignacion')
+              .map(pedido => {
+                const obra = pedido.obra || {}
+                const equipo = pedido.equipo_asignado || null
+                
+                return (
+                  <div
+                    key={pedido.id}
+                    style={{
+                      background: 'white',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: '2px solid #e5e7eb',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                    onClick={() => setLineaEditando(pedido)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {/* Header - Obra */}
+                    <div style={{ 
+                      fontSize: '1rem', 
+                      fontWeight: '700',
+                      color: '#1f2937',
+                      marginBottom: '0.75rem',
+                      borderBottom: '2px solid #f3f4f6',
+                      paddingBottom: '0.5rem'
+                    }}>
+                      🏗️ {obra.codigo_obra} - {obra.nombre_obra}
+                    </div>
+
+                    {/* Tipo de Equipo */}
+                    <div style={{ 
+                      fontSize: '0.875rem', 
+                      color: '#374151',
+                      marginBottom: '0.5rem',
+                      fontWeight: '600'
+                    }}>
+                      <span style={{ color: '#6b7280' }}>Tipo:</span> {pedido.tipo_equipo_solicitado}
+                    </div>
+
+                    {/* Equipo Asignado */}
+                    {equipo ? (
+                      <div style={{
+                        background: '#dbeafe',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1e40af' }}>
+                          📦 {equipo.numero_identificacion}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          Estado: {equipo.estado_operativo}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        background: '#fef3c7',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                        marginBottom: '0.5rem',
+                        fontSize: '0.875rem',
+                        color: '#92400e',
+                        fontWeight: '600'
+                      }}>
+                        ⚠️ Pendiente asignar equipo
+                      </div>
+                    )}
+
+                    {/* Fecha */}
+                    <div style={{ 
+                      fontSize: '0.75rem',
+                      color: '#6b7280',
+                      marginTop: '0.5rem'
+                    }}>
+                      📅 {new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY')}
+                    </div>
+                  </div>
+                )
+              })}
+              
+            {pedidosFiltrados.filter(p => p.estado_aprobacion === 'aprobado' && p.estado_entrega === 'pendiente_asignacion').length === 0 && (
+              <div style={{
+                background: '#f9fafb',
+                padding: '2rem',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#9ca3af',
+                fontSize: '0.875rem'
+              }}>
+                No hay pedidos aprobados sin asignar
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Columna 3: ASIGNADO */}
+        <div>
+          <div style={{
+            background: '#dbeafe',
+            padding: '1rem',
+            borderRadius: '8px 8px 0 0',
+            borderBottom: '3px solid #3b82f6',
+            marginBottom: '1rem'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1.1rem', 
+              fontWeight: '700',
+              color: '#1e40af',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span>🔵 ASIGNADO</span>
+              <span style={{ 
+                background: '#3b82f6', 
+                color: 'white', 
+                padding: '0.25rem 0.75rem', 
+                borderRadius: '999px',
+                fontSize: '0.875rem'
+              }}>
+                {pedidosFiltrados.filter(p => p.estado_entrega === 'asignado').length}
+              </span>
+            </h3>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {pedidosFiltrados
+              .filter(pedido => pedido.estado_entrega === 'asignado')
+              .map(pedido => {
+                const obra = pedido.obra || {}
+                const equipo = pedido.equipo_asignado || null
+                
+                return (
+                  <div
+                    key={pedido.id}
+                    style={{
+                      background: 'white',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: '2px solid #3b82f6',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                    onClick={() => setLineaEditando(pedido)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {/* Header - Obra */}
+                    <div style={{ 
+                      fontSize: '1rem', 
+                      fontWeight: '700',
+                      color: '#1f2937',
+                      marginBottom: '0.75rem',
+                      borderBottom: '2px solid #f3f4f6',
+                      paddingBottom: '0.5rem'
+                    }}>
+                      🏗️ {obra.codigo_obra} - {obra.nombre_obra}
+                    </div>
+
+                    {/* Tipo de Equipo */}
+                    <div style={{ 
+                      fontSize: '0.875rem', 
+                      color: '#374151',
+                      marginBottom: '0.5rem',
+                      fontWeight: '600'
+                    }}>
+                      <span style={{ color: '#6b7280' }}>Tipo:</span> {pedido.tipo_equipo_solicitado}
+                    </div>
+
+                    {/* Equipo Asignado */}
+                    {equipo && (
+                      <div style={{
+                        background: '#d1fae5',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#065f46' }}>
+                          ✅ {equipo.numero_identificacion}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          Estado: {equipo.estado_operativo}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fecha */}
+                    <div style={{ 
+                      fontSize: '0.75rem',
+                      color: '#6b7280',
+                      marginTop: '0.5rem'
+                    }}>
+                      📅 {new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY')}
+                    </div>
+                  </div>
+                )
+              })}
+              
+            {pedidosFiltrados.filter(p => p.estado_entrega === 'asignado').length === 0 && (
+              <div style={{
+                background: '#f9fafb',
+                padding: '2rem',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#9ca3af',
+                fontSize: '0.875rem'
+              }}>
+                No hay pedidos asignados
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
+      {pedidosFiltrados.length === 0 && (
+        <div style={{
+          background: 'white',
+          padding: '3rem',
+          borderRadius: '12px',
+          textAlign: 'center',
+          color: '#9ca3af',
+          marginTop: '1.5rem'
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+          <div style={{ fontSize: '1.125rem', fontWeight: '600' }}>No se encontraron pedidos</div>
+          <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+            Intenta ajustar los filtros para ver más resultados
+          </div>
+        </div>
+      )}
       {/* Modal de edición */}
       {lineaEditando && (
         <EditarLineaPedidoModal
