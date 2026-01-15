@@ -5,6 +5,13 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   const [loading, setLoading] = useState(false)
   const esEdicion = !!equipo
 
+  // NUEVO: Estado para obras activas
+  const [obras, setObras] = useState([])
+  
+  // NUEVO: Estado para operadores
+  const [operadores, setOperadores] = useState([])
+  const [operadorAsignadoId, setOperadorAsignadoId] = useState(equipo?.operador_asignado_id || null)
+
   // Campos del formulario
   const [numeroIdentificacion, setNumeroIdentificacion] = useState(equipo?.numero_identificacion || '')
   const [tipoEquipo, setTipoEquipo] = useState(equipo?.tipo_equipo || '')
@@ -20,6 +27,81 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   const [observacionesOperativo, setObservacionesOperativo] = useState(equipo?.observaciones_operativo || '')
   const [esLogistica, setEsLogistica] = useState(equipo?.es_logistica || false)
   const [activo, setActivo] = useState(equipo?.activo ?? true)
+
+  // NUEVO: Cargar obras activas al montar el componente
+  useEffect(() => {
+    cargarObrasActivas()
+    cargarOperadoresActivos()
+  }, [])
+
+  async function cargarObrasActivas() {
+    try {
+      console.log('🔍 Cargando obras activas...')
+      
+      const { data, error } = await supabase
+        .from('obras')
+        .select('id, codigo_obra, nombre_obra, activa')
+        .eq('activa', true)
+        .order('nombre_obra')
+      
+      if (error) {
+        console.error('❌ Error al cargar obras:', error)
+        throw error
+      }
+      
+      console.log('✅ Obras cargadas:', data)
+      console.log('📊 Cantidad de obras:', data?.length || 0)
+      
+      setObras(data || [])
+    } catch (error) {
+      console.error('💥 Error completo:', error)
+      // Intentar cargar SIN filtro de activo para debug
+      try {
+        console.log('🔄 Intentando cargar todas las obras (sin filtro)...')
+        const { data: todasObras } = await supabase
+          .from('obras')
+          .select('id, codigo_obra, nombre_obra, activa')
+          .order('nombre_obra')
+        
+        console.log('📋 Todas las obras (sin filtro):', todasObras)
+        
+        // Si hay obras pero ninguna activa, mostrar alerta
+        if (todasObras && todasObras.length > 0) {
+          console.warn('⚠️ Hay obras en la BD pero ninguna está activa')
+          alert('⚠️ No hay obras activas. Por favor activa algunas obras primero.')
+        } else if (!todasObras || todasObras.length === 0) {
+          console.warn('⚠️ No hay obras en la base de datos')
+          alert('⚠️ No hay obras registradas en el sistema.')
+        }
+      } catch (err) {
+        console.error('Error al cargar todas las obras:', err)
+      }
+    }
+  }
+
+  async function cargarOperadoresActivos() {
+    try {
+      console.log('🔍 Cargando operadores activos...')
+      
+      const { data, error } = await supabase
+        .from('operadores')
+        .select('id, nombres, apellidos, numero_documento, tipos_equipos_habilitado')
+        .eq('estado', 'activo')
+        .order('apellidos')
+      
+      if (error) {
+        console.error('❌ Error al cargar operadores:', error)
+        throw error
+      }
+      
+      console.log('✅ Operadores cargados:', data)
+      console.log('📊 Cantidad de operadores:', data?.length || 0)
+      
+      setOperadores(data || [])
+    } catch (error) {
+      console.error('💥 Error al cargar operadores:', error)
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -52,7 +134,8 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
         estado_operativo: estadoOperativo,
         observaciones_operativo: observacionesOperativo.trim() || null,
         es_logistica: esLogistica,
-        activo: activo
+        activo: activo,
+        operador_asignado_id: operadorAsignadoId || null
       }
 
       if (esEdicion) {
@@ -119,7 +202,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Código/Identificación <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -146,7 +229,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Tipo de Equipo <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
@@ -167,7 +250,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Clase de Vehículo
                 </label>
                 <input
@@ -188,7 +271,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                 Denominación
               </label>
               <input
@@ -221,7 +304,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Fabricante
                 </label>
                 <input
@@ -241,7 +324,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Modelo
                 </label>
                 <input
@@ -261,7 +344,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Matrícula
                 </label>
                 <input
@@ -281,7 +364,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Año de Construcción
                 </label>
                 <input
@@ -303,7 +386,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Centro de Costo
                 </label>
                 <input
@@ -337,27 +420,100 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Ubicación Actual
                 </label>
-                <input
-                  type="text"
+                
+                {/* Debug info */}
+                <div style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#6b7280', 
+                  marginBottom: '0.5rem',
+                  fontFamily: 'monospace'
+                }}>
+                  🔍 Debug: {obras.length} obras cargadas
+                </div>
+                
+                <select
                   value={ubicacionActual}
                   onChange={(e) => setUbicacionActual(e.target.value)}
-                  placeholder="Ej: RUTA 17, Taller Ypané"
                   disabled={loading}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
                     border: '2px solid #e5e7eb',
                     borderRadius: '6px',
-                    fontSize: '1rem'
+                    fontSize: '1rem',
+                    background: 'white',
+                    cursor: 'pointer'
                   }}
-                />
+                >
+                  <option value="">Seleccionar ubicación...</option>
+                  <option value="Complejo Ypane">Complejo Ypane</option>
+                  <option value="Taller Central">Taller Central</option>
+                  {obras.length > 0 && (
+                    <optgroup label={`Obras Activas (${obras.length})`}>
+                      {obras.map(obra => (
+                        <option key={obra.id} value={obra.nombre_obra}>
+                          {obra.codigo_obra} - {obra.nombre_obra}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {obras.length === 0 && (
+                    <option disabled>No hay obras activas</option>
+                  )}
+                </select>
+              </div>
+
+              {/* NUEVO: Selector de Operador */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                  Operador Asignado
+                </label>
+                
+                {/* Debug info */}
+                <div style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#6b7280', 
+                  marginBottom: '0.5rem',
+                  fontFamily: 'monospace'
+                }}>
+                  🔍 Debug: {operadores.length} operadores cargados
+                </div>
+                
+                <select
+                  value={operadorAsignadoId || ''}
+                  onChange={(e) => setOperadorAsignadoId(e.target.value || null)}
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '1rem',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Sin operador asignado --</option>
+                  {operadores.map(op => (
+                    <option key={op.id} value={op.id}>
+                      {op.apellidos}, {op.nombres} - CI: {op.numero_documento}
+                      {op.tipos_equipos_habilitado && op.tipos_equipos_habilitado.length > 0 
+                        ? ` (${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}${op.tipos_equipos_habilitado.length > 2 ? '...' : ''})` 
+                        : ''
+                      }
+                    </option>
+                  ))}
+                  {operadores.length === 0 && (
+                    <option disabled>No hay operadores activos</option>
+                  )}
+                </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Estado Operativo
                 </label>
                 <select
@@ -373,14 +529,14 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                   }}
                 >
                   <option value="operativo">✅ Operativo</option>
-                  <option value="operativo_restricciones">⚠️ Operativo con Restricciones</option>
+                  <option value="con_restriccion">⚠️ Operativo con Restricciones</option>
                   <option value="fuera_servicio">🔴 Fuera de Servicio</option>
                 </select>
               </div>
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem', color: '#1f2937' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                 Observaciones Operativas
               </label>
               <textarea

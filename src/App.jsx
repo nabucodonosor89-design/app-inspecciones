@@ -13,11 +13,12 @@ import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
 import NuevoMantenimiento from './NuevoMantenimiento.jsx'
 import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
+import ModuloOperadores from './ModuloOperadores.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -350,6 +351,40 @@ function App() {
               Inventario y gestión de equipos
             </p>
           </div>
+
+          {/* Card Operadores */}
+          <div
+            onClick={() => setModulo('operadores')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(245, 158, 11, 0.3)'
+              e.currentTarget.style.borderColor = '#f59e0b'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              👷
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f59e0b' }}>
+              Operadores
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Gestión de operadores de equipos
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -650,6 +685,41 @@ function App() {
         usuario={user}
         onVolver={volverAlMenu}
       />
+    )
+  }
+
+  // ============================================
+  // MÓDULO OPERADORES
+  // ============================================
+  if (modulo === 'operadores') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
+        <div style={{
+          background: 'white',
+          padding: '1.5rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          marginBottom: '2rem',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100
+        }}>
+          <button
+            onClick={volverAlMenu}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: '#6b7280',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            ← Menú Principal
+          </button>
+        </div>
+        <ModuloOperadores />
+      </div>
     )
   }
 

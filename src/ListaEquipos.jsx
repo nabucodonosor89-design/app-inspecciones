@@ -124,14 +124,14 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
   function getEstadoColor(estado) {
     if (estado === 'operativo') return { bg: '#d1fae5', text: '#065f46' }
-    if (estado === 'operativo_restricciones') return { bg: '#fef3c7', text: '#92400e' }
+    if (estado === 'con_restriccion') return { bg: '#fef3c7', text: '#92400e' }
     if (estado === 'fuera_servicio') return { bg: '#fee2e2', text: '#991b1b' }
     return { bg: '#f3f4f6', text: '#4b5563' }
   }
 
   function getEstadoLabel(estado) {
     if (estado === 'operativo') return '✅ Operativo'
-    if (estado === 'operativo_restricciones') return '⚠️ Con Restricción'
+    if (estado === 'con_restriccion') return '⚠️ Con Restricción'
     if (estado === 'fuera_servicio') return '🔴 Fuera de Servicio'
     return 'Sin estado'
   }
@@ -266,7 +266,7 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
             >
               <option value="todos">Todos los estados</option>
               <option value="operativo">✅ Operativo</option>
-              <option value="operativo_restricciones">⚠️ Con Restricción</option>
+              <option value="con_restriccion">⚠️ Con Restricción</option>
               <option value="fuera_servicio">🔴 Fuera de Servicio</option>
             </select>
           </div>

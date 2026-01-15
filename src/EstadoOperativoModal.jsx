@@ -15,7 +15,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
       color: { bg: '#d1fae5', text: '#065f46' }
     },
     {
-      valor: 'operativo_restricciones',
+      valor: 'con_restriccion',
       label: 'Operativo con restricciones',
       emoji: '⚠️',
       descripcion: 'Operativo pero con limitaciones (ej: solo obra, no viajes)',
@@ -135,7 +135,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
                 Observaciones / Restricciones:
-                {estadoSeleccionado === 'operativo_restricciones' && (
+                {estadoSeleccionado === 'con_restriccion' && (
                   <span style={{ color: '#ef4444', marginLeft: '0.25rem' }}>*</span>
                 )}
               </label>
@@ -143,7 +143,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 placeholder={
-                  estadoSeleccionado === 'operativo_restricciones'
+                  estadoSeleccionado === 'con_restriccion'
                     ? 'Ej: Solo para uso en obra, no para viajes largos'
                     : 'Ej: Falla en el motor, requiere mantenimiento mayor'
                 }
@@ -158,7 +158,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
                   resize: 'vertical'
                 }}
               />
-              {estadoSeleccionado === 'operativo_restricciones' && !observaciones.trim() && (
+              {estadoSeleccionado === 'con_restriccion' && !observaciones.trim() && (
                 <p style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '0.5rem' }}>
                   ⚠️ Debes especificar las restricciones operativas
                 </p>
@@ -170,7 +170,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
           <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
             <button
               onClick={guardar}
-              disabled={guardando || (estadoSeleccionado === 'operativo_restricciones' && !observaciones.trim())}
+              disabled={guardando || (estadoSeleccionado === 'con_restriccion' && !observaciones.trim())}
               style={{
                 flex: 1,
                 padding: '0.75rem',

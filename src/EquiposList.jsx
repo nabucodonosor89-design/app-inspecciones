@@ -65,7 +65,7 @@ function EquiposList({ onInspeccionarEquipo }) {
   function getEstadoOperativoInfo(estado) {
     const estados = {
       'operativo': { emoji: '✅', label: 'Operativo', color: '#10b981' },
-      'operativo_restricciones': { emoji: '⚠️', label: 'Con restricciones', color: '#f59e0b' },
+      'con_restriccion': { emoji: '⚠️', label: 'Con restricciones', color: '#f59e0b' },
       'fuera_servicio': { emoji: '❌', label: 'Fuera de servicio', color: '#ef4444' }
     }
     return estados[estado] || estados['operativo']
@@ -184,7 +184,7 @@ function EquiposList({ onInspeccionarEquipo }) {
 
   // Estadísticas de estado operativo
   const equiposOperativos = equipos.filter(e => e.estado_operativo === 'operativo' || !e.estado_operativo).length
-  const equiposConRestriccion = equipos.filter(e => e.estado_operativo === 'operativo_restricciones').length
+  const equiposConRestriccion = equipos.filter(e => e.estado_operativo === 'con_restriccion').length
   const equiposFueraServicio = equipos.filter(e => e.estado_operativo === 'fuera_servicio').length
 
   if (loading) {
@@ -477,7 +477,7 @@ function EquiposList({ onInspeccionarEquipo }) {
             >
               <option>Todos</option>
               <option value="operativo">✅ Operativo</option>
-              <option value="operativo_restricciones">⚠️ Con restricciones</option>
+              <option value="con_restriccion">⚠️ Con restricciones</option>
               <option value="fuera_servicio">❌ Fuera de servicio</option>
             </select>
           </div>

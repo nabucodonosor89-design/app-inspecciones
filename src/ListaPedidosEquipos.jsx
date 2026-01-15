@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import EditarLineaPedidoModal from './EditarLineaPedidoModal.jsx'
 import { generarReportesSemanalesPDF } from './utils/pdfReportesPedidos.js'
+import * as XLSX from 'xlsx'
 
 function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
   const [pedidos, setPedidos] = useState([])
@@ -40,7 +41,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
         .select(`
           *,
           obra:obras(codigo_obra, nombre_obra),
-          equipo_asignado:equipos(numero_identificacion, estado_operativo),
+          equipo_asignado:equipos(numero_identificacion, estado_operativo, ubicacion_actual),
           mantenimiento:mantenimientos(numero_aviso, estado)
         `)
         .order('fecha_recepcion', { ascending: false })
@@ -139,6 +140,107 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
     }
   }
 
+  function exportarAExcel() {
+    try {
+      // Usar pedidos filtrados actuales
+      const pedidosFiltrados = pedidosFiltradosState
+
+      if (pedidosFiltrados.length === 0) {
+        alert('ℹ️ No hay pedidos para exportar')
+        return
+      }
+
+      // Preparar datos para Excel
+      const datosExcel = pedidosFiltrados.map(pedido => {
+        const equipo = pedido.equipo_asignado || {}
+        const obra = pedido.obra || {}
+        const mantenimiento = pedido.mantenimiento || {}
+
+        return {
+          'Fecha Recepción': pedido.fecha_recepcion ? new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY') : '',
+          'Obra': obra.nombre_obra || '',
+          'Código Obra': obra.codigo_obra || '',
+          'Tipo Equipo': pedido.tipo_equipo || '',
+          'Cantidad': pedido.cantidad || 0,
+          'Solicitado Por': pedido.solicitado_por || '',
+          'Email Solicitante': pedido.email_solicitante || '',
+          'Estado': pedido.estado || '',
+          'Prioridad': pedido.prioridad || '',
+          'Equipo Asignado': equipo.numero_identificacion || 'Sin asignar',
+          'Estado Equipo': equipo.estado_operativo || '',
+          'Ubicación Equipo': equipo.ubicacion_actual || '',
+          'Fecha Asignación': pedido.fecha_asignacion ? new Date(pedido.fecha_asignacion).toLocaleDateString('es-PY') : '',
+          'Fecha Completado': pedido.fecha_completado ? new Date(pedido.fecha_completado).toLocaleDateString('es-PY') : '',
+          'Estado Entrega': pedido.estado_entrega || '',
+          'Estado Aprobación': pedido.estado_aprobacion || '',
+          'Aviso Mantenimiento': mantenimiento.numero_aviso || '',
+          'Estado Mantenimiento': mantenimiento.estado || '',
+          'Observaciones': pedido.observaciones || '',
+          'Creado': pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-PY') : ''
+        }
+      })
+
+      // Crear libro de trabajo
+      const wb = XLSX.utils.book_new()
+      
+      // Crear hoja principal
+      const ws = XLSX.utils.json_to_sheet(datosExcel)
+
+      // Configurar anchos de columna
+      ws['!cols'] = [
+        { wch: 15 }, // Fecha Recepción
+        { wch: 30 }, // Obra
+        { wch: 12 }, // Código Obra
+        { wch: 25 }, // Tipo Equipo
+        { wch: 10 }, // Cantidad
+        { wch: 25 }, // Solicitado Por
+        { wch: 30 }, // Email Solicitante
+        { wch: 15 }, // Estado
+        { wch: 12 }, // Prioridad
+        { wch: 15 }, // Equipo Asignado
+        { wch: 18 }, // Estado Equipo
+        { wch: 25 }, // Ubicación Equipo
+        { wch: 15 }, // Fecha Asignación
+        { wch: 15 }, // Fecha Completado
+        { wch: 15 }, // Estado Entrega
+        { wch: 18 }, // Estado Aprobación
+        { wch: 20 }, // Aviso Mantenimiento
+        { wch: 20 }, // Estado Mantenimiento
+        { wch: 40 }, // Observaciones
+        { wch: 15 }  // Creado
+      ]
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Pedidos de Equipos')
+
+      // Agregar hoja de resumen
+      const resumen = [
+        { Concepto: 'Total Pedidos', Valor: pedidosFiltrados.length },
+        { Concepto: 'Pendientes', Valor: pedidosFiltrados.filter(p => p.estado === 'pendiente').length },
+        { Concepto: 'En Proceso', Valor: pedidosFiltrados.filter(p => p.estado === 'en_proceso').length },
+        { Concepto: 'Completados', Valor: pedidosFiltrados.filter(p => p.estado === 'completado').length },
+        { Concepto: 'Con Equipo Asignado', Valor: pedidosFiltrados.filter(p => p.equipo_asignado_id).length },
+        { Concepto: 'Sin Equipo', Valor: pedidosFiltrados.filter(p => !p.equipo_asignado_id).length }
+      ]
+
+      const wsResumen = XLSX.utils.json_to_sheet(resumen)
+      wsResumen['!cols'] = [{ wch: 25 }, { wch: 15 }]
+      XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
+
+      // Generar nombre de archivo
+      const fecha = new Date().toISOString().split('T')[0]
+      const nombreArchivo = `Pedidos_Equipos_${fecha}.xlsx`
+
+      // Descargar
+      XLSX.writeFile(wb, nombreArchivo)
+
+      alert(`✅ Archivo Excel generado exitosamente!\n\n${pedidosFiltrados.length} pedidos exportados\nArchivo: ${nombreArchivo}`)
+
+    } catch (error) {
+      console.error('Error al exportar:', error)
+      alert('❌ Error al exportar a Excel: ' + error.message)
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem' }}>
@@ -177,6 +279,21 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
               }}
             >
               {generandoReportes ? '⏳ Generando...' : '📧 Generar Reportes Semanales'}
+            </button>
+            <button
+              onClick={exportarAExcel}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '1rem'
+              }}
+            >
+              📊 Exportar a Excel
             </button>
             <button
               onClick={onNuevo}
@@ -429,6 +546,11 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
                           Estado: {equipo.estado_operativo}
+                        {equipo.ubicacion_actual && (
+                          <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '0.25rem' }}>
+                            📍 {equipo.ubicacion_actual}
+                          </div>
+                        )}
                         </div>
                       </div>
                     ) : (
@@ -567,6 +689,11 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
                           Estado: {equipo.estado_operativo}
+                        {equipo.ubicacion_actual && (
+                          <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '0.25rem' }}>
+                            📍 {equipo.ubicacion_actual}
+                          </div>
+                        )}
                         </div>
                       </div>
                     ) : (
@@ -705,6 +832,11 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
                           Estado: {equipo.estado_operativo}
+                        {equipo.ubicacion_actual && (
+                          <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '0.25rem' }}>
+                            📍 {equipo.ubicacion_actual}
+                          </div>
+                        )}
                         </div>
                       </div>
                     )}

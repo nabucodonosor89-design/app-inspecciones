@@ -26,6 +26,10 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [pedidosDisponibles, setPedidosDisponibles] = useState([])
   const [observacionesEnvio, setObservacionesEnvio] = useState('')
 
+  // NUEVO: Estados para asignación de operador
+  const [operadorAsignado, setOperadorAsignado] = useState(null)
+  const [operadores, setOperadores] = useState([])
+
   useEffect(() => {
     getEquipos()
     getObras()
@@ -129,9 +133,49 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     }
   }
 
-  function seleccionarEquipo(equipo) {
+  async function seleccionarEquipo(equipo) {
     setEquipoSeleccionado(equipo)
-    getChecklistTemplate(equipo.tipo_equipo)
+    await getChecklistTemplate(equipo.tipo_equipo)
+    
+    console.log('========================================')
+    console.log('📋 Equipo seleccionado:', equipo.numero_identificacion)
+    console.log('🔍 operador_asignado_id del equipo:', equipo.operador_asignado_id)
+    
+    // Cargar operadores activos
+    console.log('🔄 Cargando operadores activos...')
+    const { data: operadoresData, error: errorOp } = await supabase
+      .from('operadores')
+      .select('*')
+      .eq('estado', 'activo')
+      .order('apellidos')
+
+    console.log('📊 Resultado carga de operadores:', { 
+      cantidad: operadoresData?.length || 0, 
+      error: errorOp,
+      operadores: operadoresData?.map(o => `${o.nombres} ${o.apellidos}`)
+    })
+
+    setOperadores(operadoresData || [])
+
+    // Si el equipo ya tiene operador asignado, pre-seleccionarlo
+    if (equipo.operador_asignado_id) {
+      setOperadorAsignado(equipo.operador_asignado_id)
+      console.log('✅ Pre-seleccionando operador:', equipo.operador_asignado_id)
+      
+      // Verificar si el operador existe en la lista
+      const operadorEncontrado = operadoresData?.find(o => o.id === equipo.operador_asignado_id)
+      if (operadorEncontrado) {
+        console.log('✅ Operador encontrado en lista:', `${operadorEncontrado.nombres} ${operadorEncontrado.apellidos}`)
+      } else {
+        console.warn('⚠️ Operador asignado NO está en la lista de activos')
+      }
+    } else {
+      setOperadorAsignado(null)
+      console.log('ℹ️ Equipo sin operador asignado previamente')
+    }
+    
+    console.log('========================================')
+    
     setPaso(2)
   }
 
@@ -283,6 +327,27 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
       if (errorEquipo) throw errorEquipo
 
+      // Asignar operador al equipo si se seleccionó uno
+      if (operadorAsignado) {
+        console.log('🔄 Asignando operador al equipo...')
+        const { error: errorAsignacion } = await supabase
+          .rpc('asignar_operador_a_equipo', {
+            p_equipo_id: equipoSeleccionado.id,
+            p_operador_id: operadorAsignado,
+            p_inspeccion_id: nuevaInspeccion.id,
+            p_observaciones: `Asignado desde inspección ${tipoInspeccion}`
+          })
+        
+        if (errorAsignacion) {
+          console.error('❌ Error al asignar operador:', errorAsignacion)
+          // No lanzamos error para que la inspección se guarde igual
+        } else {
+          console.log('✅ Operador asignado correctamente al equipo')
+        }
+      } else {
+        console.log('ℹ️ No se seleccionó operador')
+      }
+
       setPaso(3)
     } catch (error) {
       alert('Error: ' + error.message)
@@ -353,7 +418,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     const categorias = [...new Set(checklistTemplates.map(t => t.categoria))]
     return (
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(0.5rem, 2vw, 2rem)', boxSizing: 'border-box' }}>
-        <button onClick={equipoPreseleccionado ? onVolver : () => setPaso(1)} style={{ padding: '0.5rem 1rem', background: '#6b7280', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '1rem' }}>
+        <button onClick={equipoPreseleccionado ? onVolver : () => {
+          setPaso(1)
+          setOperadorAsignado(null)
+          setOperadores([])
+        }} style={{ padding: '0.5rem 1rem', background: '#6b7280', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '1rem' }}>
           ← {equipoPreseleccionado ? 'Volver' : 'Cambiar Equipo'}
         </button>
         <div style={{ background: '#667eea', color: 'white', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
@@ -440,13 +509,31 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           </div>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Ubicación/Obra *</label>
-            <select value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }}>
+            <select 
+              value={ubicacion} 
+              onChange={(e) => setUbicacion(e.target.value)} 
+              style={{ 
+                width: '100%', 
+                padding: '0.75rem', 
+                border: '2px solid #e5e7eb', 
+                borderRadius: '8px', 
+                fontSize: '1rem',
+                background: 'white',
+                cursor: 'pointer'
+              }}
+            >
               <option value="">Seleccionar ubicación...</option>
               <option value="Complejo Ypane">Complejo Ypane</option>
               <option value="Taller Central">Taller Central</option>
-              {obras.map(obra => (
-                <option key={obra.id} value={obra.nombre_obra}>{obra.nombre_obra}</option>
-              ))}
+              {obras.length > 0 && (
+                <optgroup label={`Obras Activas (${obras.length})`}>
+                  {obras.map(obra => (
+                    <option key={obra.id} value={obra.nombre_obra}>
+                      {obra.codigo_obra} - {obra.nombre_obra}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -538,6 +625,110 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
             </>
           )}
         </div>
+
+        {/* Selector de Operador */}
+        <div style={{
+          background: '#f0fdf4',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          marginBottom: '2rem',
+          border: '2px solid #86efac',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ 
+            fontSize: '1.25rem', 
+            fontWeight: '600', 
+            marginBottom: '0.5rem', 
+            color: '#16a34a',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            👷 Asignar Operador al Equipo
+          </h3>
+          <p style={{ 
+            fontSize: '0.875rem', 
+            color: '#6b7280', 
+            marginBottom: '1rem' 
+          }}>
+            Selecciona el operador que usará este equipo
+          </p>
+          
+          <div>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '0.5rem', 
+              fontWeight: '600', 
+              fontSize: '0.875rem', 
+              color: '#374151' 
+            }}>
+              Operador
+            </label>
+            <select
+              value={operadorAsignado || ''}
+              onChange={(e) => setOperadorAsignado(e.target.value || null)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '2px solid #86efac',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+                background: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">-- Sin operador asignado --</option>
+              {operadores.map(op => (
+                <option key={op.id} value={op.id}>
+                  {op.apellidos}, {op.nombres} - CI: {op.numero_documento}
+                  {op.tipos_equipos_habilitado && op.tipos_equipos_habilitado.length > 0 
+                    ? ` (${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}${op.tipos_equipos_habilitado.length > 2 ? '...' : ''})` 
+                    : ''
+                  }
+                </option>
+              ))}
+            </select>
+            
+            {operadorAsignado && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                background: '#dcfce7',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span>✅</span>
+                <span>
+                  <strong>Operador será asignado</strong> al guardar esta inspección
+                </span>
+              </div>
+            )}
+
+            {!operadorAsignado && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                background: '#fef3c7',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                color: '#92400e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span>ℹ️</span>
+                <span>
+                  El equipo quedará sin operador asignado
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>Checklist de Inspección</h3>
           {categorias.map(categoria => {
