@@ -143,8 +143,6 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
   function exportarAExcel() {
     try {
       // Usar pedidos filtrados actuales
-      const pedidosFiltrados = pedidosFiltradosState
-
       if (pedidosFiltrados.length === 0) {
         alert('ℹ️ No hay pedidos para exportar')
         return
