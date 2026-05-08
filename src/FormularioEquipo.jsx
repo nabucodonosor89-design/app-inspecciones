@@ -26,6 +26,8 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   const [estadoOperativo, setEstadoOperativo] = useState(equipo?.estado_operativo || 'operativo')
   const [observacionesOperativo, setObservacionesOperativo] = useState(equipo?.observaciones_operativo || '')
   const [esLogistica, setEsLogistica] = useState(equipo?.es_logistica || false)
+  const [esCritico, setEsCritico] = useState(equipo?.es_critico || false)
+  const [notasCriticidad, setNotasCriticidad] = useState(equipo?.notas_criticidad || '')
   const [activo, setActivo] = useState(equipo?.activo ?? true)
 
   // NUEVO: Cargar obras activas al montar el componente
@@ -117,6 +119,12 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
       return
     }
 
+
+    // Validación de equipo crítico
+    if (esCritico && !notasCriticidad.trim()) {
+      alert('⚠️ Si el equipo es crítico, debe agregar notas explicando por qué')
+      return
+    }
     try {
       setLoading(true)
 
@@ -134,6 +142,8 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
         estado_operativo: estadoOperativo,
         observaciones_operativo: observacionesOperativo.trim() || null,
         es_logistica: esLogistica,
+        es_critico: esCritico,
+        notas_criticidad: notasCriticidad.trim() || null,
         activo: activo,
         operador_asignado_id: operadorAsignadoId || null
       }
@@ -585,6 +595,64 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                   </div>
                 </div>
               </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={esCritico}
+                  onChange={(e) => {
+                    setEsCritico(e.target.checked)
+                    if (!e.target.checked) {
+                      setNotasCriticidad('') // Limpiar notas si se desmarca
+                    }
+                  }}
+                  disabled={loading}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '1rem' }}>⚠️ Equipo Crítico</div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                    Marcar si es un equipo crítico para las operaciones (se destacará en mantenimientos)
+                  </div>
+                </div>
+              </label>
+
+              {/* Campo de notas de criticidad (solo si está marcado como crítico) */}
+              {esCritico && (
+                <div style={{ 
+                  marginLeft: '2.5rem', 
+                  padding: '1rem', 
+                  background: '#fef2f2', 
+                  borderRadius: '8px',
+                  border: '2px solid #fca5a5'
+                }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+                    <span style={{ fontWeight: '600', fontSize: '0.875rem', color: '#991b1b' }}>
+                      Notas de Criticidad *
+                    </span>
+                  </label>
+                  <textarea
+                    value={notasCriticidad}
+                    onChange={(e) => setNotasCriticidad(e.target.value)}
+                    placeholder="Ej: Única excavadora grande disponible para obra San Pedro"
+                    rows="3"
+                    disabled={loading}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ fontSize: '0.75rem', color: '#991b1b', marginTop: '0.5rem' }}>
+                    💡 Explica por qué este equipo es crítico para las operaciones
+                  </div>
+                </div>
+              )}
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
                 <input

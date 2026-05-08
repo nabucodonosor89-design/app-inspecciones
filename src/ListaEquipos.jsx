@@ -8,22 +8,23 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
   // Filtros
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('todos')
-  const [filtroUbicacion, setFiltroUbicacion] = useState('todas')
+  const [filtroObra, setFiltroObra] = useState('todas')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda, setBusqueda] = useState('')
   
   // Listas para filtros
   const [tipos, setTipos] = useState([])
-  const [ubicaciones, setUbicaciones] = useState([])
+  const [obras, setObras] = useState([])
 
   useEffect(() => {
-    cargarEquipos()
+    cargarDatos()
   }, [recargarKey, mostrarInactivos])
 
-  async function cargarEquipos() {
+  async function cargarDatos() {
     try {
       setLoading(true)
 
+      // Cargar equipos
       let query = supabase
         .from('equipos')
         .select('*')
@@ -43,14 +44,25 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
       // Extraer valores únicos para filtros
       if (data) {
         const tiposUnicos = [...new Set(data.map(e => e.tipo_equipo).filter(Boolean))]
-        const ubicacionesUnicas = [...new Set(data.map(e => e.ubicacion_actual).filter(Boolean))]
         setTipos(tiposUnicos.sort())
-        setUbicaciones(ubicacionesUnicas.sort())
+      }
+
+      // Cargar obras activas desde la tabla obras
+      const { data: obrasData, error: errorObras } = await supabase
+        .from('obras')
+        .select('id, codigo_obra, nombre_obra')
+        .eq('activa', true)
+        .order('nombre_obra')
+
+      if (errorObras) {
+        console.error('Error al cargar obras:', errorObras)
+      } else {
+        setObras(obrasData || [])
       }
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar equipos: ' + error.message)
+      alert('Error al cargar datos: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -70,7 +82,7 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
       if (error) throw error
 
       alert('✅ Equipo dado de baja correctamente')
-      cargarEquipos()
+      cargarDatos()
 
     } catch (error) {
       console.error('Error:', error)
@@ -92,7 +104,7 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
       if (error) throw error
 
       alert('✅ Equipo reactivado correctamente')
-      cargarEquipos()
+      cargarDatos()
 
     } catch (error) {
       console.error('Error:', error)
@@ -105,8 +117,20 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
     // Filtro por tipo
     if (filtroTipo !== 'todos' && equipo.tipo_equipo !== filtroTipo) return false
     
-    // Filtro por ubicación
-    if (filtroUbicacion !== 'todas' && equipo.ubicacion_actual !== filtroUbicacion) return false
+    // Filtro por obra (busca en ubicacion_actual si contiene el nombre de la obra)
+    if (filtroObra !== 'todas') {
+      const obraSeleccionada = obras.find(o => o.id === filtroObra)
+      if (obraSeleccionada) {
+        const ubicacion = (equipo.ubicacion_actual || '').toLowerCase()
+        const nombreObra = obraSeleccionada.nombre_obra.toLowerCase()
+        const codigoObra = (obraSeleccionada.codigo_obra || '').toLowerCase()
+        
+        // Busca si la ubicación contiene el nombre o código de la obra
+        if (!ubicacion.includes(nombreObra) && !ubicacion.includes(codigoObra)) {
+          return false
+        }
+      }
+    }
     
     // Filtro por estado operativo
     if (filtroEstado !== 'todos' && equipo.estado_operativo !== filtroEstado) return false
@@ -229,11 +253,11 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '600', color: '#374151' }}>
-              Ubicación
+              🏗️ Obra
             </label>
             <select
-              value={filtroUbicacion}
-              onChange={(e) => setFiltroUbicacion(e.target.value)}
+              value={filtroObra}
+              onChange={(e) => setFiltroObra(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -242,9 +266,11 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
                 fontSize: '0.875rem'
               }}
             >
-              <option value="todas">Todas las ubicaciones</option>
-              {ubicaciones.map(ubi => (
-                <option key={ubi} value={ubi}>{ubi}</option>
+              <option value="todas">Todas las obras</option>
+              {obras.map(obra => (
+                <option key={obra.id} value={obra.id}>
+                  {obra.codigo_obra ? `${obra.codigo_obra} - ` : ''}{obra.nombre_obra}
+                </option>
               ))}
             </select>
           </div>
@@ -272,11 +298,11 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
           </div>
         </div>
 
-        {(filtroTipo !== 'todos' || filtroUbicacion !== 'todas' || filtroEstado !== 'todos' || busqueda) && (
+        {(filtroTipo !== 'todos' || filtroObra !== 'todas' || filtroEstado !== 'todos' || busqueda) && (
           <button
             onClick={() => {
               setFiltroTipo('todos')
-              setFiltroUbicacion('todas')
+              setFiltroObra('todas')
               setFiltroEstado('todos')
               setBusqueda('')
             }}
