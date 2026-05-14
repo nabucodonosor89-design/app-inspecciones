@@ -435,15 +435,6 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                 </label>
                 
                 {/* Debug info */}
-                <div style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#6b7280', 
-                  marginBottom: '0.5rem',
-                  fontFamily: 'monospace'
-                }}>
-                  🔍 Debug: {obras.length} obras cargadas
-                </div>
-                
                 <select
                   value={ubicacionActual}
                   onChange={(e) => setUbicacionActual(e.target.value)}
@@ -481,16 +472,6 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Operador Asignado
                 </label>
-                
-                {/* Debug info */}
-                <div style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#6b7280', 
-                  marginBottom: '0.5rem',
-                  fontFamily: 'monospace'
-                }}>
-                  🔍 Debug: {operadores.length} operadores cargados
-                </div>
                 
                 <select
                   value={operadorAsignadoId || ''}

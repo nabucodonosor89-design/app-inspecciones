@@ -54,8 +54,8 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
   function getEstadoEmoji(estado) {
     switch(estado) {
       case 'ok': return '✅'
-      case 'atencion': return '⚠️'
-      case 'falla': return '❌'
+      case 'warning': return '⚠️'
+      case 'fail': return '❌'
       default: return '❓'
     }
   }
@@ -225,9 +225,9 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
                       alignItems: 'flex-start',
                       gap: '0.75rem',
                       padding: '0.75rem',
-                      background: item.estado === 'falla' ? '#fee2e2' : item.estado === 'atencion' ? '#fef3c7' : '#f0fdf4',
+                      background: item.estado === 'fail' ? '#fee2e2' : item.estado === 'warning' ? '#fef3c7' : '#f0fdf4',
                       borderRadius: '8px',
-                      border: `2px solid ${item.estado === 'falla' ? '#ef4444' : item.estado === 'atencion' ? '#f59e0b' : '#10b981'}`
+                      border: `2px solid ${item.estado === 'fail' ? '#ef4444' : item.estado === 'warning' ? '#f59e0b' : '#10b981'}`
                     }}
                   >
                     <div style={{ fontSize: '1.5rem', lineHeight: 1 }}>

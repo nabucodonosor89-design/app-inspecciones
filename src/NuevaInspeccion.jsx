@@ -476,9 +476,6 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1e40af' }}>
                 🔗 Inspección de Envío Relacionada {inspeccionesEnvio.length > 0 && '*'}
               </label>
-              <p style={{ fontSize: '0.875rem', color: '#3b82f6', marginBottom: '0.5rem' }}>
-                Debug: Encontradas {inspeccionesEnvio.length} inspecciones de envío
-              </p>
               {inspeccionesEnvio.length > 0 ? (
                 <select 
                   value={inspeccionEnvioRelacionada} 
