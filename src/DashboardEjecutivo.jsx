@@ -40,7 +40,7 @@ function DashboardEjecutivo({ onVolver }) {
       // Calcular estadísticas generales
       const totalEquipos = equipos.length
       const operativos = equipos.filter(e => e.estado_operativo === 'operativo').length
-      const conRestriccion = equipos.filter(e => e.estado_operativo === 'operativo_restricciones').length
+      const conRestriccion = equipos.filter(e => e.estado_operativo === 'con_restriccion').length
       const fueraServicio = equipos.filter(e => e.estado_operativo === 'fuera_servicio').length
 
       // Calcular por obra
@@ -64,7 +64,7 @@ function DashboardEjecutivo({ onVolver }) {
         
         if (equipo.estado_operativo === 'operativo') {
           obraStats[obra].operativos++
-        } else if (equipo.estado_operativo === 'operativo_restricciones') {
+        } else if (equipo.estado_operativo === 'con_restriccion') {
           obraStats[obra].conRestriccion++
         } else if (equipo.estado_operativo === 'fuera_servicio') {
           obraStats[obra].fueraServicio++

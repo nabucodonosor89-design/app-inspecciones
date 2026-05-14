@@ -334,7 +334,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           .rpc('asignar_operador_a_equipo', {
             p_equipo_id: equipoSeleccionado.id,
             p_operador_id: operadorAsignado,
-            p_inspeccion_id: nuevaInspeccion.id,
+            p_inspeccion_id: inspeccion.id,
             p_observaciones: `Asignado desde inspección ${tipoInspeccion}`
           })
         
