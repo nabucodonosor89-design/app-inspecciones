@@ -76,13 +76,6 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
     return matchTipo && matchEstado && matchPedido && matchPrioridad && matchBusqueda
   })
 
-  const getEstadoColor = (estado) => {
-    if (estado === 'Taller Espera') return { bg: '#fef3c7', text: '#92400e', emoji: '⏳' }
-    if (estado === 'Taller Entrada') return { bg: '#dbeafe', text: '#1e40af', emoji: '🔧' }
-    if (estado === 'Taller Salida') return { bg: '#d1fae5', text: '#065f46', emoji: '✅' }
-    return { bg: '#f3f4f6', text: '#6b7280', emoji: '❓' }
-  }
-
   const getPrioridadColor = (prioridad) => {
     if (prioridad === '1- Muy Elevado') return { bg: '#fee2e2', text: '#991b1b', emoji: '🔴' }
     if (prioridad === '2- Alto') return { bg: '#fed7aa', text: '#9a3412', emoji: '🟠' }
@@ -328,371 +321,213 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
         </div>
       </div>
 
-      {/* Vista Kanban - Dos Columnas */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '1fr 1fr', 
-        gap: '1.5rem',
-        alignItems: 'start'
-      }}>
-        {/* Columna 1: EN ESPERA */}
-        <div>
-          <div style={{
-            background: '#fef3c7',
-            padding: '1rem',
-            borderRadius: '8px 8px 0 0',
-            borderBottom: '3px solid #f59e0b',
-            marginBottom: '1rem'
-          }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: '1.25rem', 
-              fontWeight: '700',
-              color: '#92400e',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <span>⏳ EN ESPERA</span>
-              <span style={{ 
-                background: '#f59e0b', 
-                color: 'white', 
-                padding: '0.25rem 0.75rem', 
-                borderRadius: '999px',
-                fontSize: '0.875rem'
-              }}>
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length}
-              </span>
-            </h3>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {mantenimientosFiltrados
-              .filter(mant => mant.estado === 'Taller Espera')
-              .map(mant => {
-                const prioridadColor = getPrioridadColor(mant.prioridad)
-                const tiempoParada = calcularTiempoParada(mant)
-                const equipo = mant.equipos || {}
-                
-                return (
-                  <div
-                    key={mant.id}
-                    style={{
-                      background: 'white',
-                      padding: '1rem',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      border: mant.pedido ? '3px solid #ef4444' : '2px solid #e5e7eb',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s, box-shadow 0.2s'
-                    }}
-                    onClick={() => onEditar(mant)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)'
-                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)'
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    {/* Header con equipo y prioridad */}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      marginBottom: '0.75rem'
-                    }}>
-                      <div style={{ 
-                        fontSize: '1.125rem', 
-                        fontWeight: '700',
-                        color: '#1f2937'
-                      }}>
-                        {equipo.numero_identificacion || 'Sin equipo'}
-                      </div>
-                      <div style={{
-                        background: prioridadColor.bg,
-                        color: prioridadColor.text,
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600'
-                      }}>
-                        {prioridadColor.emoji} {mant.prioridad?.split('- ')[1] || mant.prioridad}
-                      </div>
-                    </div>
+      {/* Vista Kanban - Columnas dinámicas */}
+      {(() => {
+        const mostrarEspera = filtroEstado === 'Todos' || filtroEstado === 'En Taller' || filtroEstado === 'Taller Espera'
+        const mostrarEntrada = filtroEstado === 'Todos' || filtroEstado === 'En Taller' || filtroEstado === 'Taller Entrada'
+        const mostrarSalida = filtroEstado === 'Todos' || filtroEstado === 'Taller Salida'
+        const numColumnas = [mostrarEspera, mostrarEntrada, mostrarSalida].filter(Boolean).length
 
-                    {/* Avisos/Orden */}
-                    <div style={{ 
-                      fontSize: '0.875rem', 
-                      color: '#6b7280',
-                      marginBottom: '0.5rem',
-                      display: 'flex',
-                      gap: '1rem'
-                    }}>
-                      {mant.numero_aviso && (
-                        <span><strong>Aviso:</strong> {mant.numero_aviso}</span>
-                      )}
-                      {mant.numero_orden && (
-                        <span><strong>Orden:</strong> {mant.numero_orden}</span>
-                      )}
-                    </div>
+        const renderTarjeta = (mant) => {
+          const prioridadColor = getPrioridadColor(mant.prioridad)
+          const tiempoParada = calcularTiempoParada(mant)
+          const equipo = mant.equipos || {}
+          const esCompletado = mant.estado === 'Taller Salida'
 
-                    {/* Tipo */}
-                    <div style={{ 
-                      display: 'inline-block',
-                      background: mant.tipo_mantenimiento === 'Preventivo' ? '#dbeafe' : '#fef3c7',
-                      color: mant.tipo_mantenimiento === 'Preventivo' ? '#1e40af' : '#92400e',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      fontWeight: '600',
-                      marginBottom: '0.5rem'
-                    }}>
-                      {mant.tipo_mantenimiento === 'Preventivo' ? '🔄' : '⚠️'} {mant.tipo_mantenimiento}
-                    </div>
-
-                    {/* Descripción */}
-                    {mant.descripcion_averia && (
-                      <div style={{ 
-                        fontSize: '0.875rem', 
-                        color: '#374151',
-                        marginTop: '0.5rem',
-                        lineHeight: '1.4',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
-                      }}>
-                        {mant.descripcion_averia}
-                      </div>
-                    )}
-
-                    {/* Tiempo de parada */}
-                    {tiempoParada !== null && (
-                      <div style={{ 
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        color: tiempoParada > 7 ? '#ef4444' : '#6b7280',
-                        marginTop: '0.75rem',
-                        padding: '0.25rem 0.5rem',
-                        background: tiempoParada > 7 ? '#fee2e2' : '#f3f4f6',
-                        borderRadius: '4px',
-                        display: 'inline-block'
-                      }}>
-                        ⏱️ {tiempoParada} días de parada
-                      </div>
-                    )}
-
-                    {/* Indicador de pedido */}
-                    {mant.pedido && (
-                      <div style={{
-                        marginTop: '0.5rem',
-                        fontSize: '0.75rem',
-                        color: '#ef4444',
-                        fontWeight: '600'
-                      }}>
-                        📦 Debido a Obra
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-              
-            {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length === 0 && (
-              <div style={{
-                background: '#f9fafb',
-                padding: '2rem',
+          return (
+            <div
+              key={mant.id}
+              style={{
+                background: esCompletado ? '#f0fdf4' : 'white',
+                padding: '1rem',
                 borderRadius: '8px',
-                textAlign: 'center',
-                color: '#9ca3af',
-                fontSize: '0.875rem'
-              }}>
-                No hay mantenimientos en espera
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: mant.pedido ? '3px solid #ef4444' : esCompletado ? '2px solid #10b981' : '2px solid #e5e7eb',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onClick={() => onEditar(mant)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#1f2937' }}>
+                  {equipo.numero_identificacion || 'Sin equipo'}
+                </div>
+                <div style={{
+                  background: prioridadColor.bg,
+                  color: prioridadColor.text,
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: '600'
+                }}>
+                  {prioridadColor.emoji} {mant.prioridad?.split('- ')[1] || mant.prioridad}
+                </div>
               </div>
+
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem', display: 'flex', gap: '1rem' }}>
+                {mant.numero_aviso && <span><strong>Aviso:</strong> {mant.numero_aviso}</span>}
+                {mant.numero_orden && <span><strong>Orden:</strong> {mant.numero_orden}</span>}
+              </div>
+
+              <div style={{
+                display: 'inline-block',
+                background: mant.tipo_mantenimiento === 'Preventivo' ? '#dbeafe' : '#fef3c7',
+                color: mant.tipo_mantenimiento === 'Preventivo' ? '#1e40af' : '#92400e',
+                padding: '0.25rem 0.5rem',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem'
+              }}>
+                {mant.tipo_mantenimiento === 'Preventivo' ? '🔄' : '⚠️'} {mant.tipo_mantenimiento}
+              </div>
+
+              {mant.descripcion_averia && (
+                <div style={{
+                  fontSize: '0.875rem',
+                  color: '#374151',
+                  marginTop: '0.5rem',
+                  lineHeight: '1.4',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {mant.descripcion_averia}
+                </div>
+              )}
+
+              {tiempoParada !== null && (
+                <div style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  color: esCompletado ? '#065f46' : tiempoParada > 7 ? '#ef4444' : '#6b7280',
+                  marginTop: '0.75rem',
+                  padding: '0.25rem 0.5rem',
+                  background: esCompletado ? '#d1fae5' : tiempoParada > 7 ? '#fee2e2' : '#f3f4f6',
+                  borderRadius: '4px',
+                  display: 'inline-block'
+                }}>
+                  {esCompletado ? '✅' : '⏱️'} {tiempoParada} días{esCompletado ? ' total' : ' de parada'}
+                </div>
+              )}
+
+              {esCompletado && mant.fecha_liberacion && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#065f46', fontWeight: '600' }}>
+                  📅 Liberado: {new Date(mant.fecha_liberacion).toLocaleDateString('es-PY')}
+                </div>
+              )}
+
+              {mant.pedido && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#ef4444', fontWeight: '600' }}>
+                  📦 Debido a Obra
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        return (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${numColumnas}, 1fr)`,
+            gap: '1.5rem',
+            alignItems: 'start'
+          }}>
+            {/* Columna: EN ESPERA */}
+            {mostrarEspera && (
+            <div>
+              <div style={{
+                background: '#fef3c7',
+                padding: '1rem',
+                borderRadius: '8px 8px 0 0',
+                borderBottom: '3px solid #f59e0b',
+                marginBottom: '1rem'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#92400e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>⏳ EN ESPERA</span>
+                  <span style={{ background: '#f59e0b', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
+                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length}
+                  </span>
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').map(renderTarjeta)}
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length === 0 && (
+                  <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
+                    No hay mantenimientos en espera
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* Columna: EN REPARACIÓN */}
+            {mostrarEntrada && (
+            <div>
+              <div style={{
+                background: '#dbeafe',
+                padding: '1rem',
+                borderRadius: '8px 8px 0 0',
+                borderBottom: '3px solid #3b82f6',
+                marginBottom: '1rem'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>🔧 EN REPARACIÓN</span>
+                  <span style={{ background: '#3b82f6', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
+                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length}
+                  </span>
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').map(renderTarjeta)}
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length === 0 && (
+                  <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
+                    No hay mantenimientos en reparación
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* Columna: COMPLETADOS (Taller Salida) */}
+            {mostrarSalida && (
+            <div>
+              <div style={{
+                background: '#d1fae5',
+                padding: '1rem',
+                borderRadius: '8px 8px 0 0',
+                borderBottom: '3px solid #10b981',
+                marginBottom: '1rem'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#065f46', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>✅ COMPLETADOS</span>
+                  <span style={{ background: '#10b981', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
+                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').length}
+                  </span>
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').map(renderTarjeta)}
+                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').length === 0 && (
+                  <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
+                    No hay mantenimientos completados
+                  </div>
+                )}
+              </div>
+            </div>
             )}
           </div>
-        </div>
-
-        {/* Columna 2: EN REPARACIÓN */}
-        <div>
-          <div style={{
-            background: '#dbeafe',
-            padding: '1rem',
-            borderRadius: '8px 8px 0 0',
-            borderBottom: '3px solid #3b82f6',
-            marginBottom: '1rem'
-          }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: '1.25rem', 
-              fontWeight: '700',
-              color: '#1e40af',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <span>🔧 EN REPARACIÓN</span>
-              <span style={{ 
-                background: '#3b82f6', 
-                color: 'white', 
-                padding: '0.25rem 0.75rem', 
-                borderRadius: '999px',
-                fontSize: '0.875rem'
-              }}>
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length}
-              </span>
-            </h3>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {mantenimientosFiltrados
-              .filter(mant => mant.estado === 'Taller Entrada')
-              .map(mant => {
-                const prioridadColor = getPrioridadColor(mant.prioridad)
-                const tiempoParada = calcularTiempoParada(mant)
-                const equipo = mant.equipos || {}
-                
-                return (
-                  <div
-                    key={mant.id}
-                    style={{
-                      background: 'white',
-                      padding: '1rem',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      border: mant.pedido ? '3px solid #ef4444' : '2px solid #e5e7eb',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s, box-shadow 0.2s'
-                    }}
-                    onClick={() => onEditar(mant)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)'
-                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)'
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    {/* Header con equipo y prioridad */}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      marginBottom: '0.75rem'
-                    }}>
-                      <div style={{ 
-                        fontSize: '1.125rem', 
-                        fontWeight: '700',
-                        color: '#1f2937'
-                      }}>
-                        {equipo.numero_identificacion || 'Sin equipo'}
-                      </div>
-                      <div style={{
-                        background: prioridadColor.bg,
-                        color: prioridadColor.text,
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600'
-                      }}>
-                        {prioridadColor.emoji} {mant.prioridad?.split('- ')[1] || mant.prioridad}
-                      </div>
-                    </div>
-
-                    {/* Avisos/Orden */}
-                    <div style={{ 
-                      fontSize: '0.875rem', 
-                      color: '#6b7280',
-                      marginBottom: '0.5rem',
-                      display: 'flex',
-                      gap: '1rem'
-                    }}>
-                      {mant.numero_aviso && (
-                        <span><strong>Aviso:</strong> {mant.numero_aviso}</span>
-                      )}
-                      {mant.numero_orden && (
-                        <span><strong>Orden:</strong> {mant.numero_orden}</span>
-                      )}
-                    </div>
-
-                    {/* Tipo */}
-                    <div style={{ 
-                      display: 'inline-block',
-                      background: mant.tipo_mantenimiento === 'Preventivo' ? '#dbeafe' : '#fef3c7',
-                      color: mant.tipo_mantenimiento === 'Preventivo' ? '#1e40af' : '#92400e',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      fontWeight: '600',
-                      marginBottom: '0.5rem'
-                    }}>
-                      {mant.tipo_mantenimiento === 'Preventivo' ? '🔄' : '⚠️'} {mant.tipo_mantenimiento}
-                    </div>
-
-                    {/* Descripción */}
-                    {mant.descripcion_averia && (
-                      <div style={{ 
-                        fontSize: '0.875rem', 
-                        color: '#374151',
-                        marginTop: '0.5rem',
-                        lineHeight: '1.4',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
-                      }}>
-                        {mant.descripcion_averia}
-                      </div>
-                    )}
-
-                    {/* Tiempo de parada */}
-                    {tiempoParada !== null && (
-                      <div style={{ 
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        color: tiempoParada > 7 ? '#ef4444' : '#6b7280',
-                        marginTop: '0.75rem',
-                        padding: '0.25rem 0.5rem',
-                        background: tiempoParada > 7 ? '#fee2e2' : '#f3f4f6',
-                        borderRadius: '4px',
-                        display: 'inline-block'
-                      }}>
-                        ⏱️ {tiempoParada} días de parada
-                      </div>
-                    )}
-
-                    {/* Indicador de pedido */}
-                    {mant.pedido && (
-                      <div style={{
-                        marginTop: '0.5rem',
-                        fontSize: '0.75rem',
-                        color: '#ef4444',
-                        fontWeight: '600'
-                      }}>
-                        📦 Debido a Obra
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-              
-            {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length === 0 && (
-              <div style={{
-                background: '#f9fafb',
-                padding: '2rem',
-                borderRadius: '8px',
-                textAlign: 'center',
-                color: '#9ca3af',
-                fontSize: '0.875rem'
-              }}>
-                No hay mantenimientos en reparación
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       {mantenimientosFiltrados.length === 0 && (
         <div style={{
