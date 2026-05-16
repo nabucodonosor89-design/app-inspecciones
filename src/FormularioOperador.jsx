@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function FormularioOperador({ operador, onCerrar, onGuardado }) {
   const esEdicion = !!operador
@@ -117,17 +118,17 @@ function FormularioOperador({ operador, onCerrar, onGuardado }) {
 
     // Validaciones
     if (!nombres.trim() || !apellidos.trim()) {
-      alert('El nombre y apellido son obligatorios')
+      toast('El nombre y apellido son obligatorios')
       return
     }
 
     if (!numeroDocumento.trim()) {
-      alert('El número de documento es obligatorio')
+      toast('El número de documento es obligatorio')
       return
     }
 
     if (tiposEquiposHabilitado.length === 0) {
-      alert('Debe agregar al menos un tipo de equipo que el operador puede operar')
+      toast('Debe agregar al menos un tipo de equipo que el operador puede operar')
       return
     }
 
@@ -163,14 +164,14 @@ function FormularioOperador({ operador, onCerrar, onGuardado }) {
 
       if (error) throw error
 
-      alert(esEdicion ? 'Operador actualizado correctamente' : 'Operador creado correctamente')
+      toast(esEdicion ? 'Operador actualizado correctamente' : 'Operador creado correctamente')
       onGuardado()
     } catch (error) {
       console.error('Error:', error)
       if (error.code === '23505') {
-        alert('Ya existe un operador con ese número de documento')
+        toast('Ya existe un operador con ese número de documento')
       } else {
-        alert('Error al guardar: ' + error.message)
+        toast('Error al guardar: ' + error.message)
       }
     } finally {
       setLoading(false)

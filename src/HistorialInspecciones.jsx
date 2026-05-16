@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { generarPDFInspeccion } from './utils/pdfGenerator'
+import { getSemaforoColor, getSemaforoEmoji } from './utils/semaforo'
 
 function HistorialInspecciones({ equipo, onVolver }) {
   const [inspecciones, setInspecciones] = useState([])
@@ -104,19 +105,6 @@ function HistorialInspecciones({ equipo, onVolver }) {
     return tipos[tipo] || tipo
   }
 
-  const getSemaforoEmoji = (semaforo) => {
-    if (semaforo === 'verde') return '🟢'
-    if (semaforo === 'amarillo') return '🟡'
-    if (semaforo === 'rojo') return '🔴'
-    return '⚪'
-  }
-
-  const getSemaforoColor = (semaforo) => {
-    if (semaforo === 'verde') return '#10b981'
-    if (semaforo === 'amarillo') return '#f59e0b'
-    if (semaforo === 'rojo') return '#ef4444'
-    return '#9ca3af'
-  }
 
   if (loading) {
     return (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast, confirmar } from './utils/ui'
 
 function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
   const [equipos, setEquipos] = useState([])
@@ -62,14 +63,14 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar datos: ' + error.message)
+      toast('Error al cargar datos: ' + error.message)
     } finally {
       setLoading(false)
     }
   }
 
   async function darDeBaja(equipo) {
-    if (!confirm(`¿Dar de baja el equipo ${equipo.numero_identificacion}?\n\nEl equipo quedará inactivo y no podrá usarse para inspecciones o mantenimientos.`)) {
+    if (!await confirmar(`¿Dar de baja el equipo ${equipo.numero_identificacion}?\n\nEl equipo quedará inactivo y no podrá usarse para inspecciones o mantenimientos.`)) {
       return
     }
 
@@ -81,17 +82,17 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
       if (error) throw error
 
-      alert('✅ Equipo dado de baja correctamente')
+      toast('✅ Equipo dado de baja correctamente')
       cargarDatos()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al dar de baja: ' + error.message)
+      toast('❌ Error al dar de baja: ' + error.message)
     }
   }
 
   async function reactivar(equipo) {
-    if (!confirm(`¿Reactivar el equipo ${equipo.numero_identificacion}?`)) {
+    if (!await confirmar(`¿Reactivar el equipo ${equipo.numero_identificacion}?`)) {
       return
     }
 
@@ -103,12 +104,12 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
       if (error) throw error
 
-      alert('✅ Equipo reactivado correctamente')
+      toast('✅ Equipo reactivado correctamente')
       cargarDatos()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al reactivar: ' + error.message)
+      toast('❌ Error al reactivar: ' + error.message)
     }
   }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   const [loading, setLoading] = useState(false)
@@ -70,10 +71,10 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
         // Si hay obras pero ninguna activa, mostrar alerta
         if (todasObras && todasObras.length > 0) {
           console.warn('⚠️ Hay obras en la BD pero ninguna está activa')
-          alert('⚠️ No hay obras activas. Por favor activa algunas obras primero.')
+          toast('⚠️ No hay obras activas. Por favor activa algunas obras primero.')
         } else if (!todasObras || todasObras.length === 0) {
           console.warn('⚠️ No hay obras en la base de datos')
-          alert('⚠️ No hay obras registradas en el sistema.')
+          toast('⚠️ No hay obras registradas en el sistema.')
         }
       } catch (err) {
         console.error('Error al cargar todas las obras:', err)
@@ -110,19 +111,19 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
     // Validaciones
     if (!numeroIdentificacion.trim()) {
-      alert('⚠️ El código del equipo es obligatorio')
+      toast('⚠️ El código del equipo es obligatorio')
       return
     }
 
     if (!tipoEquipo.trim()) {
-      alert('⚠️ El tipo de equipo es obligatorio')
+      toast('⚠️ El tipo de equipo es obligatorio')
       return
     }
 
 
     // Validación de equipo crítico
     if (esCritico && !notasCriticidad.trim()) {
-      alert('⚠️ Si el equipo es crítico, debe agregar notas explicando por qué')
+      toast('⚠️ Si el equipo es crítico, debe agregar notas explicando por qué')
       return
     }
     try {
@@ -157,7 +158,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
         if (error) throw error
 
-        alert('✅ Equipo actualizado correctamente')
+        toast('✅ Equipo actualizado correctamente')
       } else {
         // Crear nuevo
         const { error } = await supabase
@@ -166,7 +167,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
         if (error) throw error
 
-        alert('✅ Equipo creado correctamente')
+        toast('✅ Equipo creado correctamente')
       }
 
       onGuardado()
@@ -176,9 +177,9 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
       
       // Error de código duplicado
       if (error.code === '23505') {
-        alert('❌ Ya existe un equipo con ese código')
+        toast('❌ Ya existe un equipo con ese código')
       } else {
-        alert('❌ Error al guardar: ' + error.message)
+        toast('❌ Error al guardar: ' + error.message)
       }
     } finally {
       setLoading(false)

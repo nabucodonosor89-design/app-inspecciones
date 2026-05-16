@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { getSemaforoColor, getSemaforoEmoji } from './utils/semaforo'
+import { toast } from './utils/ui'
 
 function HistorialInspecciones({ onVolver, onVerDetalle }) {
   const [inspecciones, setInspecciones] = useState([])
@@ -11,6 +13,10 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('')
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('')
   const [busqueda, setBusqueda] = useState('')
+
+  // Paginación
+  const ITEMS_POR_PAGINA = 25
+  const [paginaActual, setPaginaActual] = useState(1)
 
   useEffect(() => {
     cargarInspecciones()
@@ -36,7 +42,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar inspecciones')
+      toast('Error al cargar inspecciones')
     } finally {
       setLoading(false)
     }
@@ -72,31 +78,27 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
     return true
   })
 
+  // Paginación
+  const totalPaginas = Math.ceil(inspeccionesFiltradas.length / ITEMS_POR_PAGINA)
+  const inspeccionesPagina = inspeccionesFiltradas.slice(
+    (paginaActual - 1) * ITEMS_POR_PAGINA,
+    paginaActual * ITEMS_POR_PAGINA
+  )
+
   function limpiarFiltros() {
     setFiltroTipo('todos')
     setFiltroSemaforo('todos')
     setFiltroFechaDesde('')
     setFiltroFechaHasta('')
     setBusqueda('')
+    setPaginaActual(1)
   }
 
-  function getSemaforoColor(semaforo) {
-    switch(semaforo) {
-      case 'verde': return '#10b981'
-      case 'amarillo': return '#f59e0b'
-      case 'rojo': return '#ef4444'
-      default: return '#6b7280'
-    }
+  // Resetear página cuando cambian los filtros
+  function cambiarFiltro(setter) {
+    return (val) => { setter(val); setPaginaActual(1) }
   }
 
-  function getSemaforoEmoji(semaforo) {
-    switch(semaforo) {
-      case 'verde': return '🟢'
-      case 'amarillo': return '🟡'
-      case 'rojo': return '🔴'
-      default: return '⚪'
-    }
-  }
 
   function getTipoEmoji(tipo) {
     switch(tipo) {
@@ -178,7 +180,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
             <input
               type="text"
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
+              onChange={(e) => cambiarFiltro(setBusqueda)(e.target.value)}
               placeholder="Ej: VL-EX050"
               style={{
                 width: '100%',
@@ -197,7 +199,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
             </label>
             <select
               value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
+              onChange={(e) => cambiarFiltro(setFiltroTipo)(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -221,7 +223,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
             </label>
             <select
               value={filtroSemaforo}
-              onChange={(e) => setFiltroSemaforo(e.target.value)}
+              onChange={(e) => cambiarFiltro(setFiltroSemaforo)(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -245,7 +247,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
             <input
               type="date"
               value={filtroFechaDesde}
-              onChange={(e) => setFiltroFechaDesde(e.target.value)}
+              onChange={(e) => cambiarFiltro(setFiltroFechaDesde)(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -264,7 +266,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
             <input
               type="date"
               value={filtroFechaHasta}
-              onChange={(e) => setFiltroFechaHasta(e.target.value)}
+              onChange={(e) => cambiarFiltro(setFiltroFechaHasta)(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -312,7 +314,7 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {inspeccionesFiltradas.map(insp => (
+          {inspeccionesPagina.map(insp => (
             <div
               key={insp.id}
               onClick={() => onVerDetalle(insp)}
@@ -433,6 +435,59 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Controles de paginación */}
+      {totalPaginas > 1 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '0.75rem',
+          marginTop: '2rem',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+            disabled={paginaActual === 1}
+            style={{
+              padding: '0.5rem 1.25rem',
+              background: paginaActual === 1 ? '#f3f4f6' : '#3b82f6',
+              color: paginaActual === 1 ? '#9ca3af' : 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: paginaActual === 1 ? 'default' : 'pointer',
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}
+          >
+            ← Anterior
+          </button>
+
+          <span style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>
+            Página {paginaActual} de {totalPaginas}
+            <span style={{ fontWeight: 'normal', color: '#6b7280', marginLeft: '0.5rem' }}>
+              ({inspeccionesFiltradas.length} inspecciones)
+            </span>
+          </span>
+
+          <button
+            onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+            disabled={paginaActual === totalPaginas}
+            style={{
+              padding: '0.5rem 1.25rem',
+              background: paginaActual === totalPaginas ? '#f3f4f6' : '#3b82f6',
+              color: paginaActual === totalPaginas ? '#9ca3af' : 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: paginaActual === totalPaginas ? 'default' : 'pointer',
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}
+          >
+            Siguiente →
+          </button>
         </div>
       )}
     </div>

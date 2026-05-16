@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
   const [equipos, setEquipos] = useState([])
@@ -66,7 +67,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
       setEquipos(data || [])
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar equipos')
+      toast('Error al cargar equipos')
     }
   }
 
@@ -87,7 +88,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
       }
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar inspecciones')
+      toast('Error al cargar inspecciones')
     }
   }
 
@@ -175,30 +176,30 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
   async function guardar() {
     try {
       if (!equipoSeleccionado) {
-        alert('⚠️ Debes seleccionar un equipo')
+        toast('⚠️ Debes seleccionar un equipo')
         return
       }
 
       // Inspección opcional
 
       if (tipoMantenimiento === 'Correctivo' && !numeroAviso.trim()) {
-        alert('⚠️ Debes ingresar el número de Aviso para mantenimiento correctivo')
+        toast('⚠️ Debes ingresar el número de Aviso para mantenimiento correctivo')
         return
       }
 
       if (tipoMantenimiento === 'Preventivo' && !numeroOrden.trim()) {
-        alert('⚠️ Debes ingresar el número de Orden para mantenimiento preventivo')
+        toast('⚠️ Debes ingresar el número de Orden para mantenimiento preventivo')
         return
       }
 
       if (!descripcion.trim()) {
-        alert('⚠️ Debes ingresar una descripción de la avería')
+        toast('⚠️ Debes ingresar una descripción de la avería')
         return
       }
 
       // NUEVO: Validación de taller tercero
       if (!ingresaTallerYpane && !tallerTercero.trim()) {
-        alert('⚠️ Debes especificar el nombre del taller tercero')
+        toast('⚠️ Debes especificar el nombre del taller tercero')
         return
       }
 
@@ -232,7 +233,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
           .eq('id', mantenimientoEditar.id)
 
         if (error) throw error
-        alert('✅ Mantenimiento actualizado exitosamente')
+        toast('✅ Mantenimiento actualizado exitosamente')
       } else {
         const { data, error } = await supabase
           .from('mantenimientos')
@@ -265,13 +266,13 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
           }
         }
 
-        alert(`✅ Mantenimiento creado exitosamente!\n${ingresaTallerYpane ? '📧 Email enviado al taller' : ''}`)
+        toast(`✅ Mantenimiento creado exitosamente!\n${ingresaTallerYpane ? '📧 Email enviado al taller' : ''}`)
       }
 
       onVolver()
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al guardar: ' + error.message)
+      toast('❌ Error al guardar: ' + error.message)
     } finally {
       setGuardando(false)
     }

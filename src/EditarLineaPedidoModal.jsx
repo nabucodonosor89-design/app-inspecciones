@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from './lib/supabase'
+import { toast, confirmar } from './utils/ui'
 
 function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
   const [loading, setLoading] = useState(false)
@@ -98,12 +99,12 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
 
       // Validaciones
       if (estadoEntrega === 'asignado' && !equipoAsignadoId) {
-        alert('⚠️ Debe asignar un equipo si el estado es "Asignado"')
+        toast('⚠️ Debe asignar un equipo si el estado es "Asignado"')
         return
       }
 
       if (estadoEntrega === 'entregado' && !fechaReal) {
-        alert('⚠️ Debe ingresar la fecha real de entrega')
+        toast('⚠️ Debe ingresar la fecha real de entrega')
         return
       }
 
@@ -122,7 +123,7 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
           const equipoInfo = equipos.find(e => e.id === equipoAsignadoId)
           const otroPedido = equiposAsignados[0]
           
-          alert(
+          toast(
             `⚠️ EQUIPO YA ASIGNADO\n\n` +
             `El equipo ${equipoInfo?.numero_identificacion || 'seleccionado'} ya está asignado a:\n` +
             `• Pedido: ${otroPedido.numero_pedido}\n` +
@@ -149,19 +150,19 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
 
       if (error) throw error
 
-      alert('✅ Línea actualizada correctamente')
+      toast('✅ Línea actualizada correctamente')
       onActualizado()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al actualizar: ' + error.message)
+      toast('❌ Error al actualizar: ' + error.message)
     } finally {
       setLoading(false)
     }
   }
 
   async function eliminar() {
-    if (!confirm('¿Está seguro de eliminar esta línea del pedido?')) {
+    if (!await confirmar('¿Está seguro de eliminar esta línea del pedido?')) {
       return
     }
 
@@ -175,12 +176,12 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
 
       if (error) throw error
 
-      alert('✅ Línea eliminada')
+      toast('✅ Línea eliminada')
       onActualizado()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al eliminar: ' + error.message)
+      toast('❌ Error al eliminar: ' + error.message)
     } finally {
       setLoading(false)
     }

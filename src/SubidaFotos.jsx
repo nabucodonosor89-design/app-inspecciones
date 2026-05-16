@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { subirImagenCloudinary, validarImagen } from './utils/cloudinary'
+import { toast } from './utils/ui'
 
 function SubidaFotos({ onFotosChange, fotosExistentes = [] }) {
   const [fotos, setFotos] = useState(fotosExistentes)
@@ -18,7 +19,7 @@ function SubidaFotos({ onFotosChange, fotosExistentes = [] }) {
       if (validacion.valido) {
         archivosValidos.push(archivo)
       } else {
-        alert(`${archivo.name}: ${validacion.error}`)
+        toast(`${archivo.name}: ${validacion.error}`)
       }
     }
     
@@ -47,7 +48,7 @@ function SubidaFotos({ onFotosChange, fotosExistentes = [] }) {
         setProgreso({ actual: i + 1, total: archivosValidos.length })
       } catch (error) {
         console.error(`Error subiendo ${archivo.name}:`, error)
-        alert(`Error subiendo ${archivo.name}`)
+        toast(`Error subiendo ${archivo.name}`)
       }
     }
     

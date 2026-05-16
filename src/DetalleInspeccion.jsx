@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { getSemaforoColor } from './utils/semaforo'
+import { toast } from './utils/ui'
 
 function DetalleInspeccion({ inspeccion, onVolver }) {
   const [checklistItems, setChecklistItems] = useState([])
@@ -36,18 +38,9 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
 
     } catch (error) {
       console.error('Error cargando detalles:', error)
-      alert('Error al cargar detalles de la inspección')
+      toast('Error al cargar detalles de la inspección')
     } finally {
       setLoading(false)
-    }
-  }
-
-  function getSemaforoColor(semaforo) {
-    switch(semaforo) {
-      case 'verde': return '#10b981'
-      case 'amarillo': return '#f59e0b'
-      case 'rojo': return '#ef4444'
-      default: return '#6b7280'
     }
   }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function DashboardPedidosEquipos({ onVolver }) {
   const [loading, setLoading] = useState(true)
@@ -249,7 +250,7 @@ function DashboardPedidosEquipos({ onVolver }) {
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar estadísticas')
+      toast('Error al cargar estadísticas')
     } finally {
       setLoading(false)
     }

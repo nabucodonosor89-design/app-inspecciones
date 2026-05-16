@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
   const [estadoSeleccionado, setEstadoSeleccionado] = useState(equipo.estado_operativo || 'operativo')
@@ -44,13 +45,13 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
 
       if (error) throw error
 
-      alert('✅ Estado operativo actualizado')
+      toast('✅ Estado operativo actualizado')
       onActualizar()
       onCerrar()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al actualizar estado: ' + error.message)
+      toast('❌ Error al actualizar estado: ' + error.message)
     } finally {
       setGuardando(false)
     }

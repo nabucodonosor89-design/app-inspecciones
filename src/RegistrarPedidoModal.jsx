@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 // Lista completa de tipos de equipos
 const TIPOS_EQUIPOS = [
@@ -180,7 +181,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
       setObras(data || [])
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar obras')
+      toast('Error al cargar obras')
     }
   }
 
@@ -196,7 +197,7 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
 
   function eliminarLinea(index) {
     if (lineas.length === 1) {
-      alert('Debe haber al menos una línea')
+      toast('Debe haber al menos una línea')
       return
     }
     setLineas(lineas.filter((_, i) => i !== index))
@@ -228,30 +229,30 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
   async function guardar() {
     // Validaciones
     if (!numeroPedido.trim()) {
-      alert('⚠️ Ingrese el número de pedido')
+      toast('⚠️ Ingrese el número de pedido')
       return
     }
 
     if (!obraId) {
-      alert('⚠️ Seleccione una obra')
+      toast('⚠️ Seleccione una obra')
       return
     }
 
     if (!emailSolicitante.trim()) {
-      alert('⚠️ Ingrese el email del solicitante')
+      toast('⚠️ Ingrese el email del solicitante')
       return
     }
 
     // Validar email formato básico
     if (!emailSolicitante.includes('@')) {
-      alert('⚠️ Ingrese un email válido')
+      toast('⚠️ Ingrese un email válido')
       return
     }
 
     // Validar líneas
     const lineasValidas = lineas.filter(l => l.tipo_equipo.trim() !== '')
     if (lineasValidas.length === 0) {
-      alert('⚠️ Ingrese al menos un tipo de equipo')
+      toast('⚠️ Ingrese al menos un tipo de equipo')
       return
     }
 
@@ -279,12 +280,12 @@ function RegistrarPedidoModal({ onCerrar, onGuardado, usuario }) {
 
       if (error) throw error
 
-      alert(`✅ Pedido registrado exitosamente!\n${lineasValidas.length} equipo(s) solicitado(s)`)
+      toast(`✅ Pedido registrado exitosamente!\n${lineasValidas.length} equipo(s) solicitado(s)`)
       onGuardado()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al guardar pedido: ' + error.message)
+      toast('❌ Error al guardar pedido: ' + error.message)
     } finally {
       setLoading(false)
     }

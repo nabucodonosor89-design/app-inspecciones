@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import HistorialInspecciones from './HistorialInspecciones.jsx'
 import EstadoOperativoModal from './EstadoOperativoModal.jsx'
+import { getSemaforoColor, getSemaforoEmoji } from './utils/semaforo'
 
 function EquiposList({ onInspeccionarEquipo }) {
   const [equipos, setEquipos] = useState([])
@@ -146,19 +147,6 @@ function EquiposList({ onInspeccionarEquipo }) {
   // Obtener ubicaciones únicas para el filtro
   const ubicacionesUnicas = ['Todos', ...new Set(equipos.map(e => e.ubicacion_actual).filter(Boolean))]
 
-  const getSemaforoEmoji = (semaforo) => {
-    if (semaforo === 'verde') return '🟢'
-    if (semaforo === 'amarillo') return '🟡'
-    if (semaforo === 'rojo') return '🔴'
-    return '⚪'
-  }
-
-  const getSemaforoColor = (semaforo) => {
-    if (semaforo === 'verde') return '#10b981'
-    if (semaforo === 'amarillo') return '#f59e0b'
-    if (semaforo === 'rojo') return '#ef4444'
-    return '#9ca3af'
-  }
 
   const getEstadoInspeccion = (dias) => {
     if (dias === null) return { emoji: '⚪', texto: 'Sin inspecciones', color: '#9ca3af', bgColor: '#f3f4f6' }

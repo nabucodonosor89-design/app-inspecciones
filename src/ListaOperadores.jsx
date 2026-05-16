@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function ListaOperadores({ onNuevo, onEditar }) {
   const [operadores, setOperadores] = useState([])
@@ -41,7 +42,7 @@ function ListaOperadores({ onNuevo, onEditar }) {
       setOperadores(data || [])
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar operadores: ' + error.message)
+      toast('Error al cargar operadores: ' + error.message)
     } finally {
       setLoading(false)
     }

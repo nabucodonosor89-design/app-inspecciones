@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import EditarLineaPedidoModal from './EditarLineaPedidoModal.jsx'
+import { toast, confirmar } from './utils/ui'
 import { generarReportesSemanalesPDF } from './utils/pdfReportesPedidos.js'
 import * as XLSX from 'xlsx'
 
@@ -51,7 +52,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
       setPedidos(data || [])
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar pedidos: ' + error.message)
+      toast('Error al cargar pedidos: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -117,24 +118,24 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
       )
 
       if (pedidosNoEntregados.length === 0) {
-        alert('ℹ️ No hay pedidos pendientes para generar reportes')
+        toast('ℹ️ No hay pedidos pendientes para generar reportes')
         return
       }
 
       // Contar solicitantes únicos
       const solicitantes = [...new Set(pedidosNoEntregados.map(p => p.email_solicitante))]
       
-      if (!confirm(`¿Generar reportes para ${solicitantes.length} solicitante(s)?\n\nSe generarán ${solicitantes.length} PDF(s) en un archivo ZIP.`)) {
+      if (!await confirmar(`¿Generar reportes para ${solicitantes.length} solicitante(s)?\n\nSe generarán ${solicitantes.length} PDF(s) en un archivo ZIP.`)) {
         return
       }
 
       await generarReportesSemanalesPDF(pedidosNoEntregados, obras)
       
-      alert(`✅ Reportes generados exitosamente!\n\n${solicitantes.length} PDF(s) descargados en ZIP.`)
+      toast(`✅ Reportes generados exitosamente!\n\n${solicitantes.length} PDF(s) descargados en ZIP.`)
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al generar reportes: ' + error.message)
+      toast('❌ Error al generar reportes: ' + error.message)
     } finally {
       setGenerandoReportes(false)
     }
@@ -144,7 +145,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
     try {
       // Usar pedidos filtrados actuales
       if (pedidosFiltrados.length === 0) {
-        alert('ℹ️ No hay pedidos para exportar')
+        toast('ℹ️ No hay pedidos para exportar')
         return
       }
 
@@ -231,11 +232,11 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
       // Descargar
       XLSX.writeFile(wb, nombreArchivo)
 
-      alert(`✅ Archivo Excel generado exitosamente!\n\n${pedidosFiltrados.length} pedidos exportados\nArchivo: ${nombreArchivo}`)
+      toast(`✅ Archivo Excel generado exitosamente!\n\n${pedidosFiltrados.length} pedidos exportados\nArchivo: ${nombreArchivo}`)
 
     } catch (error) {
       console.error('Error al exportar:', error)
-      alert('❌ Error al exportar a Excel: ' + error.message)
+      toast('❌ Error al exportar a Excel: ' + error.message)
     }
   }
 

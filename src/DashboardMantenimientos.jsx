@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function DashboardMantenimientos({ onVolver }) {
   const [loading, setLoading] = useState(true)
@@ -54,7 +55,7 @@ function DashboardMantenimientos({ onVolver }) {
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar datos: ' + error.message)
+      toast('Error al cargar datos: ' + error.message)
     } finally {
       setLoading(false)
     }

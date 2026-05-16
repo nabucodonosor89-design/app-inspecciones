@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function ListaMantenimientos({ onNuevo, onEditar }) {
   const [mantenimientos, setMantenimientos] = useState([])
@@ -41,7 +42,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
       setMantenimientos(data || [])
     } catch (error) {
       console.error('Error completo:', error)
-      alert('Error al cargar mantenimientos: ' + error.message + '\n\n¿Ya ejecutaste el SQL para crear la tabla mantenimientos?')
+      toast('Error al cargar mantenimientos: ' + error.message + '\n\n¿Ya ejecutaste el SQL para crear la tabla mantenimientos?')
     } finally {
       setLoading(false)
     }

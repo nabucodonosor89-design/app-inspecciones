@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
+import { toast } from './utils/ui'
 import { generarPDFPedidoCompra } from './utils/pdfPedidoCompra'
 
 function ListaPedidosCompra({ usuario }) {
@@ -29,7 +30,7 @@ function ListaPedidosCompra({ usuario }) {
       setPedidos(data || [])
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar pedidos')
+      toast('Error al cargar pedidos')
     } finally {
       setLoading(false)
     }
@@ -44,11 +45,11 @@ function ListaPedidosCompra({ usuario }) {
 
       if (error) throw error
 
-      alert(`✅ Estado actualizado a: ${getEstadoLabel(nuevoEstado)}`)
+      toast(`✅ Estado actualizado a: ${getEstadoLabel(nuevoEstado)}`)
       cargarPedidos()
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al cambiar estado')
+      toast('❌ Error al cambiar estado')
     }
   }
 
@@ -71,7 +72,7 @@ function ListaPedidosCompra({ usuario }) {
   async function generarPDF(pedido) {
     try {
       if (!pedido.pedido_items || pedido.pedido_items.length === 0) {
-        alert('❌ Este pedido no tiene ítems para generar PDF')
+        toast('❌ Este pedido no tiene ítems para generar PDF')
         return
       }
 
@@ -79,7 +80,7 @@ function ListaPedidosCompra({ usuario }) {
       
     } catch (error) {
       console.error('Error generando PDF:', error)
-      alert('❌ Error al generar PDF: ' + error.message)
+      toast('❌ Error al generar PDF: ' + error.message)
     }
   }
 

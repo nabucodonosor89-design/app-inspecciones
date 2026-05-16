@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function DashboardEjecutivo({ onVolver }) {
   const [loading, setLoading] = useState(true)
@@ -127,7 +128,7 @@ function DashboardEjecutivo({ onVolver }) {
 
     } catch (error) {
       console.error('Error:', error)
-      alert('Error al cargar estadísticas: ' + error.message)
+      toast('Error al cargar estadísticas: ' + error.message)
     } finally {
       setLoading(false)
     }

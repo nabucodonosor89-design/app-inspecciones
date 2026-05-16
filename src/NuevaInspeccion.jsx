@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import SubidaFotos from './SubidaFotos.jsx'
+import { getSemaforoColor, getSemaforoEmoji, getSemaforoTexto } from './utils/semaforo'
+import { toast } from './utils/ui'
 
 function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [paso, setPaso] = useState(equipoPreseleccionado ? 2 : 1)
@@ -219,19 +221,19 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
       // NUEVO: Validaciones para envío a obra
       if (tipoInspeccion === 'envio') {
         if (!motivoEnvio) {
-          alert('⚠️ Debe seleccionar el motivo del envío')
+          toast('⚠️ Debe seleccionar el motivo del envío')
           setLoading(false)
           return
         }
 
         if (motivoEnvio === 'pedido' && !pedidoEquipoLineaId) {
-          alert('⚠️ Debe seleccionar el pedido que se está cumpliendo')
+          toast('⚠️ Debe seleccionar el pedido que se está cumpliendo')
           setLoading(false)
           return
         }
 
         if (motivoEnvio === 'reemplazo' && !observacionesEnvio.trim()) {
-          alert('⚠️ Debe especificar qué equipo se está reemplazando')
+          toast('⚠️ Debe especificar qué equipo se está reemplazando')
           setLoading(false)
           return
         }
@@ -350,7 +352,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
       setPaso(3)
     } catch (error) {
-      alert('Error: ' + error.message)
+      toast('Error: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -369,26 +371,6 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   // Obtener el semáforo calculado en tiempo real
   const semaforoPreview = calcularSemaforo()
   
-  const getSemaforoEmoji = (semaforo) => {
-    if (semaforo === 'verde') return '🟢'
-    if (semaforo === 'amarillo') return '🟡'
-    if (semaforo === 'rojo') return '🔴'
-    return '⚪'
-  }
-
-  const getSemaforoColor = (semaforo) => {
-    if (semaforo === 'verde') return '#10b981'
-    if (semaforo === 'amarillo') return '#f59e0b'
-    if (semaforo === 'rojo') return '#ef4444'
-    return '#9ca3af'
-  }
-
-  const getSemaforoTexto = (semaforo) => {
-    if (semaforo === 'verde') return 'Equipo en buen estado'
-    if (semaforo === 'amarillo') return 'Requiere atención'
-    if (semaforo === 'rojo') return 'Requiere intervención urgente'
-    return 'Sin datos'
-  }
 
   // PASO 1: Seleccionar Equipo
   if (paso === 1) {

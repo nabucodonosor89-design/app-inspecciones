@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
+import { toast } from './utils/ui'
 
 function NuevoPedidoCompra({ onVolver, usuario }) {
   const [items, setItems] = useState([
@@ -71,14 +72,14 @@ function NuevoPedidoCompra({ onVolver, usuario }) {
       const itemsValidos = items.filter(item => item.descripcion.trim() !== '')
       
       if (itemsValidos.length === 0) {
-        alert('⚠️ Debes agregar al menos un ítem con descripción')
+        toast('⚠️ Debes agregar al menos un ítem con descripción')
         return
       }
 
       // Validar cantidades
       const itemsSinCantidad = itemsValidos.filter(item => !item.cantidad || item.cantidad <= 0)
       if (itemsSinCantidad.length > 0) {
-        alert('⚠️ Todos los ítems deben tener una cantidad mayor a 0')
+        toast('⚠️ Todos los ítems deben tener una cantidad mayor a 0')
         return
       }
 
@@ -119,12 +120,12 @@ function NuevoPedidoCompra({ onVolver, usuario }) {
 
       if (errorItems) throw errorItems
 
-      alert(`✅ Pedido creado exitosamente!\nNúmero: ${numeroPedido}`)
+      toast(`✅ Pedido creado exitosamente!\nNúmero: ${numeroPedido}`)
       onVolver()
 
     } catch (error) {
       console.error('Error:', error)
-      alert('❌ Error al guardar pedido: ' + error.message)
+      toast('❌ Error al guardar pedido: ' + error.message)
     } finally {
       setGuardando(false)
     }
