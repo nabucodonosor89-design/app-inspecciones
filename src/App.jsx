@@ -14,6 +14,7 @@ import NuevoMantenimiento from './NuevoMantenimiento.jsx'
 import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
 import ModuloOperadores from './ModuloOperadores.jsx'
+import DashboardFlota from './DashboardFlota.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -349,6 +350,40 @@ function App() {
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
               Inventario y gestión de equipos
+            </p>
+          </div>
+
+          {/* Card Panel de Flota */}
+          <div
+            onClick={() => setModulo('dashboard-flota')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(37, 99, 235, 0.3)'
+              e.currentTarget.style.borderColor = '#2563eb'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📊
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#2563eb' }}>
+              Panel de Flota
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Estado operativo diario
             </p>
           </div>
 
@@ -721,6 +756,13 @@ function App() {
         <ModuloOperadores />
       </div>
     )
+  }
+
+  // ============================================
+  // MÓDULO PANEL DE FLOTA
+  // ============================================
+  if (modulo === 'dashboard-flota') {
+    return <DashboardFlota onVolver={volverAlMenu} />
   }
 
   // Fallback (no debería llegar aquí)
