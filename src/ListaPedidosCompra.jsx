@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import NuevoPedidoCompra from './NuevoPedidoCompra.jsx'
 import { toast } from './utils/ui'
 import { generarPDFPedidoCompra } from './utils/pdfPedidoCompra'
 
-function ListaPedidosCompra({ usuario }) {
+function ListaPedidosCompra({ usuario, onNuevo }) {
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [vista, setVista] = useState('lista') // 'lista' o 'nuevo'
+  const [vista, setVista] = useState('lista') // 'lista' o 'editar'
   const [pedidoEditando, setPedidoEditando] = useState(null)
   const [filtroEstado, setFiltroEstado] = useState('Todos')
 
@@ -90,16 +89,7 @@ function ListaPedidosCompra({ usuario }) {
     return pedido.estado === filtroEstado
   })
 
-  // Si está en vista de nuevo pedido
-  if (vista === 'nuevo') {
-    return <NuevoPedidoCompra 
-      usuario={usuario} 
-      onVolver={() => {
-        setVista('lista')
-        cargarPedidos()
-      }} 
-    />
-  }
+  // La creación de nuevo pedido la maneja App.jsx via prop onNuevo
 
   // Vista de edición de estado
   if (pedidoEditando) {
@@ -210,7 +200,7 @@ function ListaPedidosCompra({ usuario }) {
             </p>
           </div>
           <button
-            onClick={() => setVista('nuevo')}
+            onClick={() => onNuevo ? onNuevo() : null}
             style={{
               padding: '0.75rem 1.5rem',
               background: '#667eea',

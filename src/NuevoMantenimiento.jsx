@@ -83,7 +83,9 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
       if (error) throw error
       setInspeccionesDisponibles(data || [])
 
-      if (data && data.length === 1) {
+      // Solo auto-seleccionar si es un mantenimiento nuevo (no edición)
+      // En edición, cargarDatosEdicion ya establece la inspección correcta
+      if (data && data.length === 1 && !mantenimientoEditar) {
         setInspeccionSeleccionada(data[0].id)
       }
     } catch (error) {

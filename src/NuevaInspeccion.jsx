@@ -357,6 +357,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
   const puedeGuardar = () => {
     if (!tipoInspeccion || !horometro || !ubicacion) return false
+    if (tipoInspeccion === 'envio') {
+      if (!motivoEnvio) return false
+      if (motivoEnvio === 'pedido' && !pedidoEquipoLineaId) return false
+      if (motivoEnvio === 'reemplazo' && !observacionesEnvio.trim()) return false
+    }
     const criticos = checklistTemplates.filter(t => t.es_critico)
     return criticos.every(t => checklist[t.id])
   }

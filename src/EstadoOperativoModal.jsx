@@ -85,7 +85,7 @@ function EstadoOperativoModal({ equipo, onCerrar, onActualizar }) {
             🔧 Estado Operativo
           </h2>
           <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
-            <strong>Equipo:</strong> {equipo.nombre}
+            <strong>Equipo:</strong> {equipo.numero_identificacion} — {equipo.denominacion}
           </p>
 
           {/* Selección de estado */}

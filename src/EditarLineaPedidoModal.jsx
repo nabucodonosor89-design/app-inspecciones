@@ -362,7 +362,7 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
                         <div style={{ fontWeight: '700', marginBottom: '0.25rem' }}>
                           {eq.numero_identificacion}
                           {eq.estado_operativo === 'fuera_servicio' && ' 🔴'}
-                          {eq.estado_operativo === 'operativo_restricciones' && ' ⚠️'}
+                          {eq.estado_operativo === 'con_restriccion' && ' ⚠️'}
                         </div>
                         <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>{eq.denominacion || ''}</div>
                       </button>
