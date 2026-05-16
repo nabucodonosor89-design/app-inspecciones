@@ -54,12 +54,36 @@ function DashboardFlota({ onVolver }) {
         f.inspecciones?.fecha_hora && f.inspecciones.fecha_hora >= hace7dias
       )
 
+      // ── Última inspección por equipo (base para todos los cálculos) ──
+      const ultimaInspeccionPorEquipo = {}
+      inspecciones.forEach(i => {
+        if (!ultimaInspeccionPorEquipo[i.equipo_id] || i.fecha_hora > ultimaInspeccionPorEquipo[i.equipo_id]) {
+          ultimaInspeccionPorEquipo[i.equipo_id] = i.fecha_hora
+        }
+      })
+
       // ── KPIs de estado operativo ──
       const totalEquipos = equipos.length
       const operativos = equipos.filter(e => e.estado_operativo === 'operativo').length
       const conRestriccion = equipos.filter(e => e.estado_operativo === 'con_restriccion').length
       const fueraServicio = equipos.filter(e => e.estado_operativo === 'fuera_servicio').length
       const enTallerCount = mantenimientos.length
+
+      // ── Veracidad: de los "operativos", qué tan fresca es la info ──
+      const operativosDetalle = equipos
+        .filter(e => e.estado_operativo === 'operativo')
+        .map(eq => {
+          const ultima = ultimaInspeccionPorEquipo[eq.id]
+          const dias = ultima
+            ? Math.floor((ahora.getTime() - new Date(ultima).getTime()) / (1000 * 60 * 60 * 24))
+            : null
+          return { ...eq, diasSinInspeccion: dias }
+        })
+
+      const operativosConfiables      = operativosDetalle.filter(e => e.diasSinInspeccion !== null && e.diasSinInspeccion <= 30)
+      const operativosDesactualizados = operativosDetalle.filter(e => e.diasSinInspeccion !== null && e.diasSinInspeccion > 30 && e.diasSinInspeccion <= 60)
+      const operativosMuyViejos       = operativosDetalle.filter(e => e.diasSinInspeccion !== null && e.diasSinInspeccion > 60)
+      const operativosSinRegistro     = operativosDetalle.filter(e => e.diasSinInspeccion === null)
 
       // ── Semáforo actual ──
       const semaforoVerde = equipos.filter(e => e.semaforo_actual === 'verde').length
@@ -72,16 +96,9 @@ function DashboardFlota({ onVolver }) {
       const inspSemanaAnterior = inspecciones.filter(i => i.fecha_hora >= hace14dias && i.fecha_hora < hace7dias)
       const rojoActual = inspSemanaActual.filter(i => i.semaforo === 'rojo').length
       const rojoAnterior = inspSemanaAnterior.filter(i => i.semaforo === 'rojo').length
-      const tendenciaRojo = rojoActual - rojoAnterior // positivo = empeora, negativo = mejora
+      const tendenciaRojo = rojoActual - rojoAnterior
 
       // ── Equipos sin actividad reciente (> 3 días sin inspección) ──
-      const ultimaInspeccionPorEquipo = {}
-      inspecciones.forEach(i => {
-        if (!ultimaInspeccionPorEquipo[i.equipo_id] || i.fecha_hora > ultimaInspeccionPorEquipo[i.equipo_id]) {
-          ultimaInspeccionPorEquipo[i.equipo_id] = i.fecha_hora
-        }
-      })
-
       const ahora_ms = ahora.getTime()
       const sinActividad = equipos
         .map(eq => {
@@ -106,6 +123,11 @@ function DashboardFlota({ onVolver }) {
         fallasCriticas,
         mantenimientos,
         inspeccionesHoy,
+        operativosConfiables,
+        operativosDesactualizados,
+        operativosMuyViejos,
+        operativosSinRegistro,
+        operativosDetalle,
       })
       setUltimaActualizacion(ahora)
     } catch (err) {
@@ -129,7 +151,8 @@ function DashboardFlota({ onVolver }) {
   const { totalEquipos, operativos, conRestriccion, fueraServicio, enTallerCount,
     semaforoVerde, semaforoAmarillo, semaforoRojo, semaforoSinDatos,
     tendenciaRojo, rojoActual, rojoAnterior,
-    sinActividad, fallasCriticas, mantenimientos, inspeccionesHoy } = datos
+    sinActividad, fallasCriticas, mantenimientos, inspeccionesHoy,
+    operativosConfiables, operativosDesactualizados, operativosMuyViejos, operativosSinRegistro, operativosDetalle } = datos
 
   const pctVerde = totalEquipos ? Math.round(semaforoVerde / totalEquipos * 100) : 0
   const pctAmarillo = totalEquipos ? Math.round(semaforoAmarillo / totalEquipos * 100) : 0
@@ -196,6 +219,84 @@ function DashboardFlota({ onVolver }) {
             </div>
           ))}
         </div>
+
+        {/* ── Veracidad del dato operativo ── */}
+        {operativos > 0 && (() => {
+          const dudosos = operativosDesactualizados.length + operativosMuyViejos.length + operativosSinRegistro.length
+          const pctConfiable = Math.round(operativosConfiables.length / operativos * 100)
+          const nivelAlerta = pctConfiable >= 80 ? 'verde' : pctConfiable >= 50 ? 'amarillo' : 'rojo'
+          const coloresAlerta = {
+            verde:    { border: '#10b981', bg: '#f0fdf4', titulo: '#166534', badge: '#dcfce7', badgeText: '#166534' },
+            amarillo: { border: '#f59e0b', bg: '#fffbeb', titulo: '#92400e', badge: '#fef3c7', badgeText: '#92400e' },
+            rojo:     { border: '#dc2626', bg: '#fff5f5', titulo: '#991b1b', badge: '#fee2e2', badgeText: '#dc2626' },
+          }
+          const col = coloresAlerta[nivelAlerta]
+
+          return (
+            <div style={{ background: col.bg, border: `2px solid ${col.border}`, borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: '700', margin: '0 0 0.2rem 0', color: col.titulo }}>
+                    🔍 Veracidad del dato — Equipos "Operativos"
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
+                    ¿Qué tan reciente es la última inspección de cada equipo marcado como operativo?
+                  </p>
+                </div>
+                <div style={{ background: col.badge, color: col.badgeText, fontWeight: '800', fontSize: '1.4rem', padding: '0.5rem 1.25rem', borderRadius: '12px' }}>
+                  {pctConfiable}% confiable
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                {[
+                  { label: 'Inspección ≤ 30 días', count: operativosConfiables.length, color: '#10b981', bg: '#dcfce7', icon: '✅', desc: 'Dato confiable' },
+                  { label: 'Inspección 31–60 días', count: operativosDesactualizados.length, color: '#f59e0b', bg: '#fef3c7', icon: '⚠️', desc: 'Dato desactualizado' },
+                  { label: 'Inspección > 60 días', count: operativosMuyViejos.length, color: '#dc2626', bg: '#fee2e2', icon: '🔴', desc: 'Dato muy viejo' },
+                  { label: 'Sin inspección', count: operativosSinRegistro.length, color: '#6b7280', bg: '#f3f4f6', icon: '❓', desc: 'Sin registro alguno' },
+                ].map(({ label, count, color, bg, icon, desc }) => (
+                  <div key={label} style={{ background: bg, borderRadius: '10px', padding: '0.875rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem' }}>{icon}</div>
+                    <div style={{ fontSize: '2rem', fontWeight: '800', color, lineHeight: 1.1 }}>{count}</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#374151', marginTop: '0.2rem' }}>{label}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Lista de los problemáticos */}
+              {dudosos > 0 && (
+                <details style={{ cursor: 'pointer' }}>
+                  <summary style={{ fontSize: '0.875rem', fontWeight: '600', color: col.titulo, userSelect: 'none', padding: '0.25rem 0' }}>
+                    Ver {dudosos} equipo{dudosos > 1 ? 's' : ''} con dato dudoso
+                  </summary>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.5rem', marginTop: '0.75rem' }}>
+                    {[...operativosDesactualizados, ...operativosMuyViejos, ...operativosSinRegistro]
+                      .sort((a, b) => {
+                        if (a.diasSinInspeccion === null) return -1
+                        if (b.diasSinInspeccion === null) return 1
+                        return b.diasSinInspeccion - a.diasSinInspeccion
+                      })
+                      .map(eq => {
+                        const esMuyViejo = eq.diasSinInspeccion === null || eq.diasSinInspeccion > 60
+                        return (
+                          <div key={eq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', borderRadius: '8px', padding: '0.6rem 0.75rem', border: '1px solid #e5e7eb' }}>
+                            <div>
+                              <div style={{ fontWeight: '700', fontSize: '0.825rem', color: '#111827' }}>{eq.numero_identificacion}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>{eq.denominacion}</div>
+                            </div>
+                            <span style={{ fontWeight: '800', fontSize: '0.8rem', color: esMuyViejo ? '#dc2626' : '#d97706', flexShrink: 0, marginLeft: '0.5rem' }}>
+                              {eq.diasSinInspeccion === null ? 'Sin registro' : `${eq.diasSinInspeccion}d`}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </details>
+              )}
+            </div>
+          )
+        })()}
 
         {/* ── Fila 2: Semáforo + Sin actividad ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
