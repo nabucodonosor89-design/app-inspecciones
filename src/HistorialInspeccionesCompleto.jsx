@@ -31,7 +31,8 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
         .select(`
           *,
           equipos(numero_identificacion, denominacion, tipo_equipo),
-          usuarios(nombre_completo)
+          usuarios(nombre_completo),
+          operadores(nombres, apellidos)
         `)
         .order('fecha_hora', { ascending: false })
 
@@ -412,6 +413,11 @@ function HistorialInspecciones({ onVolver, onVerDetalle }) {
                   <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: 0 }}>
                     👤 {insp.usuarios?.nombre_completo || 'N/A'}
                   </p>
+                  {insp.operadores && (
+                    <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0.25rem 0 0 0' }}>
+                      👷 {insp.operadores.apellidos}, {insp.operadores.nombres}
+                    </p>
+                  )}
                   <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0.25rem 0 0 0' }}>
                     📍 {insp.ubicacion || 'Sin ubicación'}
                   </p>

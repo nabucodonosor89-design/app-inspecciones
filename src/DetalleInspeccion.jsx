@@ -153,6 +153,15 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
                 <span>{inspeccion.usuarios?.nombre_completo || 'N/A'}</span>
               </div>
               <div>
+                <span style={{ fontWeight: '600', color: '#6b7280' }}>👷 Operador: </span>
+                <span>
+                  {inspeccion.operadores
+                    ? `${inspeccion.operadores.apellidos}, ${inspeccion.operadores.nombres}`
+                    : <em style={{ color: '#9ca3af' }}>No registrado</em>
+                  }
+                </span>
+              </div>
+              <div>
                 <span style={{ fontWeight: '600', color: '#6b7280' }}>Ubicación: </span>
                 <span>{inspeccion.ubicacion || 'N/A'}</span>
               </div>

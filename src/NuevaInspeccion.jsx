@@ -255,10 +255,12 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           semaforo: semaforoCalculado,
           estado: 'completa',
           inspeccion_envio_relacionada: tipoInspeccion === 'recepcion' && inspeccionEnvioRelacionada ? inspeccionEnvioRelacionada : null,
-          // NUEVO: Campos de motivo de envío
+          // Campos de motivo de envío
           motivo_envio: tipoInspeccion === 'envio' ? motivoEnvio : null,
           pedido_equipo_linea_id: tipoInspeccion === 'envio' && motivoEnvio === 'pedido' ? pedidoEquipoLineaId : null,
-          observaciones_envio: tipoInspeccion === 'envio' && observacionesEnvio ? observacionesEnvio.trim() : null
+          observaciones_envio: tipoInspeccion === 'envio' && observacionesEnvio ? observacionesEnvio.trim() : null,
+          // Operador que usaba el equipo al momento de la inspección
+          operador_id: operadorAsignado || null
         })
         .select()
         .single()
