@@ -28,9 +28,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [pedidosDisponibles, setPedidosDisponibles] = useState([])
   const [observacionesEnvio, setObservacionesEnvio] = useState('')
 
-  // NUEVO: Estados para asignación de operador
+  // Estados para asignación de operador
   const [operadorAsignado, setOperadorAsignado] = useState(null)
   const [operadores, setOperadores] = useState([])
+  const [busquedaOperador, setBusquedaOperador] = useState('')
+  const [mostrarDropdownOperador, setMostrarDropdownOperador] = useState(false)
 
   useEffect(() => {
     getEquipos()
@@ -52,7 +54,10 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     // Pre-seleccionar operador del equipo si viene preseleccionado
     if (equipoPreseleccionado?.operador_asignado_id && data) {
       const existe = data.find(o => o.id === equipoPreseleccionado.operador_asignado_id)
-      if (existe) setOperadorAsignado(equipoPreseleccionado.operador_asignado_id)
+      if (existe) {
+        setOperadorAsignado(equipoPreseleccionado.operador_asignado_id)
+        setBusquedaOperador(`${existe.apellidos}, ${existe.nombres}`)
+      }
     }
   }
 
@@ -157,8 +162,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     // Pre-seleccionar operador si el equipo ya tiene uno asignado
     if (equipo.operador_asignado_id) {
       setOperadorAsignado(equipo.operador_asignado_id)
+      const op = operadores.find(o => o.id === equipo.operador_asignado_id)
+      if (op) setBusquedaOperador(`${op.apellidos}, ${op.nombres}`)
     } else {
       setOperadorAsignado(null)
+      setBusquedaOperador('')
     }
     
     setPaso(2)
@@ -628,32 +636,118 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
             }}>
               Operador
             </label>
-            <select
-              value={operadorAsignado || ''}
-              onChange={(e) => setOperadorAsignado(e.target.value || null)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                border: '2px solid #86efac',
-                borderRadius: '8px',
-                fontSize: '0.875rem',
-                background: 'white',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="">-- Sin operador asignado --</option>
-              {operadores.map(op => (
-                <option key={op.id} value={op.id}>
-                  {op.apellidos}, {op.nombres} - CI: {op.numero_documento}
-                  {op.tipos_equipos_habilitado && op.tipos_equipos_habilitado.length > 0 
-                    ? ` (${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}${op.tipos_equipos_habilitado.length > 2 ? '...' : ''})` 
-                    : ''
+            {/* Autocomplete de operador */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Escribí nombre o apellido para buscar..."
+                value={busquedaOperador}
+                onChange={(e) => {
+                  setBusquedaOperador(e.target.value)
+                  setMostrarDropdownOperador(true)
+                  if (!e.target.value) {
+                    setOperadorAsignado(null)
                   }
-                </option>
-              ))}
-            </select>
-            
-            {operadorAsignado && (
+                }}
+                onFocus={() => setMostrarDropdownOperador(true)}
+                onBlur={() => setTimeout(() => setMostrarDropdownOperador(false), 150)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `2px solid ${operadorAsignado ? '#86efac' : '#e5e7eb'}`,
+                  borderRadius: '8px',
+                  fontSize: '0.875rem',
+                  background: 'white',
+                  boxSizing: 'border-box'
+                }}
+              />
+
+              {/* Dropdown filtrado */}
+              {mostrarDropdownOperador && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: 'white',
+                  border: '2px solid #e5e7eb',
+                  borderTop: 'none',
+                  borderRadius: '0 0 8px 8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                  zIndex: 100,
+                  maxHeight: '220px',
+                  overflowY: 'auto'
+                }}>
+                  {/* Opción limpiar */}
+                  <div
+                    onMouseDown={() => {
+                      setOperadorAsignado(null)
+                      setBusquedaOperador('')
+                      setMostrarDropdownOperador(false)
+                    }}
+                    style={{
+                      padding: '0.6rem 0.75rem',
+                      fontSize: '0.85rem',
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f3f4f6'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                  >
+                    — Sin operador asignado
+                  </div>
+
+                  {operadores
+                    .filter(op => {
+                      const q = busquedaOperador.toLowerCase()
+                      return !q ||
+                        op.nombres?.toLowerCase().includes(q) ||
+                        op.apellidos?.toLowerCase().includes(q) ||
+                        op.numero_documento?.toLowerCase().includes(q)
+                    })
+                    .map(op => (
+                      <div
+                        key={op.id}
+                        onMouseDown={() => {
+                          setOperadorAsignado(op.id)
+                          setBusquedaOperador(`${op.apellidos}, ${op.nombres}`)
+                          setMostrarDropdownOperador(false)
+                        }}
+                        style={{
+                          padding: '0.6rem 0.75rem',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f3f4f6',
+                          background: operadorAsignado === op.id ? '#f0fdf4' : 'white'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
+                        onMouseLeave={e => e.currentTarget.style.background = operadorAsignado === op.id ? '#f0fdf4' : 'white'}
+                      >
+                        <div style={{ fontWeight: '600', fontSize: '0.875rem', color: '#111827' }}>
+                          👷 {op.apellidos}, {op.nombres}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                          CI: {op.numero_documento}
+                          {op.tipos_equipos_habilitado?.length > 0 && ` · ${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}`}
+                        </div>
+                      </div>
+                    ))
+                  }
+
+                  {operadores.filter(op => {
+                    const q = busquedaOperador.toLowerCase()
+                    return !q || op.nombres?.toLowerCase().includes(q) || op.apellidos?.toLowerCase().includes(q) || op.numero_documento?.toLowerCase().includes(q)
+                  }).length === 0 && (
+                    <div style={{ padding: '0.75rem', fontSize: '0.85rem', color: '#9ca3af', textAlign: 'center' }}>
+                      Sin resultados para "{busquedaOperador}"
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Feedback de selección */}
+            {operadorAsignado ? (
               <div style={{
                 marginTop: '0.75rem',
                 padding: '0.75rem',
@@ -666,13 +760,9 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                 gap: '0.5rem'
               }}>
                 <span>✅</span>
-                <span>
-                  <strong>Operador será asignado</strong> al guardar esta inspección
-                </span>
+                <span><strong>Operador seleccionado</strong> — se registrará en la inspección</span>
               </div>
-            )}
-
-            {!operadorAsignado && (
+            ) : (
               <div style={{
                 marginTop: '0.75rem',
                 padding: '0.75rem',
@@ -685,9 +775,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                 gap: '0.5rem'
               }}>
                 <span>ℹ️</span>
-                <span>
-                  El equipo quedará sin operador asignado
-                </span>
+                <span>La inspección quedará sin operador registrado</span>
               </div>
             )}
           </div>
