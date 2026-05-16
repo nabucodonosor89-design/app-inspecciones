@@ -35,11 +35,26 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   useEffect(() => {
     getEquipos()
     getObras()
+    cargarOperadores()
     // Si hay equipo preseleccionado, cargar su checklist
     if (equipoPreseleccionado) {
       getChecklistTemplate(equipoPreseleccionado.tipo_equipo)
     }
   }, [])
+
+  async function cargarOperadores() {
+    const { data } = await supabase
+      .from('operadores')
+      .select('*')
+      .eq('estado', 'activo')
+      .order('apellidos')
+    setOperadores(data || [])
+    // Pre-seleccionar operador del equipo si viene preseleccionado
+    if (equipoPreseleccionado?.operador_asignado_id && data) {
+      const existe = data.find(o => o.id === equipoPreseleccionado.operador_asignado_id)
+      if (existe) setOperadorAsignado(equipoPreseleccionado.operador_asignado_id)
+    }
+  }
 
   // Cargar inspecciones de envío cuando se selecciona tipo "recepcion"
   useEffect(() => {
@@ -139,44 +154,12 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     setEquipoSeleccionado(equipo)
     await getChecklistTemplate(equipo.tipo_equipo)
     
-    console.log('========================================')
-    console.log('📋 Equipo seleccionado:', equipo.numero_identificacion)
-    console.log('🔍 operador_asignado_id del equipo:', equipo.operador_asignado_id)
-    
-    // Cargar operadores activos
-    console.log('🔄 Cargando operadores activos...')
-    const { data: operadoresData, error: errorOp } = await supabase
-      .from('operadores')
-      .select('*')
-      .eq('estado', 'activo')
-      .order('apellidos')
-
-    console.log('📊 Resultado carga de operadores:', { 
-      cantidad: operadoresData?.length || 0, 
-      error: errorOp,
-      operadores: operadoresData?.map(o => `${o.nombres} ${o.apellidos}`)
-    })
-
-    setOperadores(operadoresData || [])
-
-    // Si el equipo ya tiene operador asignado, pre-seleccionarlo
+    // Pre-seleccionar operador si el equipo ya tiene uno asignado
     if (equipo.operador_asignado_id) {
       setOperadorAsignado(equipo.operador_asignado_id)
-      console.log('✅ Pre-seleccionando operador:', equipo.operador_asignado_id)
-      
-      // Verificar si el operador existe en la lista
-      const operadorEncontrado = operadoresData?.find(o => o.id === equipo.operador_asignado_id)
-      if (operadorEncontrado) {
-        console.log('✅ Operador encontrado en lista:', `${operadorEncontrado.nombres} ${operadorEncontrado.apellidos}`)
-      } else {
-        console.warn('⚠️ Operador asignado NO está en la lista de activos')
-      }
     } else {
       setOperadorAsignado(null)
-      console.log('ℹ️ Equipo sin operador asignado previamente')
     }
-    
-    console.log('========================================')
     
     setPaso(2)
   }
