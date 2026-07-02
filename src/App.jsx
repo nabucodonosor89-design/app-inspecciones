@@ -15,11 +15,12 @@ import ListaMantenimientos from './ListaMantenimientos.jsx'
 import DashboardMantenimientos from './DashboardMantenimientos.jsx'
 import ModuloOperadores from './ModuloOperadores.jsx'
 import DashboardFlota from './DashboardFlota.jsx'
+import CajaChica from './CajaChica.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -420,6 +421,40 @@ function App() {
               Gestión de operadores de equipos
             </p>
           </div>
+
+          {/* Card Caja Chica */}
+          <div
+            onClick={() => setModulo('caja-chica')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(5, 150, 105, 0.3)'
+              e.currentTarget.style.borderColor = '#059669'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              💰
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#059669' }}>
+              Caja Chica
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Fondos y cajas especiales del departamento
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -763,6 +798,13 @@ function App() {
   // ============================================
   if (modulo === 'dashboard-flota') {
     return <DashboardFlota onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // MÓDULO CAJA CHICA
+  // ============================================
+  if (modulo === 'caja-chica') {
+    return <CajaChica usuario={user} onVolver={volverAlMenu} />
   }
 
   // Fallback (no debería llegar aquí)
