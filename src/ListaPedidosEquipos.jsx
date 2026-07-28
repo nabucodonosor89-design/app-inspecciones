@@ -67,7 +67,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
 
     // Filtro por estado (combinado)
     if (filtroEstado !== 'todos') {
-      if (filtroEstado === 'pendientes' && pedido.estado_entrega === 'entregado') return false // NUEVO: excluir entregados
+      if (filtroEstado === 'pendientes' && (pedido.estado_entrega === 'entregado' || pedido.estado_entrega === 'cancelado')) return false
       if (filtroEstado === 'pendiente_aprobacion' && pedido.estado_aprobacion !== 'pendiente_aprobacion') return false
       if (filtroEstado === 'aprobado_pendiente' && !(pedido.estado_aprobacion === 'aprobado' && pedido.estado_entrega === 'pendiente_asignacion')) return false
       if (filtroEstado === 'asignado' && pedido.estado_entrega !== 'asignado') return false
@@ -111,9 +111,10 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
     try {
       setGenerandoReportes(true)
 
-      // Filtrar solo pedidos NO entregados y NO rechazados
-      const pedidosNoEntregados = pedidos.filter(p => 
-        p.estado_entrega !== 'entregado' && 
+      // Filtrar solo pedidos NO entregados, NO cancelados y NO rechazados
+      const pedidosNoEntregados = pedidos.filter(p =>
+        p.estado_entrega !== 'entregado' &&
+        p.estado_entrega !== 'cancelado' &&
         p.estado_aprobacion !== 'rechazado'
       )
 
@@ -867,6 +868,101 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
           </div>
         </div>
       </div>
+
+      {/* Sección ENTREGADOS — tabla completa debajo del Kanban */}
+      {pedidosFiltrados.filter(p => p.estado_entrega === 'entregado').length > 0 && (
+        <div style={{ marginTop: '2rem' }}>
+          <div style={{
+            background: '#d1fae5',
+            padding: '1rem 1.25rem',
+            borderRadius: '8px 8px 0 0',
+            borderBottom: '3px solid #10b981',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#065f46' }}>
+              ✅ ENTREGADOS
+            </h3>
+            <span style={{
+              background: '#10b981',
+              color: 'white',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '999px',
+              fontSize: '0.875rem',
+              fontWeight: '700'
+            }}>
+              {pedidosFiltrados.filter(p => p.estado_entrega === 'entregado').length}
+            </span>
+          </div>
+          <div style={{ background: 'white', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ background: '#f0fdf4' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Obra</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Pedido</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Equipo Solicitado</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Equipo Asignado</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Solicitante</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Fecha Entrega</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#065f46', fontWeight: '700', borderBottom: '1px solid #d1fae5' }}>Comentarios</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pedidosFiltrados
+                  .filter(p => p.estado_entrega === 'entregado')
+                  .map((pedido, idx) => {
+                    const obra = pedido.obra || {}
+                    const equipo = pedido.equipo_asignado || null
+                    return (
+                      <tr
+                        key={pedido.id}
+                        style={{
+                          background: idx % 2 === 0 ? 'white' : '#f9fafb',
+                          borderBottom: '1px solid #f3f4f6',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setLineaEditando(pedido)}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
+                        onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? 'white' : '#f9fafb'}
+                      >
+                        <td style={{ padding: '0.75rem 1rem', color: '#1f2937', fontWeight: '600' }}>
+                          {obra.codigo_obra} — {obra.nombre_obra}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', color: '#374151' }}>
+                          {pedido.numero_pedido}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', color: '#374151' }}>
+                          {pedido.tipo_equipo_solicitado}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          {equipo
+                            ? <span style={{ background: '#d1fae5', color: '#065f46', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: '600' }}>
+                                {equipo.numero_identificacion}
+                              </span>
+                            : <span style={{ color: '#9ca3af' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', color: '#6b7280', fontSize: '0.8rem' }}>
+                          {pedido.email_solicitante}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                          {pedido.fecha_entrega_real
+                            ? new Date(pedido.fecha_entrega_real).toLocaleDateString('es-PY')
+                            : <span style={{ color: '#9ca3af' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', color: '#6b7280', fontSize: '0.8rem', maxWidth: '200px' }}>
+                          {pedido.comentarios || '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {pedidosFiltrados.length === 0 && (
         <div style={{
