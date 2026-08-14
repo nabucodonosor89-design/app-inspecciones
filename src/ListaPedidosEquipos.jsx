@@ -42,7 +42,7 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
         .select(`
           *,
           obra:obras(codigo_obra, nombre_obra),
-          equipo_asignado:equipos(numero_identificacion, estado_operativo, ubicacion_actual),
+          equipo_asignado:equipos(numero_identificacion, denominacion, estado_operativo, ubicacion_actual),
           mantenimiento:mantenimientos(numero_aviso, estado)
         `)
         .order('fecha_recepcion', { ascending: false })
@@ -151,75 +151,94 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
       }
 
       // Preparar datos para Excel
+      const etiquetaEstadoAprobacion = (v) => {
+        if (v === 'aprobado') return 'Aprobado'
+        if (v === 'rechazado') return 'Rechazado'
+        return 'Pend. Aprobación'
+      }
+      const etiquetaEstadoEntrega = (v) => {
+        if (v === 'asignado') return 'Asignado'
+        if (v === 'entregado') return 'Entregado'
+        if (v === 'cancelado') return 'Cancelado'
+        return 'Pend. Asignación'
+      }
+      const etiquetaEstadoEquipo = (v) => {
+        if (v === 'operativo') return 'Operativo'
+        if (v === 'con_restriccion') return 'Con Restricción'
+        if (v === 'fuera_servicio') return 'Fuera de Servicio'
+        return v || ''
+      }
+
       const datosExcel = pedidosFiltrados.map(pedido => {
         const equipo = pedido.equipo_asignado || {}
         const obra = pedido.obra || {}
         const mantenimiento = pedido.mantenimiento || {}
 
         return {
-          'Fecha Recepción': pedido.fecha_recepcion ? new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY') : '',
-          'Obra': obra.nombre_obra || '',
-          'Código Obra': obra.codigo_obra || '',
-          'Tipo Equipo': pedido.tipo_equipo || '',
-          'Cantidad': pedido.cantidad || 0,
-          'Solicitado Por': pedido.solicitado_por || '',
-          'Email Solicitante': pedido.email_solicitante || '',
-          'Estado': pedido.estado || '',
-          'Prioridad': pedido.prioridad || '',
-          'Equipo Asignado': equipo.numero_identificacion || 'Sin asignar',
-          'Estado Equipo': equipo.estado_operativo || '',
-          'Ubicación Equipo': equipo.ubicacion_actual || '',
-          'Fecha Asignación': pedido.fecha_asignacion ? new Date(pedido.fecha_asignacion).toLocaleDateString('es-PY') : '',
-          'Fecha Completado': pedido.fecha_completado ? new Date(pedido.fecha_completado).toLocaleDateString('es-PY') : '',
-          'Estado Entrega': pedido.estado_entrega || '',
-          'Estado Aprobación': pedido.estado_aprobacion || '',
-          'Aviso Mantenimiento': mantenimiento.numero_aviso || '',
+          'Nro Pedido':           pedido.numero_pedido || '',
+          'Fecha Recepción':      pedido.fecha_recepcion ? new Date(pedido.fecha_recepcion).toLocaleDateString('es-PY') : '',
+          'Obra':                 obra.nombre_obra || '',
+          'Cód. Obra':            obra.codigo_obra || '',
+          'Equipo Solicitado':    pedido.tipo_equipo_solicitado || '',
+          'Cantidad':             pedido.cantidad_solicitada || '',
+          'Solicitante':          pedido.email_solicitante || '',
+          'Estado Aprobación':    etiquetaEstadoAprobacion(pedido.estado_aprobacion),
+          'Estado Entrega':       etiquetaEstadoEntrega(pedido.estado_entrega),
+          'Equipo Asignado':      equipo.numero_identificacion || '',
+          'Denominación':         equipo.denominacion || '',
+          'Estado Equipo':        etiquetaEstadoEquipo(equipo.estado_operativo),
+          'Ubicación Equipo':     equipo.ubicacion_actual || '',
+          'F. Est. Entrega':      pedido.fecha_estimada_entrega ? new Date(pedido.fecha_estimada_entrega).toLocaleDateString('es-PY') : '',
+          'F. Real Entrega':      pedido.fecha_entrega_real ? new Date(pedido.fecha_entrega_real).toLocaleDateString('es-PY') : '',
+          'Aviso Mantenimiento':  mantenimiento.numero_aviso || '',
           'Estado Mantenimiento': mantenimiento.estado || '',
-          'Observaciones': pedido.observaciones || '',
-          'Creado': pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-PY') : ''
+          'Comentarios':          pedido.comentarios || '',
+          'Creado':               pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('es-PY') : ''
         }
       })
 
       // Crear libro de trabajo
       const wb = XLSX.utils.book_new()
-      
+
       // Crear hoja principal
       const ws = XLSX.utils.json_to_sheet(datosExcel)
 
       // Configurar anchos de columna
       ws['!cols'] = [
+        { wch: 14 }, // Nro Pedido
         { wch: 15 }, // Fecha Recepción
         { wch: 30 }, // Obra
-        { wch: 12 }, // Código Obra
-        { wch: 25 }, // Tipo Equipo
+        { wch: 10 }, // Cód. Obra
+        { wch: 28 }, // Equipo Solicitado
         { wch: 10 }, // Cantidad
-        { wch: 25 }, // Solicitado Por
-        { wch: 30 }, // Email Solicitante
-        { wch: 15 }, // Estado
-        { wch: 12 }, // Prioridad
-        { wch: 15 }, // Equipo Asignado
-        { wch: 18 }, // Estado Equipo
-        { wch: 25 }, // Ubicación Equipo
-        { wch: 15 }, // Fecha Asignación
-        { wch: 15 }, // Fecha Completado
-        { wch: 15 }, // Estado Entrega
+        { wch: 32 }, // Solicitante
         { wch: 18 }, // Estado Aprobación
+        { wch: 18 }, // Estado Entrega
+        { wch: 14 }, // Equipo Asignado
+        { wch: 30 }, // Denominación
+        { wch: 18 }, // Estado Equipo
+        { wch: 28 }, // Ubicación Equipo
+        { wch: 15 }, // F. Est. Entrega
+        { wch: 15 }, // F. Real Entrega
         { wch: 20 }, // Aviso Mantenimiento
         { wch: 20 }, // Estado Mantenimiento
-        { wch: 40 }, // Observaciones
-        { wch: 15 }  // Creado
+        { wch: 40 }, // Comentarios
+        { wch: 12 }, // Creado
       ]
 
       XLSX.utils.book_append_sheet(wb, ws, 'Pedidos de Equipos')
 
       // Agregar hoja de resumen
       const resumen = [
-        { Concepto: 'Total Pedidos', Valor: pedidosFiltrados.length },
-        { Concepto: 'Pendientes', Valor: pedidosFiltrados.filter(p => p.estado === 'pendiente').length },
-        { Concepto: 'En Proceso', Valor: pedidosFiltrados.filter(p => p.estado === 'en_proceso').length },
-        { Concepto: 'Completados', Valor: pedidosFiltrados.filter(p => p.estado === 'completado').length },
-        { Concepto: 'Con Equipo Asignado', Valor: pedidosFiltrados.filter(p => p.equipo_asignado_id).length },
-        { Concepto: 'Sin Equipo', Valor: pedidosFiltrados.filter(p => !p.equipo_asignado_id).length }
+        { Concepto: 'Total Pedidos',          Valor: pedidosFiltrados.length },
+        { Concepto: 'Pend. Aprobación',        Valor: pedidosFiltrados.filter(p => p.estado_aprobacion === 'pendiente_aprobacion').length },
+        { Concepto: 'Aprobados',              Valor: pedidosFiltrados.filter(p => p.estado_aprobacion === 'aprobado').length },
+        { Concepto: 'Rechazados',             Valor: pedidosFiltrados.filter(p => p.estado_aprobacion === 'rechazado').length },
+        { Concepto: 'Pend. Asignación',       Valor: pedidosFiltrados.filter(p => p.estado_entrega === 'pendiente_asignacion').length },
+        { Concepto: 'Asignados',              Valor: pedidosFiltrados.filter(p => p.estado_entrega === 'asignado').length },
+        { Concepto: 'Entregados',             Valor: pedidosFiltrados.filter(p => p.estado_entrega === 'entregado').length },
+        { Concepto: 'Con Equipo Asignado',    Valor: pedidosFiltrados.filter(p => p.equipo_asignado_id).length },
+        { Concepto: 'Sin Equipo',             Valor: pedidosFiltrados.filter(p => !p.equipo_asignado_id).length }
       ]
 
       const wsResumen = XLSX.utils.json_to_sheet(resumen)
