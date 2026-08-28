@@ -16,8 +16,19 @@ export default function AnalistaCorrectivo({ onVolver, onEditar }) {
   const [filtroPrioridad, setFiltroPrioridad] = useState('todos')
   const [actualizando, setActualizando] = useState(null)
   const [expandido, setExpandido] = useState(null)
+  // --- Repuestos tab ---
+  const [sapReservas, setSapReservas] = useState([])
+  const [repuestosDetalle, setRepuestosDetalle] = useState([])
+  const [loadingRepuestos, setLoadingRepuestos] = useState(false)
+  const [ordenExpandida, setOrdenExpandida] = useState(null)
+  const [confirmando, setConfirmando] = useState(null)
+  const [modalRepuesto, setModalRepuesto] = useState(null) // { mantenimientoId } | null
+  const [formRepuesto, setFormRepuesto] = useState({ descripcion: '', cantidad: '', unidad: 'UN', observaciones: '' })
 
   useEffect(() => { cargarDatos() }, [])
+  useEffect(() => {
+    if (vista === 'repuestos' && !loading) cargarRepuestos()
+  }, [vista, loading])
 
   // ============================================================
   // CARGA DE DATOS
@@ -141,6 +152,80 @@ export default function AnalistaCorrectivo({ onVolver, onEditar }) {
       await cargarDatos()
     } catch (e) {
       toast('Error: ' + e.message)
+    }
+  }
+
+  // ============================================================
+  // REPUESTOS: carga, confirmación y carga manual
+  // ============================================================
+  async function cargarRepuestos() {
+    setLoadingRepuestos(true)
+    try {
+      const ordenesActivas = activos.filter(c => c.numero_orden).map(c => c.numero_orden)
+      const idsActivos = activos.map(c => c.id)
+      const [resSap, resRep] = await Promise.all([
+        ordenesActivas.length > 0
+          ? supabase.from('sap_reservas').select('*').in('numero_orden', ordenesActivas)
+          : Promise.resolve({ data: [], error: null }),
+        idsActivos.length > 0
+          ? supabase.from('repuestos_mantenimiento').select('*').in('mantenimiento_id', idsActivos)
+          : Promise.resolve({ data: [], error: null }),
+      ])
+      if (resSap.error) throw resSap.error
+      if (resRep.error) throw resRep.error
+      setSapReservas(resSap.data || [])
+      setRepuestosDetalle(resRep.data || [])
+    } catch (e) {
+      toast('Error al cargar repuestos: ' + e.message)
+    } finally {
+      setLoadingRepuestos(false)
+    }
+  }
+
+  async function confirmarRecepcion(mantenimientoId, sapReserva) {
+    setConfirmando(sapReserva.id)
+    try {
+      const { error } = await supabase.from('repuestos_mantenimiento').insert({
+        mantenimiento_id: mantenimientoId,
+        sap_reserva_id: sapReserva.id,
+        numero_material: sapReserva.numero_material,
+        descripcion: sapReserva.descripcion_material || sapReserva.numero_material,
+        cantidad: sapReserva.cantidad_entregada || sapReserva.cantidad_requerida,
+        unidad: sapReserva.unidad,
+        estado: 'Recibido',
+        fecha_recepcion: new Date().toISOString().split('T')[0],
+      })
+      if (error) throw error
+      toast('✅ Recepción confirmada')
+      await cargarRepuestos()
+    } catch (e) {
+      toast('Error: ' + e.message)
+    } finally {
+      setConfirmando(null)
+    }
+  }
+
+  async function agregarRepuestoManual() {
+    if (!formRepuesto.descripcion.trim()) return
+    setConfirmando('manual')
+    try {
+      const { error } = await supabase.from('repuestos_mantenimiento').insert({
+        mantenimiento_id: modalRepuesto.mantenimientoId,
+        descripcion: formRepuesto.descripcion.trim(),
+        cantidad: formRepuesto.cantidad ? Number(formRepuesto.cantidad) : null,
+        unidad: formRepuesto.unidad || 'UN',
+        estado: 'Pendiente',
+        observaciones: formRepuesto.observaciones || null,
+      })
+      if (error) throw error
+      toast('✅ Repuesto registrado')
+      setModalRepuesto(null)
+      setFormRepuesto({ descripcion: '', cantidad: '', unidad: 'UN', observaciones: '' })
+      await cargarRepuestos()
+    } catch (e) {
+      toast('Error: ' + e.message)
+    } finally {
+      setConfirmando(null)
     }
   }
 
@@ -816,124 +901,336 @@ export default function AnalistaCorrectivo({ onVolver, onEditar }) {
   }
 
   // ============================================================
-  // VISTA: REPUESTOS
+  // VISTA: REPUESTOS (cruce SAP × App)
   // ============================================================
   const renderRepuestos = () => {
-    const sinPedido = activos.filter(c => !c.pedido).sort((a, b) => {
+    const ordenesActivas = [...activos].sort((a, b) => {
       const pA = prioridadOrden[a.prioridad] ?? 4
       const pB = prioridadOrden[b.prioridad] ?? 4
-      return pA - pB
+      return pA - pB || calcularDias(b) - calcularDias(a)
     })
-    const conPedido = activos.filter(c => c.pedido)
 
-    const CardRepuesto = ({ c, pendiente }) => {
-      const prio = getPrioridadConfig(c.prioridad)
-      const est = getEstadoConfig(c.estado)
-      const dias = calcularDias(c)
-      return (
-        <div style={{
-          background: 'white',
-          borderRadius: '10px',
-          padding: '0.9rem 1.1rem',
-          border: pendiente ? '1px solid #fed7aa' : '1px solid #bbf7d0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-          display: 'flex',
-          gap: '0.75rem',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ flex: 1, minWidth: '180px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: '700', color: '#1f2937' }}>{c.equipos?.numero_identificacion || '—'}</span>
-              {c.equipos?.denominacion && <span style={{ color: '#6b7280', fontSize: '0.82rem' }}>· {c.equipos.denominacion}</span>}
-              <span style={{
-                fontSize: '0.7rem', background: prio.bg, color: prio.text,
-                borderRadius: '4px', padding: '0.1rem 0.35rem', fontWeight: '600'
-              }}>{prio.label}</span>
-            </div>
-            <div style={{ fontSize: '0.82rem', color: '#4b5563', marginTop: '0.2rem' }}>
-              {c.descripcion_averia?.length > 80 ? c.descripcion_averia.slice(0, 80) + '…' : c.descripcion_averia}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.2rem' }}>
-              {c.numero_aviso ? `Aviso ${c.numero_aviso}` : ''}
-              {c.numero_aviso && c.numero_orden ? ' · ' : ''}
-              {c.numero_orden ? `Orden ${c.numero_orden}` : ''}
-              {' · '}{dias} día{dias !== 1 ? 's' : ''} en taller
-              {' · '}{est.icon} {est.label}
-            </div>
-          </div>
-          <button
-            onClick={() => togglePedido(c)}
-            style={{
-              padding: '0.6rem 1rem',
-              background: pendiente ? '#f97316' : '#d1fae5',
-              color: pendiente ? 'white' : '#065f46',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '0.82rem',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {pendiente ? '🔩 Marcar como pedido' : '↩️ Desmarcar'}
-          </button>
-        </div>
-      )
-    }
+    const totalSapPendientes = sapReservas.filter(r => {
+      const entregado = (r.cantidad_entregada || 0) >= (r.cantidad_requerida || 1)
+      const confirmado = repuestosDetalle.some(rd => rd.sap_reserva_id === r.id)
+      return entregado && !confirmado
+    }).length
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
-
-        {/* Sin pedido */}
-        <div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            marginBottom: '0.75rem'
-          }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: '700', margin: 0, color: '#9a3412' }}>
-              ⚠️ Sin Repuesto Pedido ({sinPedido.length})
-            </h2>
-          </div>
-          {sinPedido.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af', background: 'white', borderRadius: '10px' }}>
-              ✅ Todos los correctivos tienen repuesto pedido
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {sinPedido.map(c => <CardRepuesto key={c.id} c={c} pendiente={true} />)}
-            </div>
-          )}
-        </div>
-
-        {/* Con pedido */}
-        <div>
-          <h2 style={{ fontSize: '1rem', fontWeight: '700', margin: '0 0 0.75rem', color: '#065f46' }}>
-            ✅ Repuesto Pedido ({conPedido.length})
-          </h2>
-          {conPedido.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af', background: 'white', borderRadius: '10px' }}>
-              Sin correctivos con repuesto pedido
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {conPedido.map(c => <CardRepuesto key={c.id} c={c} pendiente={false} />)}
-            </div>
-          )}
-        </div>
-
-        {/* Nota informativa */}
+      <div>
+        {/* Barra resumen */}
         <div style={{
-          background: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: '10px',
-          padding: '1rem 1.25rem',
-          gridColumn: '1 / -1'
+          background: 'white', borderRadius: '10px', padding: '1rem 1.25rem',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.07)', marginBottom: '1rem',
+          display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center'
         }}>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: '#1e40af' }}>
-            💡 <strong>Próxima mejora:</strong> Para rastrear los repuestos con más detalle (número de parte, descripción, proveedor, fecha estimada de arribo), se puede agregar una tabla <code>repuestos_mantenimiento</code> en Supabase y vincularla a cada correctivo. Pedime que te prepare la migración SQL y el formulario de carga cuando estés listo.
-          </p>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', flex: 1 }}>
+            {[
+              { label: 'Órdenes activas',    valor: activos.length,                                                          color: '#f97316' },
+              { label: 'Materiales SAP',     valor: sapReservas.length,                                                      color: '#3b82f6' },
+              { label: 'Confirmados en app', valor: repuestosDetalle.filter(r => r.estado === 'Recibido').length,            color: '#10b981' },
+              { label: 'Sin confirmar',      valor: totalSapPendientes,  color: totalSapPendientes > 0 ? '#ef4444' : '#9ca3af' },
+            ].map((kpi, i) => (
+              <div key={i} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: kpi.color }}>{kpi.valor}</div>
+                <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>{kpi.label}</div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={cargarRepuestos}
+            disabled={loadingRepuestos}
+            style={{
+              padding: '0.5rem 1rem', background: '#f3f4f6', color: '#374151',
+              border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem'
+            }}
+          >
+            {loadingRepuestos ? '⏳ Cargando...' : '🔄 Actualizar'}
+          </button>
         </div>
+
+        {loadingRepuestos && (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>Consultando SAP y base de datos...</div>
+        )}
+
+        {!loadingRepuestos && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {ordenesActivas.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af', background: 'white', borderRadius: '12px' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔩</div>
+                <p>Sin correctivos activos</p>
+              </div>
+            ) : ordenesActivas.map(c => {
+              const reservasOrden = sapReservas.filter(r => c.numero_orden && r.numero_orden === c.numero_orden)
+              const repuestosOrden = repuestosDetalle.filter(r => r.mantenimiento_id === c.id)
+              const expanded = ordenExpandida === c.id
+              const diasCol = getDiasColor(calcularDias(c))
+              const prio = getPrioridadConfig(c.prioridad)
+              const est = getEstadoConfig(c.estado)
+              const discrepancias = reservasOrden.filter(r => {
+                const entregado = (r.cantidad_entregada || 0) >= (r.cantidad_requerida || 1)
+                const confirmado = repuestosOrden.some(rd => rd.sap_reserva_id === r.id)
+                return entregado && !confirmado
+              })
+
+              return (
+                <div key={c.id} style={{
+                  background: 'white', borderRadius: '12px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+                  border: discrepancias.length > 0
+                    ? '2px solid #f97316'
+                    : c.equipos?.es_critico ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                  overflow: 'hidden'
+                }}>
+                  {/* Cabecera clickeable */}
+                  <div
+                    style={{ padding: '0.9rem 1.1rem', cursor: 'pointer', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}
+                    onClick={() => setOrdenExpandida(expanded ? null : c.id)}
+                  >
+                    <div style={{
+                      background: diasCol.bg, color: diasCol.text, border: `1px solid ${diasCol.border}`,
+                      borderRadius: '8px', padding: '0.35rem 0.6rem', textAlign: 'center', minWidth: '52px'
+                    }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: '700', lineHeight: 1 }}>{calcularDias(c)}</div>
+                      <div style={{ fontSize: '0.6rem' }}>días</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: '180px' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '700', color: '#1f2937' }}>{c.equipos?.numero_identificacion || '—'}</span>
+                        {c.equipos?.denominacion && <span style={{ fontSize: '0.82rem', color: '#6b7280' }}>· {c.equipos.denominacion}</span>}
+                        <span style={{ fontSize: '0.7rem', background: prio.bg, color: prio.text, borderRadius: '4px', padding: '0.1rem 0.35rem', fontWeight: '600' }}>{prio.label}</span>
+                        <span style={{ fontSize: '0.7rem', background: est.bg, color: est.text, borderRadius: '4px', padding: '0.1rem 0.35rem' }}>{est.icon} {est.label}</span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.15rem' }}>
+                        {c.numero_orden
+                          ? `Orden: ${c.numero_orden}`
+                          : <span style={{ color: '#9a3412' }}>Sin N° de orden</span>}
+                        {c.numero_aviso ? ` · Aviso: ${c.numero_aviso}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {reservasOrden.length > 0 && (
+                        <span style={{ fontSize: '0.72rem', background: '#dbeafe', color: '#1e40af', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: '600' }}>
+                          📦 {reservasOrden.length} SAP
+                        </span>
+                      )}
+                      {repuestosOrden.length > 0 && (
+                        <span style={{ fontSize: '0.72rem', background: '#d1fae5', color: '#065f46', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: '600' }}>
+                          ✅ {repuestosOrden.filter(r => r.estado === 'Recibido').length}/{repuestosOrden.length}
+                        </span>
+                      )}
+                      {discrepancias.length > 0 && (
+                        <span style={{ fontSize: '0.72rem', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: '600' }}>
+                          ⚠️ {discrepancias.length} sin confirmar
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ color: '#9ca3af', fontSize: '0.9rem' }}>{expanded ? '▲' : '▼'}</span>
+                  </div>
+
+                  {/* Panel expandido */}
+                  {expanded && (
+                    <div style={{ borderTop: '1px solid #f3f4f6', padding: '1rem 1.1rem', background: '#fafafa' }}>
+
+                      {/* Sección SAP */}
+                      {reservasOrden.length > 0 ? (
+                        <div style={{ marginBottom: '1rem' }}>
+                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            📋 Materiales reservados en SAP (MB26)
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            {reservasOrden.map(r => {
+                              const entregado = (r.cantidad_entregada || 0) >= (r.cantidad_requerida || 1)
+                              const confirmaItem = repuestosOrden.find(rd => rd.sap_reserva_id === r.id)
+                              return (
+                                <div key={r.id} style={{
+                                  display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap',
+                                  padding: '0.6rem 0.75rem',
+                                  background: confirmaItem ? '#f0fdf4' : entregado ? '#fff7ed' : 'white',
+                                  border: `1px solid ${confirmaItem ? '#bbf7d0' : entregado ? '#fed7aa' : '#e5e7eb'}`,
+                                  borderRadius: '8px'
+                                }}>
+                                  <div style={{ flex: 1, minWidth: '160px' }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1f2937' }}>
+                                      {r.descripcion_material || r.numero_material || '—'}
+                                    </div>
+                                    <div style={{ fontSize: '0.74rem', color: '#6b7280', marginTop: '0.15rem' }}>
+                                      {r.numero_material && <span>N° {r.numero_material} · </span>}
+                                      Req: {r.cantidad_requerida} {r.unidad} · Entregado: {r.cantidad_entregada || 0} {r.unidad}
+                                      {r.almacen ? ` · Almacén: ${r.almacen}` : ''}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <span style={{
+                                      fontSize: '0.74rem', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: '600',
+                                      background: entregado ? '#dbeafe' : '#f3f4f6',
+                                      color: entregado ? '#1e40af' : '#6b7280'
+                                    }}>
+                                      SAP: {entregado ? 'Entregado' : 'Pendiente'}
+                                    </span>
+                                    {confirmaItem ? (
+                                      <span style={{ fontSize: '0.74rem', background: '#d1fae5', color: '#065f46', borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: '600' }}>
+                                        ✅ Confirmado {confirmaItem.fecha_recepcion || ''}
+                                      </span>
+                                    ) : entregado ? (
+                                      <button
+                                        onClick={() => confirmarRecepcion(c.id, r)}
+                                        disabled={confirmando === r.id}
+                                        style={{
+                                          padding: '0.3rem 0.75rem', background: '#f97316', color: 'white',
+                                          border: 'none', borderRadius: '6px', cursor: 'pointer',
+                                          fontWeight: '600', fontSize: '0.78rem',
+                                          opacity: confirmando === r.id ? 0.6 : 1
+                                        }}
+                                      >
+                                        {confirmando === r.id ? '⏳' : '✔ Confirmar recepción'}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ padding: '0.75rem', background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: '8px', marginBottom: '1rem' }}>
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#9ca3af' }}>
+                            {c.numero_orden
+                              ? `Sin datos SAP para la orden ${c.numero_orden}. Los datos se actualizan automáticamente los martes y viernes.`
+                              : '⚠️ Esta reparación no tiene N° de orden asignado — sin datos SAP disponibles.'}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Repuestos manuales */}
+                      {repuestosOrden.filter(r => !r.sap_reserva_id).length > 0 && (
+                        <div style={{ marginBottom: '1rem' }}>
+                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            📝 Cargados manualmente
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            {repuestosOrden.filter(r => !r.sap_reserva_id).map(r => (
+                              <div key={r.id} style={{
+                                display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap',
+                                padding: '0.6rem 0.75rem',
+                                background: r.estado === 'Recibido' ? '#f0fdf4' : 'white',
+                                border: `1px solid ${r.estado === 'Recibido' ? '#bbf7d0' : '#e5e7eb'}`,
+                                borderRadius: '8px'
+                              }}>
+                                <div style={{ flex: 1 }}>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1f2937' }}>{r.descripcion}</span>
+                                  {r.cantidad && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> · {r.cantidad} {r.unidad || ''}</span>}
+                                  {r.observaciones && <div style={{ fontSize: '0.74rem', color: '#9ca3af', marginTop: '0.1rem' }}>{r.observaciones}</div>}
+                                </div>
+                                <span style={{
+                                  fontSize: '0.74rem', fontWeight: '600', borderRadius: '6px', padding: '0.2rem 0.5rem',
+                                  background: r.estado === 'Recibido' ? '#d1fae5' : r.estado === 'Pedido' ? '#dbeafe' : '#fef9c3',
+                                  color: r.estado === 'Recibido' ? '#065f46' : r.estado === 'Pedido' ? '#1e40af' : '#854d0e'
+                                }}>
+                                  {r.estado === 'Recibido' ? '✅' : r.estado === 'Pedido' ? '📦' : '⏳'} {r.estado}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setModalRepuesto({ mantenimientoId: c.id })}
+                        style={{
+                          padding: '0.5rem 1rem', background: '#f3f4f6', color: '#374151',
+                          border: '1px dashed #d1d5db', borderRadius: '8px',
+                          cursor: 'pointer', fontSize: '0.82rem', fontWeight: '500'
+                        }}
+                      >
+                        + Agregar repuesto manual
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Modal repuesto manual */}
+        {modalRepuesto && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: '1rem'
+          }}>
+            <div style={{
+              background: 'white', borderRadius: '12px', padding: '1.5rem',
+              maxWidth: '440px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem', color: '#1f2937' }}>🔩 Agregar repuesto manual</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600', display: 'block', marginBottom: '0.3rem' }}>Descripción *</label>
+                  <input
+                    type="text"
+                    value={formRepuesto.descripcion}
+                    onChange={e => setFormRepuesto(f => ({ ...f, descripcion: e.target.value }))}
+                    placeholder="Ej: Filtro de aceite motor"
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600', display: 'block', marginBottom: '0.3rem' }}>Cantidad</label>
+                    <input
+                      type="number"
+                      value={formRepuesto.cantidad}
+                      onChange={e => setFormRepuesto(f => ({ ...f, cantidad: e.target.value }))}
+                      placeholder="1"
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600', display: 'block', marginBottom: '0.3rem' }}>Unidad</label>
+                    <input
+                      type="text"
+                      value={formRepuesto.unidad}
+                      onChange={e => setFormRepuesto(f => ({ ...f, unidad: e.target.value }))}
+                      placeholder="UN"
+                      style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600', display: 'block', marginBottom: '0.3rem' }}>Observaciones</label>
+                  <textarea
+                    value={formRepuesto.observaciones}
+                    onChange={e => setFormRepuesto(f => ({ ...f, observaciones: e.target.value }))}
+                    placeholder="Proveedor, N° de parte SAP, fecha estimada de arribo..."
+                    rows={2}
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.875rem', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setModalRepuesto(null); setFormRepuesto({ descripcion: '', cantidad: '', unidad: 'UN', observaciones: '' }) }}
+                  style={{ padding: '0.6rem 1rem', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={agregarRepuestoManual}
+                  disabled={!formRepuesto.descripcion.trim() || confirmando === 'manual'}
+                  style={{
+                    padding: '0.6rem 1.25rem', background: '#f97316', color: 'white',
+                    border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
+                    opacity: !formRepuesto.descripcion.trim() || confirmando === 'manual' ? 0.6 : 1
+                  }}
+                >
+                  {confirmando === 'manual' ? '⏳ Guardando...' : '✅ Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
