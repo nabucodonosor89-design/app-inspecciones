@@ -16,6 +16,7 @@ import DashboardMantenimientos from './DashboardMantenimientos.jsx'
 import ModuloOperadores from './ModuloOperadores.jsx'
 import DashboardFlota from './DashboardFlota.jsx'
 import CajaChica from './CajaChica.jsx'
+import AnalistaCorrectivo from './AnalistaCorrectivo.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -33,6 +34,10 @@ function App() {
   // Estados para Mantenimientos
   const [vistaMantenimientos, setVistaMantenimientos] = useState('lista') // 'lista', 'nuevo', 'editar', 'dashboard'
   const [mantenimientoEditar, setMantenimientoEditar] = useState(null)
+
+  // Estados para Analista Correctivo
+  const [vistaCorrectivo, setVistaCorrectivo] = useState('lista') // 'lista', 'editar'
+  const [correctivoEditar, setCorrectivoEditar] = useState(null)
 
   useEffect(() => {
     checkUser()
@@ -66,6 +71,8 @@ function App() {
     setEquipoSeleccionado(null)
     setMantenimientoEditar(null)
     setInspeccionSeleccionada(null)
+    setVistaCorrectivo('lista')
+    setCorrectivoEditar(null)
   }
 
   if (loading) {
@@ -419,6 +426,40 @@ function App() {
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
               Gestión de operadores de equipos
+            </p>
+          </div>
+
+          {/* Card Analista Correctivo */}
+          <div
+            onClick={() => setModulo('correctivo')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(249, 115, 22, 0.3)'
+              e.currentTarget.style.borderColor = '#f97316'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🔴
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#f97316' }}>
+              Analista Correctivo
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Reparaciones en curso · MTTR · Downtime
             </p>
           </div>
 
@@ -805,6 +846,39 @@ function App() {
   // ============================================
   if (modulo === 'caja-chica') {
     return <CajaChica usuario={user} onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // MÓDULO ANALISTA CORRECTIVO
+  // ============================================
+  if (modulo === 'correctivo') {
+    if (vistaCorrectivo === 'lista') {
+      return (
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: 'clamp(1rem, 2vw, 2rem)' }}>
+          <AnalistaCorrectivo
+            onVolver={volverAlMenu}
+            onEditar={(c) => {
+              setCorrectivoEditar(c)
+              setVistaCorrectivo('editar')
+            }}
+          />
+        </div>
+      )
+    }
+    if (vistaCorrectivo === 'editar') {
+      return (
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', padding: 'clamp(1rem, 2vw, 2rem)' }}>
+          <NuevoMantenimiento
+            onVolver={() => {
+              setVistaCorrectivo('lista')
+              setCorrectivoEditar(null)
+            }}
+            mantenimientoEditar={correctivoEditar}
+            usuario={user}
+          />
+        </div>
+      )
+    }
   }
 
   // Fallback (no debería llegar aquí)
