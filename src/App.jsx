@@ -17,11 +17,12 @@ import ModuloOperadores from './ModuloOperadores.jsx'
 import DashboardFlota from './DashboardFlota.jsx'
 import CajaChica from './CajaChica.jsx'
 import AnalistaCorrectivo from './AnalistaCorrectivo.jsx'
+import AsistenteTecnico from './AsistenteTecnico.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -496,6 +497,42 @@ function App() {
               Fondos y cajas especiales del departamento
             </p>
           </div>
+
+          {/* Card Asistente Técnico — solo administrador y logística */}
+          {(user.rol === 'admin') && (
+            <div
+              onClick={() => setModulo('asistente-tecnico')}
+              style={{
+                background: 'white',
+                padding: '2rem',
+                borderRadius: '16px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                border: '3px solid transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px)'
+                e.currentTarget.style.boxShadow = '0 12px 24px rgba(14, 165, 233, 0.3)'
+                e.currentTarget.style.borderColor = '#0ea5e9'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+                e.currentTarget.style.borderColor = 'transparent'
+              }}
+            >
+              <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+                🤖
+              </div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#0ea5e9' }}>
+                Asistente Técnico
+              </h2>
+              <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+                Consultá manuales de equipos en lenguaje natural
+              </p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -879,6 +916,22 @@ function App() {
         </div>
       )
     }
+  }
+
+  // ============================================
+  // MÓDULO ASISTENTE TÉCNICO
+  // ============================================
+  if (modulo === 'asistente-tecnico') {
+    // Doble verificación de rol por si acceden directamente
+    if (user.rol !== 'admin') {
+      return null
+    }
+    return (
+      <AsistenteTecnico
+        usuario={user}
+        onVolver={volverAlMenu}
+      />
+    )
   }
 
   // Fallback (no debería llegar aquí)
