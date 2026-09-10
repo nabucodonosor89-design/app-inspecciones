@@ -61,7 +61,9 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
       const { data, error } = await supabase
         .from('equipos')
         .select('id, numero_identificacion, denominacion')
+        .eq('activo', true)
         .order('numero_identificacion')
+        .limit(2000)
 
       if (error) throw error
       setEquipos(data || [])

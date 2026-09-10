@@ -79,7 +79,9 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     const { data } = await supabase
       .from('equipos')
       .select('*')
+      .eq('activo', true)
       .order('numero_identificacion')
+      .limit(2000)
     setEquipos(data || [])
   }
 

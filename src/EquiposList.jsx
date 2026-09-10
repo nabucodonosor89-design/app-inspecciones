@@ -29,7 +29,7 @@ function EquiposList({ onInspeccionarEquipo }) {
         .select('*')
         .order('ubicacion_actual', { ascending: true })
         .order('numero_identificacion', { ascending: true })
-      
+        .limit(2000)
       if (equiposError) throw equiposError
 
       // Obtener la última inspección de cada equipo

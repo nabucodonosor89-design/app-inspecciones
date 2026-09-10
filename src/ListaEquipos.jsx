@@ -30,6 +30,7 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
         .from('equipos')
         .select('*')
         .order('numero_identificacion')
+        .limit(2000)
 
       // Filtrar por estado activo/inactivo
       if (!mostrarInactivos) {
