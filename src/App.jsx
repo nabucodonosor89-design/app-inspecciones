@@ -18,6 +18,7 @@ import DashboardFlota from './DashboardFlota.jsx'
 import CajaChica from './CajaChica.jsx'
 import AnalistaCorrectivo from './AnalistaCorrectivo.jsx'
 import AsistenteTecnico from './AsistenteTecnico.jsx'
+import ModuloLogistica from './ModuloLogistica.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -498,6 +499,40 @@ function App() {
             </p>
           </div>
 
+          {/* Card Logística */}
+          <div
+            onClick={() => setModulo('logistica')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(29, 78, 216, 0.3)'
+              e.currentTarget.style.borderColor = '#1d4ed8'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🚛
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#1d4ed8' }}>
+              Logística
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Fletes y movimiento de materiales a obras
+            </p>
+          </div>
+
           {/* Card Asistente Técnico — solo administrador y logística */}
           {(user.rol === 'admin') && (
             <div
@@ -928,6 +963,18 @@ function App() {
     }
     return (
       <AsistenteTecnico
+        usuario={user}
+        onVolver={volverAlMenu}
+      />
+    )
+  }
+
+  // ============================================
+  // MÓDULO LOGÍSTICA
+  // ============================================
+  if (modulo === 'logistica') {
+    return (
+      <ModuloLogistica
         usuario={user}
         onVolver={volverAlMenu}
       />
