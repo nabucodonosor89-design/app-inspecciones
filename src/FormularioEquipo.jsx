@@ -8,7 +8,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
   // NUEVO: Estado para obras activas
   const [obras, setObras] = useState([])
-  
+
   // NUEVO: Estado para operadores
   const [operadores, setOperadores] = useState([])
   const [operadorAsignadoId, setOperadorAsignadoId] = useState(equipo?.operador_asignado_id || null)
@@ -40,21 +40,21 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   async function cargarObrasActivas() {
     try {
       console.log('🔍 Cargando obras activas...')
-      
+
       const { data, error } = await supabase
         .from('obras')
         .select('id, codigo_obra, nombre_obra, activa')
         .eq('activa', true)
         .order('nombre_obra')
-      
+
       if (error) {
         console.error('❌ Error al cargar obras:', error)
         throw error
       }
-      
+
       console.log('✅ Obras cargadas:', data)
       console.log('📊 Cantidad de obras:', data?.length || 0)
-      
+
       setObras(data || [])
     } catch (error) {
       console.error('💥 Error completo:', error)
@@ -65,9 +65,9 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
           .from('obras')
           .select('id, codigo_obra, nombre_obra, activa')
           .order('nombre_obra')
-        
+
         console.log('📋 Todas las obras (sin filtro):', todasObras)
-        
+
         // Si hay obras pero ninguna activa, mostrar alerta
         if (todasObras && todasObras.length > 0) {
           console.warn('⚠️ Hay obras en la BD pero ninguna está activa')
@@ -85,21 +85,21 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
   async function cargarOperadoresActivos() {
     try {
       console.log('🔍 Cargando operadores activos...')
-      
+
       const { data, error } = await supabase
         .from('operadores')
         .select('id, nombres, apellidos, numero_documento, tipos_equipos_habilitado')
         .eq('estado', 'activo')
         .order('apellidos')
-      
+
       if (error) {
         console.error('❌ Error al cargar operadores:', error)
         throw error
       }
-      
+
       console.log('✅ Operadores cargados:', data)
       console.log('📊 Cantidad de operadores:', data?.length || 0)
-      
+
       setOperadores(data || [])
     } catch (error) {
       console.error('💥 Error al cargar operadores:', error)
@@ -108,7 +108,6 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-
     // Validaciones
     if (!numeroIdentificacion.trim()) {
       toast('⚠️ El código del equipo es obligatorio')
@@ -120,12 +119,12 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
       return
     }
 
-
     // Validación de equipo crítico
     if (esCritico && !notasCriticidad.trim()) {
       toast('⚠️ Si el equipo es crítico, debe agregar notas explicando por qué')
       return
     }
+
     try {
       setLoading(true)
 
@@ -173,13 +172,11 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
       onGuardado()
 
     } catch (error) {
-      console.error('Error:', error)
-      
       // Error de código duplicado
       if (error.code === '23505') {
         toast('❌ Ya existe un equipo con ese código')
       } else {
-        toast('❌ Error al guardar: ' + error.message)
+        toast('❌ Error al guardar: ' + (error.message || JSON.stringify(error)))
       }
     } finally {
       setLoading(false)
@@ -243,11 +240,9 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Tipo de Equipo <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={tipoEquipo}
                   onChange={(e) => setTipoEquipo(e.target.value)}
-                  placeholder="Ej: Camión, Volquete, Excavadora"
                   disabled={loading}
                   required
                   style={{
@@ -255,9 +250,17 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                     padding: '0.75rem',
                     border: '2px solid #e5e7eb',
                     borderRadius: '6px',
-                    fontSize: '1rem'
+                    fontSize: '1rem',
+                    background: 'white',
+                    cursor: 'pointer'
                   }}
-                />
+                >
+                  <option value="">Seleccionar tipo...</option>
+                  <option value="V">V — Vehículo</option>
+                  <option value="P">P — Equipo Pesado</option>
+                  <option value="B">B — Barco / Bote</option>
+                  <option value="M">M — Maquinaria</option>
+                </select>
               </div>
 
               <div>
@@ -434,7 +437,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Ubicación Actual
                 </label>
-                
+
                 {/* Debug info */}
                 <select
                   value={ubicacionActual}
@@ -473,7 +476,7 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
                   Operador Asignado
                 </label>
-                
+
                 <select
                   value={operadorAsignadoId || ''}
                   onChange={(e) => setOperadorAsignadoId(e.target.value || null)}
@@ -492,8 +495,8 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
                   {operadores.map(op => (
                     <option key={op.id} value={op.id}>
                       {op.apellidos}, {op.nombres} - CI: {op.numero_documento}
-                      {op.tipos_equipos_habilitado && op.tipos_equipos_habilitado.length > 0 
-                        ? ` (${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}${op.tipos_equipos_habilitado.length > 2 ? '...' : ''})` 
+                      {op.tipos_equipos_habilitado && op.tipos_equipos_habilitado.length > 0
+                        ? ` (${op.tipos_equipos_habilitado.slice(0, 2).join(', ')}${op.tipos_equipos_habilitado.length > 2 ? '...' : ''})`
                         : ''
                       }
                     </option>
@@ -601,10 +604,10 @@ function FormularioEquipo({ equipo, onGuardado, onCancelar, usuario }) {
 
               {/* Campo de notas de criticidad (solo si está marcado como crítico) */}
               {esCritico && (
-                <div style={{ 
-                  marginLeft: '2.5rem', 
-                  padding: '1rem', 
-                  background: '#fef2f2', 
+                <div style={{
+                  marginLeft: '2.5rem',
+                  padding: '1rem',
+                  background: '#fef2f2',
                   borderRadius: '8px',
                   border: '2px solid #fca5a5'
                 }}>
