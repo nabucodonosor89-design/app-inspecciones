@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
@@ -22,21 +22,144 @@ const ACCION_LABEL = {
   en_transito: 'Confirmar entrega',
 }
 
+const ACCION_EXITO = {
+  pendiente:   '🚛 Camión asignado correctamente',
+  asignado:    '🛣️ Tránsito iniciado',
+  en_transito: '✅ Entrega confirmada',
+}
+
+// ── ComboBox: input con filtrado en tiempo real ──────────────────────────────
+function ComboBox({ opciones, valor, onChange, placeholder, getLabel, getId, disabled }) {
+  const [busqueda, setBusqueda]   = useState('')
+  const [abierto, setAbierto]     = useState(false)
+  const [resaltado, setResaltado] = useState(-1)
+  const inputRef = useRef(null)
+  const listaRef = useRef(null)
+
+  const seleccionado = opciones.find(o => getId(o) === valor)
+  const textoInput   = abierto ? busqueda : (seleccionado ? getLabel(seleccionado) : '')
+
+  const filtradas = busqueda.trim()
+    ? opciones.filter(o => getLabel(o).toLowerCase().includes(busqueda.toLowerCase()))
+    : opciones
+
+  const handleFocus = () => {
+    if (disabled) return
+    setAbierto(true)
+    setBusqueda('')
+    setResaltado(-1)
+  }
+
+  const handleBlur = (e) => {
+    if (!listaRef.current?.contains(e.relatedTarget)) {
+      setAbierto(false)
+      setBusqueda('')
+    }
+  }
+
+  const handleSelect = (opcion) => {
+    onChange(getId(opcion))
+    setAbierto(false)
+    setBusqueda('')
+  }
+
+  const handleKeyDown = (e) => {
+    if (!abierto) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setResaltado(r => Math.min(r + 1, filtradas.length - 1)) }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setResaltado(r => Math.max(r - 1, 0)) }
+    if (e.key === 'Enter' && resaltado >= 0) handleSelect(filtradas[resaltado])
+    if (e.key === 'Escape') { setAbierto(false); setBusqueda('') }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={textoInput}
+        disabled={disabled}
+        onChange={e => { setBusqueda(e.target.value); if (!abierto) setAbierto(true) }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        autoComplete="off"
+        style={{
+          width: '100%', padding: '8px', borderRadius: '6px',
+          border: '1px solid #d1d5db', fontSize: '13px',
+          boxSizing: 'border-box', background: disabled ? '#f9fafb' : '#fff',
+          cursor: disabled ? 'not-allowed' : 'text',
+        }}
+      />
+      {abierto && (
+        <div
+          ref={listaRef}
+          style={{
+            position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0,
+            background: '#fff', border: '1px solid #d1d5db', borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)', zIndex: 300,
+            maxHeight: '200px', overflowY: 'auto',
+          }}
+        >
+          {filtradas.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: '13px', color: '#9ca3af' }}>Sin resultados</div>
+          ) : filtradas.map((o, i) => (
+            <div
+              key={getId(o)}
+              onMouseDown={() => handleSelect(o)}
+              style={{
+                padding: '8px 12px', fontSize: '13px', cursor: 'pointer',
+                background: i === resaltado ? '#eff6ff' : 'transparent',
+                color: '#111827',
+                borderBottom: i < filtradas.length - 1 ? '1px solid #f3f4f6' : 'none',
+              }}
+            >
+              {getLabel(o)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Banner de éxito temporal ─────────────────────────────────────────────────
+function BannerExito({ mensaje }) {
+  if (!mensaje) return null
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '10px',
+      background: '#f0fdf4', border: '1px solid #86efac',
+      borderRadius: '8px', padding: '12px 16px', marginBottom: '16px',
+    }}>
+      <span style={{ fontSize: '20px' }}>✅</span>
+      <span style={{ fontSize: '14px', fontWeight: '600', color: '#166534' }}>{mensaje}</span>
+    </div>
+  )
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function GestionFletes({ pedidoId, usuario, onVolver }) {
-  const [pedido, setPedido] = useState(null)
-  const [fletes, setFletes] = useState([])
-  const [camiones, setCamiones] = useState([])
-  const [operadores, setOperadores] = useState([])
-  const [cargando, setCargando] = useState(true)
+  const [pedido, setPedido]             = useState(null)
+  const [fletes, setFletes]             = useState([])
+  const [camiones, setCamiones]         = useState([])
+  const [operadores, setOperadores]     = useState([])
+  const [cargando, setCargando]         = useState(true)
   const [mostrarFormFlete, setMostrarFormFlete] = useState(false)
-  const [guardando, setGuardando] = useState(false)
-  const [procesando, setProcesando] = useState(null)
+  const [guardando, setGuardando]       = useState(false)
+  const [procesando, setProcesando]     = useState(null)
+  const [mensajeExito, setMensajeExito] = useState(null)
+  const timerRef = useRef(null)
+
   const [formFlete, setFormFlete] = useState({
-    equipo_id: '',
-    operador_id: '',
-    cantidad: '',
-    notas: '',
+    equipo_id: '', operador_id: '', cantidad: '', notas: '',
   })
+
+  const mostrarExito = (msg) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setMensajeExito(msg)
+    timerRef.current = setTimeout(() => setMensajeExito(null), 3000)
+  }
 
   const cargarDatos = useCallback(async () => {
     setCargando(true)
@@ -58,7 +181,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
       setPedido(pedidoRes.data)
       setFletes(fletesRes.data || [])
     } catch (e) {
-      toast.error('Error al cargar datos: ' + e.message)
+      toast('❌ Error al cargar datos: ' + e.message)
     } finally {
       setCargando(false)
     }
@@ -66,6 +189,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
 
   useEffect(() => {
     cargarDatos()
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [cargarDatos])
 
   const cargarCamionesDisponibles = useCallback(async () => {
@@ -95,7 +219,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
       if (error) throw error
       setCamiones(data || [])
     } catch (e) {
-      toast.error('Error al cargar camiones: ' + e.message)
+      toast('❌ Error al cargar camiones: ' + e.message)
     }
   }, [])
 
@@ -109,7 +233,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
       if (error) throw error
       setOperadores(data || [])
     } catch (e) {
-      toast.error('Error al cargar operadores: ' + e.message)
+      toast('❌ Error al cargar operadores: ' + e.message)
     }
   }, [])
 
@@ -165,35 +289,35 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
   const crearFlete = async () => {
     const cantidad = Number(formFlete.cantidad)
     const saldo = calcularSaldo()
-    if (!formFlete.equipo_id) return toast.error('Seleccioná un camión')
-    if (!formFlete.operador_id) return toast.error('Seleccioná un conductor')
-    if (!cantidad || cantidad <= 0) return toast.error('Ingresá una cantidad válida')
-    if (cantidad > saldo) return toast.error(`La cantidad supera el saldo (${saldo.toFixed(3)} ${pedido.unidad})`)
+    if (!formFlete.equipo_id)       return toast('❌ Seleccioná un camión')
+    if (!formFlete.operador_id)     return toast('❌ Seleccioná un conductor')
+    if (!cantidad || cantidad <= 0) return toast('❌ Ingresá una cantidad válida')
+    if (cantidad > saldo)           return toast(`❌ La cantidad supera el saldo (${saldo.toFixed(3)} ${pedido.unidad})`)
 
     setGuardando(true)
     try {
       const { data: nuevoFlete, error: fleteError } = await supabase
         .from('fletes')
         .insert({
-          pedido_id: pedidoId,
-          equipo_id: formFlete.equipo_id,
-          operador_id: formFlete.operador_id,
+          pedido_id:        pedidoId,
+          equipo_id:        formFlete.equipo_id,
+          operador_id:      formFlete.operador_id,
           cantidad,
-          estado: 'asignado',
+          estado:           'asignado',
           fecha_asignacion: new Date().toISOString(),
-          notas: formFlete.notas || null,
-          creado_por: usuario.id,
+          notas:            formFlete.notas || null,
+          creado_por:       usuario.id,
         })
         .select()
         .single()
       if (fleteError) throw fleteError
 
       await supabase.from('fletes_auditoria').insert({
-        flete_id: nuevoFlete.id,
+        flete_id:        nuevoFlete.id,
         estado_anterior: null,
-        estado_nuevo: 'asignado',
-        notas: 'Flete creado',
-        usuario_id: usuario.id,
+        estado_nuevo:    'asignado',
+        notas:           'Flete creado',
+        usuario_id:      usuario.id,
       })
 
       if (pedido.estado === 'pendiente') {
@@ -203,11 +327,11 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
           .eq('id', pedidoId)
       }
 
-      toast.success('Flete asignado correctamente')
       handleCerrarFormFlete()
       await cargarDatos()
+      mostrarExito('🚛 Flete asignado correctamente')
     } catch (e) {
-      toast.error('Error al crear flete: ' + e.message)
+      toast('❌ Error al crear flete: ' + e.message)
     } finally {
       setGuardando(false)
     }
@@ -219,25 +343,25 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
     setProcesando(flete.id)
     try {
       const updates = { estado: siguiente, updated_at: new Date().toISOString() }
-      if (siguiente === 'en_transito') updates.fecha_salida = new Date().toISOString()
-      if (siguiente === 'entregado') updates.fecha_entrega = new Date().toISOString()
+      if (siguiente === 'en_transito') updates.fecha_salida  = new Date().toISOString()
+      if (siguiente === 'entregado')   updates.fecha_entrega = new Date().toISOString()
 
       const { error } = await supabase.from('fletes').update(updates).eq('id', flete.id)
       if (error) throw error
 
       await supabase.from('fletes_auditoria').insert({
-        flete_id: flete.id,
+        flete_id:        flete.id,
         estado_anterior: flete.estado,
-        estado_nuevo: siguiente,
-        usuario_id: usuario.id,
+        estado_nuevo:    siguiente,
+        usuario_id:      usuario.id,
       })
 
       if (siguiente === 'entregado') await verificarCompletado()
 
-      toast.success(`Estado: ${ESTADOS_FLETE[siguiente].label}`)
       await cargarDatos()
+      mostrarExito(ACCION_EXITO[flete.estado])
     } catch (e) {
-      toast.error('Error al actualizar estado: ' + e.message)
+      toast('❌ Error al actualizar estado: ' + e.message)
     } finally {
       setProcesando(null)
     }
@@ -254,17 +378,17 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
       if (error) throw error
 
       await supabase.from('fletes_auditoria').insert({
-        flete_id: flete.id,
+        flete_id:        flete.id,
         estado_anterior: flete.estado,
-        estado_nuevo: 'cancelado',
-        notas: 'Cancelado por usuario',
-        usuario_id: usuario.id,
+        estado_nuevo:    'cancelado',
+        notas:           'Cancelado por usuario',
+        usuario_id:      usuario.id,
       })
 
-      toast.success('Flete cancelado')
+      toast('✅ Flete cancelado')
       await cargarDatos()
     } catch (e) {
-      toast.error('Error al cancelar flete: ' + e.message)
+      toast('❌ Error al cancelar flete: ' + e.message)
     } finally {
       setProcesando(null)
     }
@@ -277,12 +401,12 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
     <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>Pedido no encontrado.</div>
   )
 
-  const saldo = calcularSaldo()
-  const entregado = calcularEntregado()
-  const enProceso = calcularEnProceso()
-  const pct = porcentajeEntregado()
+  const saldo      = calcularSaldo()
+  const entregado  = calcularEntregado()
+  const enProceso  = calcularEnProceso()
+  const pct        = porcentajeEntregado()
   const completado = pedido.estado === 'completado'
-  const cancelado = pedido.estado === 'cancelado'
+  const cancelado  = pedido.estado === 'cancelado'
   const puedeAgregarFlete = !completado && !cancelado && saldo > 0
 
   const ESTADO_PEDIDO_CFG = {
@@ -293,8 +417,12 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
   }
   const estCfg = ESTADO_PEDIDO_CFG[pedido.estado] || ESTADO_PEDIDO_CFG.pendiente
 
+  const getCamionLabel   = (c) => `${c.denominacion}${c.matricula ? ` (${c.matricula})` : c.numero_identificacion ? ` (${c.numero_identificacion})` : ''}`
+  const getOperadorLabel = (o) => `${o.apellidos}, ${o.nombres}`
+
   return (
     <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '24px' }}>
         <button
@@ -315,7 +443,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         </span>
       </div>
 
-      {/* Metrics */}
+      {/* Métricas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
         {[
           { label: 'Total pedido', value: `${pedido.cantidad_total} ${pedido.unidad}`, color: '#1e40af', bg: '#eff6ff' },
@@ -329,7 +457,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         ))}
       </div>
 
-      {/* Progress bar */}
+      {/* Barra de progreso */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>
           <span>Progreso de entrega</span><span>{pct}%</span>
@@ -344,7 +472,10 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         )}
       </div>
 
-      {/* Add flete button */}
+      {/* Banner de éxito */}
+      <BannerExito mensaje={mensajeExito} />
+
+      {/* Botón agregar flete */}
       {puedeAgregarFlete && !mostrarFormFlete && (
         <button
           onClick={handleAbrirFormFlete}
@@ -354,41 +485,32 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         </button>
       )}
 
-      {/* New flete form */}
+      {/* Formulario nuevo flete */}
       {mostrarFormFlete && (
         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', marginBottom: '20px' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#111827' }}>Nuevo flete</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', color: '#374151', marginBottom: '4px' }}>Camión *</label>
-              <select
-                value={formFlete.equipo_id}
-                onChange={e => setFormFlete(f => ({ ...f, equipo_id: e.target.value }))}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}
-              >
-                <option value="">— Seleccionar camión —</option>
-                {camiones.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.denominacion}{c.matricula ? ` (${c.matricula})` : c.numero_identificacion ? ` (${c.numero_identificacion})` : ''}
-                  </option>
-                ))}
-              </select>
-              {camiones.length === 0 && (
-                <p style={{ fontSize: '12px', color: '#ef4444', margin: '4px 0 0' }}>No hay camiones disponibles</p>
-              )}
+              <ComboBox
+                opciones={camiones}
+                valor={formFlete.equipo_id}
+                onChange={v => setFormFlete(f => ({ ...f, equipo_id: v }))}
+                placeholder="Buscar camión..."
+                getLabel={getCamionLabel}
+                getId={c => c.id}
+              />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', color: '#374151', marginBottom: '4px' }}>Conductor *</label>
-              <select
-                value={formFlete.operador_id}
-                onChange={e => setFormFlete(f => ({ ...f, operador_id: e.target.value }))}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}
-              >
-                <option value="">— Seleccionar conductor —</option>
-                {operadores.map(o => (
-                  <option key={o.id} value={o.id}>{o.apellidos}, {o.nombres}</option>
-                ))}
-              </select>
+              <ComboBox
+                opciones={operadores}
+                valor={formFlete.operador_id}
+                onChange={v => setFormFlete(f => ({ ...f, operador_id: v }))}
+                placeholder="Buscar conductor..."
+                getLabel={getOperadorLabel}
+                getId={o => o.id}
+              />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', color: '#374151', marginBottom: '4px' }}>
@@ -434,7 +556,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         </div>
       )}
 
-      {/* Fletes list */}
+      {/* Lista de fletes */}
       <div>
         <h3 style={{ fontSize: '15px', color: '#111827', marginBottom: '12px' }}>
           Fletes ({fletes.length})
@@ -446,16 +568,16 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {fletes.map(flete => {
-              const est = ESTADOS_FLETE[flete.estado] || ESTADOS_FLETE.cancelado
-              const ocupado = procesando === flete.id
+              const est          = ESTADOS_FLETE[flete.estado] || ESTADOS_FLETE.cancelado
+              const ocupado      = procesando === flete.id
               const nombreCamion = flete.equipos
-                ? `${flete.equipos.denominacion}${flete.equipos.matricula ? ` (${flete.equipos.matricula})` : flete.equipos.numero_identificacion ? ` (${flete.equipos.numero_identificacion})` : ''}`
+                ? getCamionLabel(flete.equipos)
                 : 'Sin camión asignado'
               const nombreConductor = flete.operadores
                 ? `${flete.operadores.apellidos}, ${flete.operadores.nombres}`
                 : 'Sin conductor'
               const puedeCancelar = !['entregado', 'cancelado'].includes(flete.estado)
-              const puedeAvanzar = !!SIGUIENTE_ESTADO[flete.estado]
+              const puedeAvanzar  = !!SIGUIENTE_ESTADO[flete.estado]
 
               return (
                 <div key={flete.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px' }}>
@@ -473,8 +595,8 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
                         <span>🚛 {nombreCamion}</span>
                         <span>👤 {nombreConductor}</span>
                         {flete.fecha_asignacion && <span>📅 {new Date(flete.fecha_asignacion).toLocaleDateString('es-PY')}</span>}
-                        {flete.fecha_salida && <span>🛣️ Salida: {new Date(flete.fecha_salida).toLocaleDateString('es-PY')}</span>}
-                        {flete.fecha_entrega && <span>✅ Entrega: {new Date(flete.fecha_entrega).toLocaleDateString('es-PY')}</span>}
+                        {flete.fecha_salida     && <span>🛣️ Salida: {new Date(flete.fecha_salida).toLocaleDateString('es-PY')}</span>}
+                        {flete.fecha_entrega    && <span>✅ Entrega: {new Date(flete.fecha_entrega).toLocaleDateString('es-PY')}</span>}
                       </div>
                       {flete.notas && (
                         <div style={{ marginTop: '6px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>{flete.notas}</div>
