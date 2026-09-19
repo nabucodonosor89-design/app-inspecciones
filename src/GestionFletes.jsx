@@ -260,13 +260,13 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
 
   const handleAbrirFormFlete = async () => {
     setMostrarFormFlete(true)
-    setFormFlete({ equipo_id: '', operador_id: '', cantidad: '', notas: '' })
+    setFormFlete({ equipo_id: '', operador_id: '', cantidad: '', notas: '', fecha_asignacion: new Date().toISOString().slice(0,10) })
     await Promise.all([cargarCamionesDisponibles(), cargarOperadores()])
   }
 
   const handleCerrarFormFlete = () => {
     setMostrarFormFlete(false)
-    setFormFlete({ equipo_id: '', operador_id: '', cantidad: '', notas: '' })
+    setFormFlete({ equipo_id: '', operador_id: '', cantidad: '', notas: '', fecha_asignacion: new Date().toISOString().slice(0,10) })
   }
 
   const verificarCompletado = async () => {
@@ -304,7 +304,7 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
           operador_id:      formFlete.operador_id,
           cantidad,
           estado:           'asignado',
-          fecha_asignacion: new Date().toISOString(),
+          fecha_asignacion: formFlete.fecha_asignacion ? new Date(formFlete.fecha_asignacion + 'T00:00:00').toISOString() : new Date().toISOString(),
           notas:            formFlete.notas || null,
           creado_por:       usuario.id,
         })
@@ -510,6 +510,15 @@ export default function GestionFletes({ pedidoId, usuario, onVolver }) {
                 placeholder="Buscar conductor..."
                 getLabel={getOperadorLabel}
                 getId={o => o.id}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: '#374151', marginBottom: '4px' }}>Fecha de asignación *</label>
+              <input
+                type="date"
+                value={formFlete.fecha_asignacion}
+                onChange={e => setFormFlete(f => ({ ...f, fecha_asignacion: e.target.value }))}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
             <div>
