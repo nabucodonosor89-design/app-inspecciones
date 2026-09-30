@@ -2,6 +2,28 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
+const DIAS_INSPECCIONES = 30
+
+const TIPOS_INSPECCION = {
+  periodica: 'Periódica',
+  envio: 'Envío a Obra',
+  recepcion: 'Recepción de Obra',
+  taller: 'Entrada a Taller',
+  almacenamiento: 'Almacenamiento'
+}
+
+const EMOJI_SEMAFORO = { verde: '🟢', amarillo: '🟡', rojo: '🔴' }
+
+function etiquetaInspeccion(insp) {
+  const tipo = insp.tipo_inspeccion?.toLowerCase()
+  const fecha = new Date(insp.fecha_hora).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' })
+  return [
+    `${EMOJI_SEMAFORO[insp.semaforo] || '⚪'} ${fecha}`,
+    TIPOS_INSPECCION[tipo] || insp.tipo_inspeccion || 'Sin tipo',
+    insp.usuarios?.nombre_completo
+  ].filter(Boolean).join(' — ')
+}
+
 function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
   const [equipos, setEquipos] = useState([])
   const [inspeccionesDisponibles, setInspeccionesDisponibles] = useState([])
@@ -75,20 +97,30 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
 
   async function cargarInspeccionesEquipo(equipoId) {
     try {
-      const { data, error } = await supabase
+      // Cualquier tipo de inspección del equipo, de los últimos DIAS_INSPECCIONES días
+      const desde = new Date(Date.now() - DIAS_INSPECCIONES * 24 * 60 * 60 * 1000).toISOString()
+      let query = supabase
         .from('inspecciones')
-        .select('id, fecha_hora, tipo_inspeccion')
+        .select('id, fecha_hora, tipo_inspeccion, semaforo, usuarios(nombre_completo)')
         .eq('equipo_id', equipoId)
-        .ilike('tipo_inspeccion', 'taller')
         .order('fecha_hora', { ascending: false })
+
+      // En edición, incluir siempre la inspección ya vinculada aunque sea más vieja
+      const inspVinculada = mantenimientoEditar?.inspeccion_id
+      query = inspVinculada
+        ? query.or(`fecha_hora.gte.${desde},id.eq.${inspVinculada}`)
+        : query.gte('fecha_hora', desde)
+
+      const { data, error } = await query
 
       if (error) throw error
       setInspeccionesDisponibles(data || [])
 
-      // Solo auto-seleccionar si es un mantenimiento nuevo (no edición)
+      // Solo en mantenimiento nuevo: preseleccionar la Entrada a Taller más reciente, si existe
       // En edición, cargarDatosEdicion ya establece la inspección correcta
-      if (data && data.length === 1 && !mantenimientoEditar) {
-        setInspeccionSeleccionada(data[0].id)
+      if (!mantenimientoEditar) {
+        const taller = (data || []).find(i => i.tipo_inspeccion?.toLowerCase() === 'taller')
+        setInspeccionSeleccionada(taller ? taller.id : '')
       }
     } catch (error) {
       console.error('Error:', error)
@@ -430,7 +462,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
             {equipoSeleccionado && (
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                  Inspección de Entrada a Taller (Opcional)
+                  Inspección de referencia (Opcional)
                 </label>
                 <select
                   value={inspeccionSeleccionada}
@@ -447,14 +479,14 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
                   <option value="">Sin inspección (embarcaciones, equipos externos, etc.)</option>
                   {inspeccionesDisponibles.map(insp => (
                     <option key={insp.id} value={insp.id}>
-                      {new Date(insp.fecha_hora).toLocaleString('es-PY')}
+                      {etiquetaInspeccion(insp)}
                     </option>
                   ))}
                 </select>
 
                 {inspeccionesDisponibles.length === 0 && (
                   <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                    ℹ️ Este equipo no tiene inspecciones de Entrada a Taller (puedes continuar sin inspección)
+                    ℹ️ Este equipo no tiene inspecciones en los últimos {DIAS_INSPECCIONES} días (puedes continuar sin inspección)
                   </p>
                 )}
 
