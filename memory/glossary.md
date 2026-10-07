@@ -91,3 +91,15 @@
 | `supabase/functions/recordatorio-inspecciones/index.ts` | Edge Function: email lunes 7AM |
 | `supabase/recordatorio_setup.sql` | SQL: función + pg_cron para el recordatorio |
 | `AUDITORIA_TECNICA.md` | 16 hallazgos de la auditoría técnica |
+
+## Módulo Logística (v2, oct-2026)
+| Término | Significado |
+|---------|-------------|
+| **encargo** | Algo que hay que mover de un lugar a otro (tabla `encargos`). Lo carga el gerente. Cantidad + unidad opcionales (`un`, `tn`, `m3`, `viajes`). Fecha requerida opcional (vacía = cuando se pueda) |
+| **asignación** | Un camión de logística (`equipos.es_logistica`) asignado a un encargo en un día (tabla `asignaciones`). Estados: planificada → entregada (sin confirmar) → confirmada |
+| **cantidad real** | Lo que efectivamente se entregó según remito/báscula. El avance del encargo se mide solo con lo confirmado |
+| **lugar** | Base, proveedor u otro sitio (tabla `lugares`). Las obras salen de la tabla `obras` |
+| **subestado** | Calculado en `v_encargos`: atrasado / listo_para_cerrar / sin_asignar / en_curso |
+| **cierre** | Siempre manual. Requiere que no haya asignaciones planificadas ni sin confirmar |
+| rol **logistica** | Rol de usuario del encargado de logística. Solo `admin` y `logistica` ven el módulo |
+

@@ -499,7 +499,8 @@ function App() {
             </p>
           </div>
 
-          {/* Card Logística */}
+          {/* Card Logística — solo administrador y logística */}
+          {(user.rol === 'admin' || user.rol === 'logistica') && (
           <div
             onClick={() => setModulo('logistica')}
             style={{
@@ -529,9 +530,10 @@ function App() {
               Logística
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Fletes y movimiento de materiales a obras
+              Planificación de fletes con camiones propios
             </p>
           </div>
+          )}
 
           {/* Card Asistente Técnico — solo administrador y logística */}
           {(user.rol === 'admin') && (
@@ -973,6 +975,10 @@ function App() {
   // MÓDULO LOGÍSTICA
   // ============================================
   if (modulo === 'logistica') {
+    // Doble verificación de rol por si acceden directamente
+    if (user.rol !== 'admin' && user.rol !== 'logistica') {
+      return null
+    }
     return (
       <ModuloLogistica
         usuario={user}

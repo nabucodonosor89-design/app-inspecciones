@@ -19,6 +19,7 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | **Pedidos de Equipos** | Solicitudes de equipos para obras (aprobado / asignado / entregado) |
 | **Gestión de Equipos** | CRUD del inventario de flota |
 | **Operadores** | CRUD de operadores habilitados por tipo de equipo |
+| **Logística** | Planificación de fletes con camiones propios: encargos → asignaciones camión + día (solo admin / logistica). Ver `supabase/logistica_v2_setup.sql` |
 
 ## Conceptos clave
 | Término | Significado |
