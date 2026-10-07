@@ -4,7 +4,7 @@ import { toast } from '../utils/ui'
 import AsignarSheet from './AsignarSheet'
 import { COLS_ASIG, COLS_ENCARGO, nombreOperador } from './datos'
 import {
-  ESTADO_ASIG, estilos, fmtFecha, fmtFechaRelativa, fmtNum, hoyPY, lunesDe, msgError, sumarDias, unidadLabel, useEsEscritorio,
+  ESTADO_ASIG, estilos, fmtFecha, fmtFechaRelativa, fmtNum, hoyPY, lunesDe, msgError, necesitaAgenda, sumarDias, unidadLabel, useEsEscritorio,
 } from './constantes'
 
 /** Asignaciones en un rango de fechas + los encargos a los que pertenecen. */
@@ -57,20 +57,6 @@ function ChipAsignacion({ a, encargo, onClick, compacto }) {
       </div>
     </div>
   )
-}
-
-// ── Encargos que todavía necesitan camión ────────────────────────────────────
-/**
- * Un encargo abierto está "por agendar" cuando no tiene ninguna asignación planificada y:
- * - nunca se asignó, o
- * - tiene cantidad y lo entregado (confirmado + sin confirmar) todavía no la cubre.
- */
-function necesitaAgenda(e) {
-  if (e.estado !== 'abierto' || e.subestado === 'listo_para_cerrar') return false
-  if (e.n_planificadas > 0) return false
-  if (e.n_asignaciones === 0) return true
-  if (e.cantidad == null) return false
-  return Number(e.cantidad_confirmada || 0) + Number(e.cantidad_sin_confirmar || 0) < Number(e.cantidad)
 }
 
 function usePorAgendar(recarga) {

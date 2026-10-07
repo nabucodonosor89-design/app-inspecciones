@@ -5,7 +5,7 @@ import TarjetaEncargo from './TarjetaEncargo'
 import AsignarSheet from './AsignarSheet'
 import ConfirmarSheet from './ConfirmarSheet'
 import { COLS_ENCARGO, COLS_ASIG, nombreCamion } from './datos'
-import { SECCIONES, seccionDe, hoyPY, estilos, msgError } from './constantes'
+import { SECCIONES, seccionDe, hoyPY, estilos, msgError, necesitaAgenda } from './constantes'
 
 export default function BandejaLogistica({ catalogos, onAbrirEncargo, onNuevo, version }) {
   const [filtro, setFiltro] = useState('abiertos') // 'abiertos' | 'historial'
@@ -57,7 +57,7 @@ export default function BandejaLogistica({ catalogos, onAbrirEncargo, onNuevo, v
     return g
   }, [encargos, filtro, hoy])
 
-  const camion = (id) => nombreCamion(catalogos.camiones, id)
+  const camion = (a) => nombreCamion(catalogos.camiones, a)
 
   const cerrar = async (e) => {
     if (!(await confirmar(`¿Cerrar el encargo «${e.descripcion}»?`))) return
@@ -76,7 +76,20 @@ export default function BandejaLogistica({ catalogos, onAbrirEncargo, onNuevo, v
         onClick: () => pend.length === 1 ? setSheet({ tipo: 'confirmar', encargo: e, asignacion: pend[0] }) : onAbrirEncargo(e.id),
       }
     }
-    return { label: 'Asignar', onClick: () => setSheet({ tipo: 'asignar', encargo: e }) }
+    // Tiene camión para hoy o un día pasado → lo que sigue es registrar la entrega
+    const paraEntregar = (porEncargo[e.id] || []).filter(a => a.estado === 'planificada' && a.fecha <= hoy)
+    if (paraEntregar.length) {
+      return {
+        label: 'Entregado', color: '#16a34a',
+        onClick: () => paraEntregar.length === 1
+          ? setSheet({ tipo: 'confirmar', encargo: e, asignacion: paraEntregar[0] })
+          : onAbrirEncargo(e.id),
+      }
+    }
+    // Sin camión (o con cantidad pendiente y nada planificado) → asignar
+    if (necesitaAgenda(e)) return { label: 'Asignar', onClick: () => setSheet({ tipo: 'asignar', encargo: e }) }
+    // Ya tiene camión para un día futuro: no hay acción pendiente
+    return null
   }
 
   const alGuardar = () => { setSheet(null); setRecarga(r => r + 1) }

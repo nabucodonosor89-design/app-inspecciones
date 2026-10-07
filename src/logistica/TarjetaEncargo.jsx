@@ -75,7 +75,7 @@ export default function TarjetaEncargo({ encargo, asignaciones = [], nombreCamio
                 fontSize: '12px', padding: '3px 8px', borderRadius: '6px',
                 background: a.fecha < hoy ? '#fee2e2' : '#dbeafe', color: a.fecha < hoy ? '#b91c1c' : '#1e40af', fontWeight: 600,
               }}>
-                🚛 {nombreCamion(a.equipo_id)} · {fmtFecha(a.fecha)}
+                🚛 {nombreCamion(a)} · {fmtFecha(a.fecha)}
               </span>
             ))}
           </div>

@@ -16,7 +16,7 @@ export default function ConfirmarSheet({ catalogos, encargo, asignacion, onCerra
   const [cantidad, setCantidad] = useState(asignacion.cantidad_real != null ? String(asignacion.cantidad_real) : '')
   const [guardando, setGuardando] = useState(false)
   const unidad = unidadLabel(encargo.unidad)
-  const camion = nombreCamion(catalogos.camiones, asignacion.equipo_id)
+  const camion = nombreCamion(catalogos.camiones, asignacion)
 
   const actualizar = async (cambios, mensaje) => {
     setGuardando(true)

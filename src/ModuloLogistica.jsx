@@ -28,7 +28,15 @@ export default function ModuloLogistica({ usuario, onVolver }) {
   const autorizado = usuario?.rol === 'admin' || usuario?.rol === 'logistica'
   if (!autorizado) return null
 
-  const ir = (v) => { setVista(v); if (v === 'bandeja' || v === 'plan') setVistaBase(v); window.scrollTo(0, 0) }
+  const ir = (v) => {
+    setVista(v)
+    if (v === 'bandeja' || v === 'plan') {
+      setVistaBase(v)
+      // Releer catálogos: puede haber camiones u obras nuevos desde que se abrió el módulo
+      cargarCatalogos().then(setCatalogos).catch(() => {})
+    }
+    window.scrollTo(0, 0)
+  }
   const abrirEncargo = (id) => { setEncargoId(id); setVista('detalle'); window.scrollTo(0, 0) }
   const lugarCreado = (l) => setCatalogos(c => ({ ...c, lugares: [...c.lugares, l].sort((a, b) => a.nombre.localeCompare(b.nombre)) }))
   const huboCambio = () => setVersion(v => v + 1)

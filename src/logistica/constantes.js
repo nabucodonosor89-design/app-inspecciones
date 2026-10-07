@@ -92,6 +92,20 @@ export const TIPO_LUGAR = {
   otro:      { label: 'Otro',      emoji: '📍' },
 }
 
+// ── Encargos que todavía necesitan camión ────────────────────────────────────
+/**
+ * Un encargo abierto está "por agendar" cuando no tiene ninguna asignación planificada y:
+ * - nunca se asignó, o
+ * - tiene cantidad y lo entregado (confirmado + sin confirmar) todavía no la cubre.
+ */
+export function necesitaAgenda(e) {
+  if (e.estado !== 'abierto' || e.subestado === 'listo_para_cerrar') return false
+  if (e.n_planificadas > 0) return false
+  if (e.n_asignaciones === 0) return true
+  if (e.cantidad == null) return false
+  return Number(e.cantidad_confirmada || 0) + Number(e.cantidad_sin_confirmar || 0) < Number(e.cantidad)
+}
+
 // ── Mensajes de error de Supabase → texto legible ────────────────────────────
 export function msgError(error) {
   if (!error) return ''

@@ -29,12 +29,18 @@ export const COLS_ENCARGO = [
   'cantidad_confirmada', 'cantidad_sin_confirmar', 'proxima_fecha', 'subestado',
 ].join(', ')
 
-export const COLS_ASIG = 'id, encargo_id, fecha, equipo_id, operador_id, estado, cantidad_real, notas, entregada_at, confirmada_at'
+export const COLS_ASIG = 'id, encargo_id, fecha, equipo_id, operador_id, estado, cantidad_real, notas, entregada_at, confirmada_at, equipo:equipos(numero_identificacion)'
 
 /** Clave de ruta para saber si dos encargos van al mismo destino. */
 export const claveDestino = (e) => e.destino_obra_id ? `o:${e.destino_obra_id}` : `l:${e.destino_lugar_id}`
 
-export const nombreCamion = (camiones, id) => camiones.find(c => c.id === id)?.numero_identificacion || '¿camión?'
+/** Acepta una asignación (usa el equipo embebido) o un equipo_id (busca en el catálogo). */
+export const nombreCamion = (camiones, x) => {
+  if (x && typeof x === 'object') {
+    return x.equipo?.numero_identificacion || camiones.find(c => c.id === x.equipo_id)?.numero_identificacion || '¿camión?'
+  }
+  return camiones.find(c => c.id === x)?.numero_identificacion || '¿camión?'
+}
 
 export const nombreOperador = (operadores, id) => {
   const o = operadores.find(x => x.id === id)

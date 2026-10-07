@@ -160,7 +160,7 @@ export default function DetalleEncargo({ encargoId, catalogos, onEditar, onCambi
             <div key={a.id} style={{ ...estilos.card, display: 'flex', gap: '10px', alignItems: 'center', borderLeft: `4px solid ${atrasada ? '#dc2626' : est.color}` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '15px', fontWeight: 800 }}>
-                  🚛 {nombreCamion(catalogos.camiones, a.equipo_id)}
+                  🚛 {nombreCamion(catalogos.camiones, a)}
                   <span style={{ fontWeight: 600, color: atrasada ? '#b91c1c' : '#4b5563' }}> · {fmtFecha(a.fecha)}</span>
                 </div>
                 <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
