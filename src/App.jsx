@@ -19,11 +19,12 @@ import CajaChica from './CajaChica.jsx'
 import AnalistaCorrectivo from './AnalistaCorrectivo.jsx'
 import AsistenteTecnico from './AsistenteTecnico.jsx'
 import ModuloLogistica from './ModuloLogistica.jsx'
+import HistorialEquipo from './HistorialEquipo.jsx'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial'
   
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -570,6 +571,41 @@ function App() {
               </p>
             </div>
           )}
+          {/* Card Historial de equipos — solo administrador */}
+          {(user.rol === 'admin') && (
+            <div
+              onClick={() => setModulo('historial')}
+              style={{
+                background: 'white',
+                padding: '2rem',
+                borderRadius: '16px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                border: '3px solid transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px)'
+                e.currentTarget.style.boxShadow = '0 12px 24px rgba(29, 78, 216, 0.3)'
+                e.currentTarget.style.borderColor = '#1d4ed8'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+                e.currentTarget.style.borderColor = 'transparent'
+              }}
+            >
+              <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+                🔧
+              </div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#1d4ed8' }}>
+                Historial de equipos
+              </h2>
+              <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+                Órdenes SAP y repuestos usados por equipo
+              </p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -985,6 +1021,17 @@ function App() {
         onVolver={volverAlMenu}
       />
     )
+  }
+
+  // ============================================
+  // MÓDULO HISTORIAL DE EQUIPOS
+  // ============================================
+  if (modulo === 'historial') {
+    // Doble verificación de rol por si acceden directamente
+    if (user.rol !== 'admin') {
+      return null
+    }
+    return <HistorialEquipo onVolver={volverAlMenu} />
   }
 
   // Fallback (no debería llegar aquí)

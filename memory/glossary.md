@@ -40,6 +40,7 @@
 | **OT** | Orden de trabajo (mantenimiento) |
 | **aviso SAP** | Número de aviso en SAP PM asociado al mantenimiento |
 | **orden SAP** | Número de orden de trabajo en SAP |
+| **consumo de reserva** | `cantidad_necesaria − cantidad_pendiente` en `sap_reservas_pos` (no descuenta devoluciones 262). Usado por el módulo Historial de equipos |
 | **envio** | Tipo inspección al salir el equipo hacia una obra |
 | **recepcion** | Tipo inspección al volver de obra |
 | **periodica** | Inspección de mantenimiento programado |
