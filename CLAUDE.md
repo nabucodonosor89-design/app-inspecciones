@@ -21,6 +21,7 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | **Operadores** | CRUD de operadores habilitados por tipo de equipo |
 | **Logística** | Planificación de fletes con camiones propios: encargos → asignaciones camión + día (solo admin / logistica). Ver `supabase/logistica_v2_setup.sql` |
 | **Historial de equipos** | Solo lectura (todos los roles): equipo → órdenes SAP → componentes consumidos, y búsqueda inversa material → equipos. Lee vía RPC `historial_*` (SECURITY DEFINER). Ver `supabase/historial_equipos_setup.sql` y `historial_equipos_acceso_todos.sql` |
+| **Rol compras** | Usuarios de Compras: al loguearse van directo al Historial de equipos, sin menú ni otros módulos. Ver `supabase/rol_compras_setup.sql` |
 
 ## Conceptos clave
 | Término | Significado |

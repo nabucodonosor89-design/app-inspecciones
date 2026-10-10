@@ -103,6 +103,11 @@ function App() {
     return <Login onLogin={setUser} />
   }
 
+  // Rol compras: solo tiene acceso al Historial de equipos, entra directo sin menú
+  if (user.rol === 'compras') {
+    return <HistorialEquipo onSalir={handleLogout} usuario={user} />
+  }
+
   // ============================================
   // MENÚ PRINCIPAL
   // ============================================

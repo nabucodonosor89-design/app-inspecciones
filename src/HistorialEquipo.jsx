@@ -353,7 +353,8 @@ function VistaMaterial({ equipos }) {
   )
 }
 
-export default function HistorialEquipo({ onVolver }) {
+// onVolver: botón ← (desde el menú). onSalir: botón Cerrar sesión (rol compras, que entra directo acá).
+export default function HistorialEquipo({ onVolver, onSalir, usuario }) {
   const [tab, setTab] = useState('equipo')
   const [equipos, setEquipos] = useState([])
 
@@ -368,8 +369,12 @@ export default function HistorialEquipo({ onVolver }) {
   return (
     <div style={s.wrap}>
       <div style={s.header}>
-        <button style={s.volver} onClick={onVolver} aria-label="Volver">←</button>
-        <h2 style={{ margin: 0, fontSize: 20 }}>Historial de equipos</h2>
+        {onVolver && <button style={s.volver} onClick={onVolver} aria-label="Volver">←</button>}
+        <h2 style={{ margin: 0, fontSize: 20, flex: 1 }}>Historial de equipos</h2>
+        {onSalir && (
+          <button style={{ ...s.volver, fontSize: 14, padding: '0 12px', color: '#b91c1c' }} onClick={onSalir}
+            title={usuario?.nombre_completo}>Cerrar sesión</button>
+        )}
       </div>
       <div style={s.tabs}>
         <button style={s.tab(tab === 'equipo')} onClick={() => setTab('equipo')}>Por equipo</button>
