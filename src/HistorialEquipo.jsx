@@ -5,7 +5,7 @@ import { toast } from './utils/ui'
 // Historial de mantenimiento: equipo → órdenes SAP → componentes consumidos,
 // y búsqueda inversa material → combinaciones equipo/material.
 // Datos vía RPC SECURITY DEFINER (todos los roles, usuario activo): historial_equipo_ordenes,
-// historial_orden_componentes, historial_equipo_materiales, historial_buscar_material.
+// historial_orden_componentes, historial_orden_operaciones, historial_equipo_materiales, historial_buscar_material.
 
 const C = { azul: '#1d4ed8', gris: '#6b7280', borde: '#e5e7eb', fondo: '#f9fafb', texto: '#111827' }
 const CLASES = { TCOC: 'Correctiva', TCPV: 'Preventiva', TCUR: 'Urgencia', TCFA: 'Falla' }
@@ -54,6 +54,7 @@ const s = {
   th: { textAlign: 'left', padding: '6px 8px', background: C.fondo, color: C.gris, fontWeight: 600, borderBottom: `1px solid ${C.borde}` },
   td: { padding: '6px 8px', borderBottom: `1px solid ${C.borde}`, verticalAlign: 'top' },
   vacio: { padding: 24, textAlign: 'center', color: C.gris },
+  subtitulo: { fontSize: 13, fontWeight: 700, color: C.gris, textTransform: 'uppercase', letterSpacing: 0.4, margin: '4px 0 4px' },
 }
 
 function FiltroClase({ valor, onChange, contar }) {
@@ -119,15 +120,28 @@ function SelectorEquipo({ equipos, valor, onElegir }) {
 function OrdenCard({ o }) {
   const [abierta, setAbierta] = useState(false)
   const [comps, setComps] = useState(null)
+  const [ops, setOps] = useState(null)
 
   const toggle = async () => {
     const nuevo = !abierta
     setAbierta(nuevo)
     if (nuevo && comps === null) {
-      const { data, error } = await supabase.rpc('historial_orden_componentes', { p_orden: o.orden })
-      if (error) { toast('Error al cargar componentes: ' + error.message, 'error'); return }
-      setComps(data || [])
+      const [c, op] = await Promise.all([
+        supabase.rpc('historial_orden_componentes', { p_orden: o.orden }),
+        supabase.rpc('historial_orden_operaciones', { p_orden: o.orden }),
+      ])
+      if (c.error) toast('Error al cargar componentes: ' + c.error.message, 'error')
+      if (op.error) toast('Error al cargar operaciones: ' + op.error.message, 'error')
+      setComps(c.data || [])
+      setOps(op.data || [])
     }
+  }
+
+  const horas = (ops || []).reduce((a, r) => a + (Number(r.trabajo_real) || 0), 0)
+  const rango = (r) => {
+    if (!r.fecha_inicio_real && !r.fecha_fin_real) return '–'
+    if (!r.fecha_fin_real || r.fecha_fin_real === r.fecha_inicio_real) return fecha(r.fecha_inicio_real || r.fecha_fin_real)
+    return `${fecha(r.fecha_inicio_real)} – ${fecha(r.fecha_fin_real)}`
   }
 
   return (
@@ -149,15 +163,34 @@ function OrdenCard({ o }) {
         </div>
       </div>
       {abierta && (
-        <div style={{ padding: '0 12px 12px' }}>
-          {comps === null ? <div style={s.meta}>Cargando…</div>
-            : comps.length === 0 ? <div style={s.meta}>Esta orden no tiene materiales reservados.</div>
-            : <Tabla filas={comps} cols={[
-                { k: 'material', t: 'Código', nw: true },
-                { k: 'descripcion', t: 'Descripción' },
-                { k: 'cantidad_usada', t: 'Usado', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
-                { k: 'cantidad_pendiente', t: 'Pend.', der: true, f: (r) => (Number(r.cantidad_pendiente) > 0 ? num(r.cantidad_pendiente) : '–') },
-              ]} />}
+        <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {comps === null ? <div style={s.meta}>Cargando…</div> : (
+            <>
+              <div>
+                <div style={s.subtitulo}>
+                  Operaciones{ops.length > 0 && horas > 0 ? ` · ${num(horas)} h de trabajo real` : ''}
+                </div>
+                {ops.length === 0 ? <div style={s.meta}>Sin operaciones cargadas para esta orden.</div>
+                  : <Tabla filas={ops} cols={[
+                      { k: 'operacion', t: 'Op.', nw: true, f: (r) => String(r.operacion).padStart(4, '0') },
+                      { k: 'texto', t: 'Descripción' },
+                      { k: 'puesto_trabajo', t: 'Puesto', nw: true },
+                      { k: 'trabajo_real', t: 'Trabajo', der: true, nw: true, f: (r) => (Number(r.trabajo_real) > 0 ? `${num(r.trabajo_real)} h` : '–') },
+                      { k: 'fechas', t: 'Real', nw: true, f: rango },
+                    ]} />}
+              </div>
+              <div>
+                <div style={s.subtitulo}>Componentes</div>
+                {comps.length === 0 ? <div style={s.meta}>Sin componentes reservados para esta orden.</div>
+                  : <Tabla filas={comps} cols={[
+                      { k: 'material', t: 'Código', nw: true },
+                      { k: 'descripcion', t: 'Descripción' },
+                      { k: 'cantidad_usada', t: 'Usado', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
+                      { k: 'cantidad_pendiente', t: 'Pend.', der: true, f: (r) => (Number(r.cantidad_pendiente) > 0 ? num(r.cantidad_pendiente) : '–') },
+                    ]} />}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

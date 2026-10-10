@@ -20,7 +20,7 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | **Gestión de Equipos** | CRUD del inventario de flota |
 | **Operadores** | CRUD de operadores habilitados por tipo de equipo |
 | **Logística** | Planificación de fletes con camiones propios: encargos → asignaciones camión + día (solo admin / logistica). Ver `supabase/logistica_v2_setup.sql` |
-| **Historial de equipos** | Solo lectura (todos los roles): equipo → órdenes SAP → componentes consumidos, y búsqueda inversa material → equipos. Lee vía RPC `historial_*` (SECURITY DEFINER). Ver `supabase/historial_equipos_setup.sql` y `historial_equipos_acceso_todos.sql` |
+| **Historial de equipos** | Solo lectura (todos los roles): equipo → órdenes SAP → operaciones y componentes consumidos, y búsqueda inversa material → equipos. Lee vía RPC `historial_*` (SECURITY DEFINER). Ver `supabase/historial_equipos_setup.sql` `historial_equipos_acceso_todos.sql` y `historial_operaciones_setup.sql` |
 | **Rol compras** | Usuarios de Compras: al loguearse van directo al Historial de equipos, sin menú ni otros módulos. Ver `supabase/rol_compras_setup.sql` |
 
 ## Conceptos clave
@@ -50,6 +50,9 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | `select('*')` → columnas explícitas | 🟠 Pendiente |
 | DashboardEjecutivo: query sin límite | 🔴 Pendiente |
 | `console.log` en producción | 🟡 Fácil: 1 línea en vite.config.js |
+| Ingesta automática de operaciones y avisos SAP | ⏸️ Ver con TI — hoy solo carga manual (CSV) |
+| Recetario aviso → repuestos (parte del objeto × modelo → materiales usados históricamente) | 💡 Futuro — depende de la ingesta de avisos. Prueba con "Alternador": 97/151 órdenes con material relacionado; receta por modelo = correas/rulemanes |
+| Vista por modelo (qué falla / qué consume) y sugerencia de repuestos por horas trabajadas | 💡 Futuro — horas en `sap_imputaciones` solo desde abr-2026 |
 | Memory leak en SubidaFotos | 🟡 Pendiente |
 
 ## Stack técnico
