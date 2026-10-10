@@ -571,8 +571,8 @@ function App() {
               </p>
             </div>
           )}
-          {/* Card Historial de equipos — solo administrador */}
-          {(user.rol === 'admin') && (
+          {/* Card Historial de equipos — todos los roles (la RPC valida usuario activo) */}
+          {(
             <div
               onClick={() => setModulo('historial')}
               style={{
@@ -1027,10 +1027,7 @@ function App() {
   // MÓDULO HISTORIAL DE EQUIPOS
   // ============================================
   if (modulo === 'historial') {
-    // Doble verificación de rol por si acceden directamente
-    if (user.rol !== 'admin') {
-      return null
-    }
+    // Abierto a todos los roles; el acceso a datos lo valida puede_ver_historial() (usuario activo)
     return <HistorialEquipo onVolver={volverAlMenu} />
   }
 

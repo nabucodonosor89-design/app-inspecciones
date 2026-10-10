@@ -2,18 +2,34 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
-// Historial de mantenimiento: equipo → órdenes SAP → componentes consumidos.
-// Datos vía RPC SECURITY DEFINER (solo rol admin): historial_equipo_ordenes,
+// Historial de mantenimiento: equipo → órdenes SAP → componentes consumidos,
+// y búsqueda inversa material → combinaciones equipo/material.
+// Datos vía RPC SECURITY DEFINER (todos los roles, usuario activo): historial_equipo_ordenes,
 // historial_orden_componentes, historial_equipo_materiales, historial_buscar_material.
 
 const C = { azul: '#1d4ed8', gris: '#6b7280', borde: '#e5e7eb', fondo: '#f9fafb', texto: '#111827' }
 const CLASES = { TCOC: 'Correctiva', TCPV: 'Preventiva', TCUR: 'Urgencia', TCFA: 'Falla' }
+const FILTROS_CLASE = [
+  { k: '', t: 'Todas' },
+  { k: 'TCPV', t: 'TCPV' },
+  { k: 'TCOC', t: 'TCOC' },
+  { k: 'otras', t: 'Otras' },
+]
 
 const num = (n) => (n == null ? '–' : Number(n).toLocaleString('es-PY', { maximumFractionDigits: 3 }))
 const fecha = (d) => {
   if (!d) return '–'
   const [y, m, dd] = d.split('-')
   return `${dd}/${m}/${y.slice(2)}`
+}
+const pasaClase = (clase, f) => !f || (f === 'otras' ? clase !== 'TCPV' && clase !== 'TCOC' : clase === f)
+// Filtro por palabras: todas las palabras tienen que aparecer en alguno de los campos (en cualquier orden).
+const palabras = (q) => q.trim().toUpperCase().split(/\s+/).filter(Boolean)
+const coincide = (q, ...campos) => {
+  const ps = palabras(q)
+  if (!ps.length) return true
+  const t = campos.map((c) => String(c ?? '')).join(' ').toUpperCase()
+  return ps.every((p) => t.includes(p))
 }
 
 const s = {
@@ -24,6 +40,10 @@ const s = {
   tab: (on) => ({ flex: 1, minHeight: 44, borderRadius: 8, cursor: 'pointer', fontWeight: 600,
     border: `1px solid ${on ? C.azul : C.borde}`, background: on ? C.azul : '#fff', color: on ? '#fff' : C.texto }),
   input: { width: '100%', minHeight: 44, padding: '8px 12px', fontSize: 16, border: `1px solid ${C.borde}`, borderRadius: 8, boxSizing: 'border-box' },
+  filtro: { width: '100%', minHeight: 40, padding: '6px 12px', fontSize: 16, border: `1px solid ${C.borde}`, borderRadius: 8, boxSizing: 'border-box', marginBottom: 8, background: C.fondo },
+  chips: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
+  chipBtn: (on) => ({ minHeight: 36, padding: '4px 14px', borderRadius: 18, cursor: 'pointer', fontWeight: 600, fontSize: 14,
+    border: `1px solid ${on ? C.azul : C.borde}`, background: on ? C.azul : '#fff', color: on ? '#fff' : C.texto }),
   lista: { border: `1px solid ${C.borde}`, borderRadius: 8, background: '#fff', marginTop: 4, maxHeight: 260, overflowY: 'auto' },
   opcion: { padding: '10px 12px', cursor: 'pointer', borderBottom: `1px solid ${C.borde}` },
   card: { background: '#fff', border: `1px solid ${C.borde}`, borderRadius: 10, marginBottom: 8 },
@@ -36,6 +56,19 @@ const s = {
   vacio: { padding: 24, textAlign: 'center', color: C.gris },
 }
 
+function FiltroClase({ valor, onChange, contar }) {
+  return (
+    <div style={s.chips}>
+      {FILTROS_CLASE.map((c) => (
+        <button key={c.k || 'todas'} style={s.chipBtn(valor === c.k)} onClick={() => onChange(c.k)}
+          title={c.k === 'otras' ? 'Urgencia, falla y otras' : CLASES[c.k] || 'Todas las clases'}>
+          {c.t} · {contar(c.k)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Tabla({ cols, filas }) {
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -45,7 +78,7 @@ function Tabla({ cols, filas }) {
           {filas.map((f, i) => (
             <tr key={i}>{cols.map((c) => (
               <td key={c.k} style={{ ...s.td, textAlign: c.der ? 'right' : 'left', whiteSpace: c.nw ? 'nowrap' : 'normal' }}>
-                {c.f ? c.f(f) : f[c.k] ?? '–'}
+                {c.f ? c.f(f, i) : f[c.k] ?? '–'}
               </td>))}
             </tr>
           ))}
@@ -120,7 +153,7 @@ function OrdenCard({ o }) {
           {comps === null ? <div style={s.meta}>Cargando…</div>
             : comps.length === 0 ? <div style={s.meta}>Esta orden no tiene materiales reservados.</div>
             : <Tabla filas={comps} cols={[
-                { k: 'material', t: 'Material', nw: true },
+                { k: 'material', t: 'Código', nw: true },
                 { k: 'descripcion', t: 'Descripción' },
                 { k: 'cantidad_usada', t: 'Usado', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
                 { k: 'cantidad_pendiente', t: 'Pend.', der: true, f: (r) => (Number(r.cantidad_pendiente) > 0 ? num(r.cantidad_pendiente) : '–') },
@@ -138,6 +171,8 @@ function VistaEquipo({ equipos }) {
   const [materiales, setMateriales] = useState([])
   const [cargando, setCargando] = useState(false)
   const [filtroClase, setFiltroClase] = useState('')
+  const [textoOrd, setTextoOrd] = useState('')
+  const [textoMat, setTextoMat] = useState('')
 
   useEffect(() => {
     if (!equipo) return
@@ -160,7 +195,9 @@ function VistaEquipo({ equipos }) {
     setEquipo(eq)
   }
 
-  const visibles = filtroClase ? ordenes.filter((o) => o.clase_orden === filtroClase) : ordenes
+  const porTexto = ordenes.filter((o) => coincide(textoOrd, o.orden, o.texto))
+  const visibles = porTexto.filter((o) => pasaClase(o.clase_orden, filtroClase))
+  const matsVisibles = materiales.filter((m) => coincide(textoMat, m.material, m.descripcion))
   const den = equipos.find((e) => e.numero_identificacion === equipo)?.denominacion
 
   return (
@@ -176,23 +213,29 @@ function VistaEquipo({ equipos }) {
           </div>
           {cargando ? <div style={s.vacio}>Cargando…</div> : sub === 'ordenes' ? (
             <>
-              <select style={{ ...s.input, marginBottom: 8 }} value={filtroClase} onChange={(e) => setFiltroClase(e.target.value)}>
-                <option value="">Todas las clases</option>
-                {Object.entries(CLASES).map(([k, v]) => <option key={k} value={k}>{v} ({k})</option>)}
-              </select>
-              {visibles.length === 0 ? <div style={s.vacio}>No hay órdenes para este equipo.</div>
+              <FiltroClase valor={filtroClase} onChange={setFiltroClase}
+                contar={(k) => porTexto.filter((o) => pasaClase(o.clase_orden, k)).length} />
+              <input style={s.filtro} value={textoOrd} onChange={(e) => setTextoOrd(e.target.value)}
+                placeholder="Filtrar por texto o n° de orden (ej. motor, 4013521)" />
+              {visibles.length === 0 ? <div style={s.vacio}>No hay órdenes con ese filtro.</div>
                 : visibles.map((o) => <OrdenCard key={o.orden} o={o} />)}
             </>
-          ) : materiales.length === 0 ? <div style={s.vacio}>No hay materiales consumidos registrados.</div> : (
-            <div style={s.card}>
-              <Tabla filas={materiales} cols={[
-                { k: 'material', t: 'Material', nw: true },
-                { k: 'descripcion', t: 'Descripción' },
-                { k: 'cantidad_usada', t: 'Total', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
-                { k: 'n_ordenes', t: 'Órdenes', der: true },
-                { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
-              ]} />
-            </div>
+          ) : (
+            <>
+              <input style={s.filtro} value={textoMat} onChange={(e) => setTextoMat(e.target.value)}
+                placeholder="Filtrar por código o descripción (ej. filtro aire)" />
+              {matsVisibles.length === 0 ? <div style={s.vacio}>No hay materiales con ese filtro.</div> : (
+                <div style={s.card}>
+                  <Tabla filas={matsVisibles} cols={[
+                    { k: 'material', t: 'Código', nw: true },
+                    { k: 'descripcion', t: 'Descripción' },
+                    { k: 'cantidad_usada', t: 'Total', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
+                    { k: 'n_ordenes', t: 'Órdenes', der: true },
+                    { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
+                  ]} />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -200,40 +243,111 @@ function VistaEquipo({ equipos }) {
   )
 }
 
-function VistaMaterial() {
-  const [q, setQ] = useState('')
-  const [res, setRes] = useState(null)
-  const [cargando, setCargando] = useState(false)
+// Por material: combinaciones Equipo / Material sin repetir.
+// - Con un equipo exacto: usa historial_equipo_materiales (lista completa del equipo) y filtra por texto al tipear.
+// - Sin equipo: usa historial_buscar_material (300 consumos más recientes) y agrupa por equipo + material.
+function VistaMaterial({ equipos }) {
+  const [texto, setTexto] = useState('')
+  const [equipoQ, setEquipoQ] = useState('')
+  const [busqueda, setBusqueda] = useState(null) // filas de historial_buscar_material
+  const [buscando, setBuscando] = useState(false)
+  const [datosEquipo, setDatosEquipo] = useState({ equipo: null, filas: [] })
+
+  const ids = useMemo(() => new Set(equipos.map((e) => e.numero_identificacion)), [equipos])
+  const den = useMemo(() => new Map(equipos.map((e) => [e.numero_identificacion, e.denominacion])), [equipos])
+  const eqNorm = equipoQ.trim().toUpperCase()
+  const exacto = ids.has(eqNorm) ? eqNorm : null
+
+  useEffect(() => {
+    if (!exacto) return
+    let vivo = true
+    supabase.rpc('historial_equipo_materiales', { p_equipo: exacto }).then(({ data, error }) => {
+      if (!vivo) return
+      if (error) toast('Error al cargar materiales del equipo: ' + error.message, 'error')
+      setDatosEquipo({ equipo: exacto, filas: data || [] })
+    })
+    return () => { vivo = false }
+  }, [exacto])
 
   const buscar = async () => {
-    if (q.trim().length < 3) { toast('Escribí al menos 3 caracteres', 'error'); return }
-    setCargando(true)
-    const { data, error } = await supabase.rpc('historial_buscar_material', { p_texto: q })
-    setCargando(false)
+    // El servidor busca una sola palabra (la más larga); el resto se filtra acá.
+    const clave = palabras(texto).sort((a, b) => b.length - a.length)[0] || ''
+    if (clave.length < 3) { toast('Escribí al menos una palabra de 3 letras', 'error'); return }
+    setBuscando(true)
+    const { data, error } = await supabase.rpc('historial_buscar_material', { p_texto: clave })
+    setBuscando(false)
     if (error) { toast('Error en la búsqueda: ' + error.message, 'error'); return }
-    setRes(data || [])
+    setBusqueda(data || [])
   }
+
+  const cargandoEquipo = exacto && datosEquipo.equipo !== exacto
+
+  const pares = useMemo(() => {
+    if (exacto) {
+      if (datosEquipo.equipo !== exacto) return []
+      return datosEquipo.filas
+        .filter((m) => coincide(texto, m.material, m.descripcion))
+        .map((m) => ({ equipo: exacto, material: m.material, descripcion: m.descripcion, n_ordenes: m.n_ordenes, ultima: m.ultima }))
+        .sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || ''))
+    }
+    if (!busqueda) return []
+    const g = new Map()
+    for (const r of busqueda) {
+      const eq = r.equipo || 'Sin equipo'
+      if (!coincide(texto, r.material, r.descripcion)) continue
+      if (eqNorm && !eq.toUpperCase().includes(eqNorm) && !(den.get(eq) || '').toUpperCase().includes(eqNorm)) continue
+      const k = eq + '|' + r.material
+      if (!g.has(k)) g.set(k, { equipo: eq, material: r.material, descripcion: r.descripcion, ords: new Set(), ultima: null })
+      const p = g.get(k)
+      p.ords.add(r.orden)
+      if (r.fecha_entrada && (!p.ultima || r.fecha_entrada > p.ultima)) p.ultima = r.fecha_entrada
+    }
+    return [...g.values()]
+      .map((p) => ({ ...p, n_ordenes: p.ords.size }))
+      .sort((a, b) => (a.equipo === 'Sin equipo') - (b.equipo === 'Sin equipo')
+        || a.equipo.localeCompare(b.equipo) || (a.descripcion || '').localeCompare(b.descripcion || ''))
+  }, [exacto, datosEquipo, busqueda, texto, eqNorm, den])
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input style={s.input} value={q} placeholder="Código de material o texto (ej. filtro aceite)"
-          onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} />
-        <button style={{ ...s.tab(true), flex: '0 0 96px' }} onClick={buscar}>Buscar</button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input style={{ ...s.input, flex: '2 1 240px', width: 'auto' }} value={texto} onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !exacto && buscar()}
+          placeholder="Material: código o texto (ej. filtro aire, 1R1808)" />
+        <input style={{ ...s.input, flex: '1 1 160px', width: 'auto' }} value={equipoQ} onChange={(e) => setEquipoQ(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !exacto && buscar()}
+          list="historial-equipos" placeholder="Equipo (opcional, ej. BM-DA002)" />
+        <datalist id="historial-equipos">
+          {equipos.map((e) => <option key={e.numero_identificacion} value={e.numero_identificacion}>{e.denominacion}</option>)}
+        </datalist>
+        {!exacto && <button style={{ ...s.tab(true), flex: '0 0 96px' }} onClick={buscar}>Buscar</button>}
       </div>
-      {cargando && <div style={s.vacio}>Buscando…</div>}
-      {!cargando && res && res.length === 0 && <div style={s.vacio}>Ese material no aparece consumido en ninguna orden.</div>}
-      {!cargando && res && res.length > 0 && (
-        <div style={{ ...s.card, marginTop: 12 }}>
-          <Tabla filas={res} cols={[
-            { k: 'equipo', t: 'Equipo', nw: true, f: (r) => <b>{r.equipo || '–'}</b> },
-            { k: 'fecha_entrada', t: 'Fecha', nw: true, f: (r) => fecha(r.fecha_entrada) },
-            { k: 'orden', t: 'Orden', nw: true },
-            { k: 'descripcion', t: 'Material' },
-            { k: 'cantidad_usada', t: 'Usado', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
-          ]} />
-          {res.length === 300 && <div style={{ ...s.meta, padding: 8 }}>Se muestran los 300 más recientes. Afiná la búsqueda.</div>}
-        </div>
+      <div style={{ ...s.meta, margin: '6px 0 0' }}>
+        {exacto
+          ? <>Mostrando todos los materiales usados por <b>{exacto}</b> {den.get(exacto) ? `(${den.get(exacto)})` : ''}. El texto filtra al tipear.</>
+          : 'Con un equipo, la lista es completa y filtra al tipear. Sin equipo, buscá un material en toda la flota.'}
+      </div>
+
+      {(buscando || cargandoEquipo) && <div style={s.vacio}>Cargando…</div>}
+      {!buscando && !cargandoEquipo && (exacto || busqueda) && (
+        pares.length === 0 ? <div style={s.vacio}>No hay combinaciones equipo/material con ese filtro.</div> : (
+          <div style={{ ...s.card, marginTop: 12 }}>
+            <div style={{ ...s.meta, padding: '8px 8px 0' }}>{pares.length} combinaciones equipo / material</div>
+            <Tabla filas={pares} cols={[
+              { k: 'n', t: '#', der: true, f: (_r, i) => i + 1 },
+              { k: 'equipo', t: 'Equipo', nw: true, f: (r) => <b>{r.equipo}</b> },
+              { k: 'material', t: 'Código', nw: true },
+              { k: 'descripcion', t: 'Descripción' },
+              { k: 'n_ordenes', t: 'Órdenes', der: true },
+              { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
+            ]} />
+            {!exacto && busqueda?.length === 300 && (
+              <div style={{ ...s.meta, padding: 8 }}>
+                La búsqueda trajo los 300 consumos más recientes; puede faltar alguna combinación antigua. Indicá el equipo para ver su lista completa.
+              </div>
+            )}
+          </div>
+        )
       )}
     </>
   )
@@ -261,7 +375,7 @@ export default function HistorialEquipo({ onVolver }) {
         <button style={s.tab(tab === 'equipo')} onClick={() => setTab('equipo')}>Por equipo</button>
         <button style={s.tab(tab === 'material')} onClick={() => setTab('material')}>Por material</button>
       </div>
-      {tab === 'equipo' ? <VistaEquipo equipos={equipos} /> : <VistaMaterial />}
+      {tab === 'equipo' ? <VistaEquipo equipos={equipos} /> : <VistaMaterial equipos={equipos} />}
     </div>
   )
 }
