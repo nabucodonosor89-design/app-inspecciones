@@ -104,3 +104,17 @@
 | **cierre** | Siempre manual. Requiere que no haya asignaciones planificadas ni sin confirmar |
 | rol **logistica** | Rol de usuario del encargado de logística. Solo `admin` y `logistica` ven el módulo |
 
+## Módulo Correctivos (oct-2026)
+| Término | Significado |
+|---------|-------------|
+| **orden abierta SAP** | Clase `TCOC`/`TCUR`, `status_sistema` sin `CTEC` y `status_usuario` distinto de `9EQL` (los NULL cuentan como abiertos) |
+| **en app / solo SAP** | Orden correctiva SAP abierta que cruza (o no) con un correctivo abierto de la app, por N° de orden o, si la app no tiene orden, por aviso |
+| **inconsistencia** | Correctivo abierto en la app que no debería estar en taller o no se puede verificar: `orden_cerrada`, `sin_orden_ni_aviso`, `orden_no_encontrada` (puede ser anterior al export de ~12 meses), `aviso_sin_orden` (los avisos SAP no se ingieren) |
+| **bloqueo real** | Línea de reserva pendiente sin stock en el centro: la reparación no avanza hasta comprar |
+| **cobertura parcial** | Hay stock para una parte de la línea: despachar lo cubierto y comprar el faltante |
+| **despacho pendiente** | Hay stock en el centro para toda la línea: falta despachar al taller |
+| **asignación de stock** | Si varias órdenes piden el mismo material en el mismo centro, el stock se asigna primero a equipos críticos y después por días (mayor a menor) |
+| **MTTR 90 días** | Promedio de (liberación − ingreso a taller) de los correctivos liberados en los últimos 90 días, **sin outliers** |
+| **outlier (MTTR)** | Cierre de más de 60 días. Se lista aparte y no entra en el promedio (ej.: el cierre masivo del 28/08/2026) |
+| **taller tercero** | Correctivo con `ingresa_taller_ypane = false`; se gestiona desde Ypané. La pestaña Ypané los separa para pedir el cierre |
+| **sync SAP → app** | `corr_sync_sap()`: R1 asigna orden, R2 libera, R3 actualiza ubicación. `dry_run` = solo registra lo que haría |

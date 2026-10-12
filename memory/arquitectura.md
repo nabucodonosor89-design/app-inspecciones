@@ -86,3 +86,14 @@ toast('✅ OK')              // auto-detecta tipo por emoji/palabras
 import { confirmar } from './utils/ui'
 const ok = await confirmar('¿Estás seguro?')
 ```
+
+## Módulo Correctivos y sincronización SAP → app (oct-2026)
+- **Vistas**: `supabase/correctivos_setup.sql`. La lógica vive en el esquema privado `corr` (no expuesto por la API). Las vistas públicas `v_corr_*` corren con permisos del dueño porque las tablas `sap_*` solo tienen política RLS para `agente_lector`; cada vista filtra con `corr_usuario_activo()` (usuario activo en `usuarios` por email). `anon` no tiene permiso; un usuario inactivo ve 0 filas.
+- **Sync**: `supabase/correctivos_sync.sql` → `public.corr_sync_sap(p_dry_run boolean default true)`, SECURITY DEFINER, ejecutable solo por `service_role`. Todo en una transacción: si falla, se revierte y queda una fila `ERROR` en `corr.sync_log`. Cada corrida deja una fila `RUN` con el resumen.
+- **Fecha de liberación (R2)**: `sap_ordenes.fecha_fin_real`; si es nula (~45 % de las cerradas), la fecha de la última ingesta de `trabajo`.
+- **Nodo n8n (pendiente)**: al final del workflow de ingesta diaria, después de cargar `ie36` y `trabajo`, agregar un HTTP Request:
+  - `POST https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/rpc/corr_sync_sap`
+  - Headers: `apikey` y `Authorization: Bearer <service_role key>`, `Content-Type: application/json`
+  - Body: `{"p_dry_run": true}` las primeras 2 semanas; después `{"p_dry_run": false}` y apagar la rutina de Cowork ese mismo día.
+  - Si la respuesta trae `"ok": false`, notificar por el mismo canal de errores de la ingesta.
+- Revisar el modo prueba: Correctivos → Resumen → Cambios automáticos (o `select * from corr.sync_log order by id desc`).

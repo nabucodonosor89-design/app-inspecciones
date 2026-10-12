@@ -22,6 +22,8 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | **Logística** | Planificación de fletes con camiones propios: encargos → asignaciones camión + día (solo admin / logistica). Ver `supabase/logistica_v2_setup.sql` |
 | **Historial de equipos** | Solo lectura (todos los roles): equipo → órdenes SAP → operaciones y componentes consumidos, y búsqueda inversa material → equipos. Lee vía RPC `historial_*` (SECURITY DEFINER). Ver `supabase/historial_equipos_setup.sql` `historial_equipos_acceso_todos.sql` y `historial_operaciones_setup.sql` |
 | **Rol compras** | Usuarios de Compras: al loguearse van directo al Historial de equipos, sin menú ni otros módulos. Ver `supabase/rol_compras_setup.sql` |
+| **Correctivos** | Tablero de solo lectura (todos los usuarios activos): cruza correctivos de la app con órdenes, reservas y stock SAP. Pestañas Resumen · Ypané · Empresa · Materiales. Lee vistas `v_corr_*` (lógica en el esquema privado `corr`, filtradas por `corr_usuario_activo()`). Ver `supabase/correctivos_setup.sql`. Distinto del **Analista Correctivo** (`AnalistaCorrectivo.jsx`), que sigue igual |
+| **Sincronización SAP → app** | `corr_sync_sap(p_dry_run)` reemplaza la rutina de Cowork: R1 asigna N° de orden a avisos, R2 libera correctivos con orden cerrada en SAP, R3 actualiza `equipos.ubicacion_actual`. Log en `corr.sync_log` (visible en Resumen → Cambios automáticos). Solo `service_role`. Ver `supabase/correctivos_sync.sql` |
 
 ## Conceptos clave
 | Término | Significado |
@@ -54,6 +56,8 @@ Objetivo principal: cuidar los equipos, saber cómo están, evitar sorpresas al 
 | Recetario aviso → repuestos (parte del objeto × modelo → materiales usados históricamente) | 💡 Futuro — depende de la ingesta de avisos. Prueba con "Alternador": 97/151 órdenes con material relacionado; receta por modelo = correas/rulemanes |
 | Vista por modelo (qué falla / qué consume) y sugerencia de repuestos por horas trabajadas | 💡 Futuro — horas en `sap_imputaciones` solo desde abr-2026 |
 | Memory leak en SubidaFotos | 🟡 Pendiente |
+| Sync SAP → app: nodo n8n al final de la ingesta llamando `rpc/corr_sync_sap` con `{"p_dry_run": true}` | 🟠 Pendiente — ver `memory/arquitectura.md` |
+| Sync SAP → app: salir del modo prueba (cambiar a `{"p_dry_run": false}`) **y el mismo día apagar la rutina de Cowork** | ⏸️ Después de 2 semanas en prueba (desde que n8n la llame) |
 
 ## Stack técnico
 - **Frontend:** React 19, Vite 7, estilos inline (sin Tailwind ni CSS framework)
