@@ -144,7 +144,7 @@ export default function ModuloCorrectivos({ onVolver }) {
           <>
             {tab === 'resumen' && (
               <Resumen k={k} ypane={f.ypane} inconsistencias={f.inconsistencias} duplicados={f.duplicados}
-                outliers={datos.outliers} cambios={datos.cambios} filtrando={filtrando} />
+                outliers={datos.outliers} cambios={datos.cambios} abiertas={f.abiertas} materiales={f.materiales} filtrando={filtrando} />
             )}
             {tab === 'ypane' && <TablaYpane filas={f.ypane} />}
             {tab === 'empresa' && <TablaEmpresa abiertas={f.abiertas} />}

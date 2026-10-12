@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
-import { C, s, num, ddmm, hoyPY } from './constantes'
+import { C, s, num, ddmm, hoyPY, evidencia } from './constantes'
 import TablaResponsive from './TablaResponsive'
 
 // Qué hacer con cada orden SAP abierta que no está en la app (columna `accion` de v_corr_sap_abiertas)
@@ -14,15 +14,6 @@ const ACCIONES = [
   { id: 'en_curso', label: 'En curso', fg: C.azul, bg: C.azulBg,
     texto: 'Liberadas: la reparación empezó, pero no está cargada en la app.' },
 ]
-
-function evidencia(f) {
-  const partes = []
-  if (f.ev_horas_30d) partes.push(`${num(Math.round(f.ev_horas_30d))} h en 30 días`)
-  if (f.ev_km_30d) partes.push(`${num(Math.round(f.ev_km_30d))} km en 30 días`)
-  if (f.ev_orden_posterior) partes.push(`correctivo posterior ${f.ev_orden_posterior} cerrado`)
-  if (f.ev_insp_verde) partes.push(`inspección verde ${ddmm(f.ev_insp_verde)}`)
-  return partes.join(' · ')
-}
 
 function exportar(filas, accion) {
   const datos = filas.map((f) => ({

@@ -1,16 +1,21 @@
 import { useState } from 'react'
 import { C, s, num, ddmmhhmm, MOTIVOS, UMBRAL_OUTLIER } from './constantes'
 import MttrOutliers from './MttrOutliers'
+import DetalleKpi from './DetalleKpi'
 
-function Kpi({ label, valor, tono, sub }) {
+function Kpi({ label, valor, tono, sub, id, sel, onSel }) {
   const colores = { rojo: [C.rojoBg, C.rojo], ambar: [C.ambarBg, C.ambar], verde: [C.verdeBg, C.verde] }
   const [bg, fg] = colores[tono] || ['#fff', C.texto]
+  const activo = id && sel === id
   return (
-    <div style={{ background: bg, border: `1px solid ${C.borde}`, borderRadius: 10, padding: '10px 12px' }}>
+    <button type="button" onClick={() => onSel(activo ? null : id)} title="Ver el detalle"
+      style={{ background: bg, border: `${activo ? 2 : 1}px solid ${activo ? C.azul : C.borde}`, borderRadius: 10,
+        padding: activo ? '9px 11px' : '10px 12px', textAlign: 'left', cursor: 'pointer', font: 'inherit',
+        boxShadow: activo ? '0 0 0 3px rgba(29,78,216,0.15)' : 'none' }}>
       <div style={{ fontSize: 24, fontWeight: 700, color: fg, lineHeight: 1.1 }}>{valor}</div>
-      <div style={{ fontSize: 13, color: C.gris }}>{label}</div>
+      <div style={{ fontSize: 13, color: C.gris }}>{label} <span style={{ color: C.azul }}>{activo ? '▾' : '›'}</span></div>
       {sub && <div style={{ fontSize: 12, color: C.gris, marginTop: 2 }}>{sub}</div>}
-    </div>
+    </button>
   )
 }
 
@@ -68,8 +73,12 @@ function Duplicados({ filas }) {
   ))
 }
 
-export default function Resumen({ k, ypane, inconsistencias, duplicados, outliers, cambios, filtrando }) {
+export default function Resumen({ k, ypane, inconsistencias, duplicados, outliers, cambios, abiertas, materiales, filtrando }) {
+  const [sel, setSel] = useState(null)
   if (!k) return <div style={s.vacio}>Sin datos</div>
+  const p = { sel, onSel: setSel }
+  const datos = { ypane, inconsistencias, duplicados, outliers, abiertas, materiales }
+  const detalle = (prefijo) => sel && sel.startsWith(prefijo) && <DetalleKpi id={sel} datos={datos} filtrando={filtrando} onCerrar={() => setSel(null)} />
   const criticos = ypane.filter((y) => y.es_critico)
   const porMotivo = Object.keys(MOTIVOS).map((m) => ({ m, filas: inconsistencias.filter((i) => i.motivo === m) })).filter((x) => x.filas.length)
   const cambiosReales = cambios.filter((c) => c.regla !== 'RUN')
@@ -77,7 +86,7 @@ export default function Resumen({ k, ypane, inconsistencias, duplicados, outlier
 
   return (
     <div>
-      {filtrando && <div style={{ ...s.meta, marginBottom: 8 }}>Los indicadores muestran el total; los filtros aplican a las listas.</div>}
+      <div style={{ ...s.meta, marginBottom: 8 }}>Tocá un indicador para ver su lista.{filtrando ? ' Los indicadores muestran el total; los filtros aplican a las listas.' : ''}</div>
 
       {criticos.length > 0 && (
         <div style={{ ...s.card, background: C.rojoBg, borderColor: '#fecaca' }}>
@@ -93,38 +102,41 @@ export default function Resumen({ k, ypane, inconsistencias, duplicados, outlier
       <div style={s.card}>
         <div style={s.subtitulo}>Taller (app)</div>
         <div style={grilla}>
-          <Kpi label="En taller" valor={num(k.yp_en_taller)} sub={`${num(k.yp_en_espera)} en espera · ${num(k.yp_en_reparacion)} en reparación`} />
-          <Kpi label="En talleres terceros" valor={num(k.yp_terceros)} />
-          <Kpi label="Críticos detenidos" valor={num(k.yp_criticos)} tono={k.yp_criticos ? 'rojo' : undefined} />
-          <Kpi label="Urgentes (> 10 días)" valor={num(k.yp_urgentes)} tono={k.yp_urgentes ? 'ambar' : undefined} />
-          <Kpi label="Sin N° de orden" valor={num(k.yp_sin_orden)} tono={k.yp_sin_orden ? 'ambar' : undefined} />
-          <Kpi label="Sin pedido" valor={num(k.yp_sin_pedido)} />
-          <Kpi label="Inconsistencias" valor={num(k.inc_total)} tono={k.inc_total ? 'rojo' : 'verde'} />
-          <Kpi label="MTTR 90 días" valor={k.mttr_90d == null ? '—' : `${num(k.mttr_90d)} d`}
+          <Kpi id="yp_en_taller" {...p} label="En taller" valor={num(k.yp_en_taller)} sub={`${num(k.yp_en_espera)} en espera · ${num(k.yp_en_reparacion)} en reparación`} />
+          <Kpi id="yp_terceros" {...p} label="En talleres terceros" valor={num(k.yp_terceros)} />
+          <Kpi id="yp_criticos" {...p} label="Críticos detenidos" valor={num(k.yp_criticos)} tono={k.yp_criticos ? 'rojo' : undefined} />
+          <Kpi id="yp_urgentes" {...p} label="Urgentes (> 10 días)" valor={num(k.yp_urgentes)} tono={k.yp_urgentes ? 'ambar' : undefined} />
+          <Kpi id="yp_sin_orden" {...p} label="Sin N° de orden" valor={num(k.yp_sin_orden)} tono={k.yp_sin_orden ? 'ambar' : undefined} />
+          <Kpi id="yp_sin_pedido" {...p} label="Sin pedido" valor={num(k.yp_sin_pedido)} />
+          <Kpi id="yp_inc" {...p} label="Inconsistencias" valor={num(k.inc_total)} tono={k.inc_total ? 'rojo' : 'verde'} />
+          <Kpi id="yp_mttr" {...p} label="MTTR 90 días" valor={k.mttr_90d == null ? '—' : `${num(k.mttr_90d)} d`}
             sub={`${num(k.mttr_cierres)} cierres · sin ${num(k.mttr_outliers)} outliers > ${UMBRAL_OUTLIER} d`} />
         </div>
+        {detalle('yp_')}
       </div>
 
       <div style={s.card}>
         <div style={s.subtitulo}>Empresa (SAP)</div>
         <div style={grilla}>
-          <Kpi label="Correctivos abiertos" valor={num(k.sap_abiertas)} />
-          <Kpi label="En la app" valor={num(k.sap_en_app)} tono="verde" />
-          <Kpi label="Solo SAP" valor={num(k.sap_solo_sap)} sub={`${num(k.sap_solo_sap_10d)} con > 10 días`} tono={k.sap_solo_sap_10d ? 'ambar' : undefined} />
-          <Kpi label="Candidatas a cierre" valor={num(k.sap_cierre_candidatas)} tono={k.sap_cierre_candidatas ? 'verde' : undefined}
+          <Kpi id="sap_abiertas" {...p} label="Correctivos abiertos" valor={num(k.sap_abiertas)} />
+          <Kpi id="sap_en_app" {...p} label="En la app" valor={num(k.sap_en_app)} tono="verde" />
+          <Kpi id="sap_solo_sap" {...p} label="Solo SAP" valor={num(k.sap_solo_sap)} sub={`${num(k.sap_solo_sap_10d)} con > 10 días`} tono={k.sap_solo_sap_10d ? 'ambar' : undefined} />
+          <Kpi id="sap_cierre" {...p} label="Candidatas a cierre" valor={num(k.sap_cierre_candidatas)} tono={k.sap_cierre_candidatas ? 'verde' : undefined}
             sub={`0TES con el equipo trabajando después · ${num(k.sap_verificar)} a verificar`} />
-          <Kpi label="Sin código de equipo" valor={num(k.sap_sin_equipo)} />
-          <Kpi label="Equipos con > 1 orden" valor={num(k.equipos_multi_orden)} sub={`${num(k.ordenes_multi_orden)} órdenes/avisos`} />
+          <Kpi id="sap_sin_equipo" {...p} label="Sin código de equipo" valor={num(k.sap_sin_equipo)} />
+          <Kpi id="sap_multi" {...p} label="Equipos con > 1 orden" valor={num(k.equipos_multi_orden)} sub={`${num(k.ordenes_multi_orden)} órdenes/avisos`} />
         </div>
+        {detalle('sap_')}
       </div>
 
       <div style={s.card}>
         <div style={s.subtitulo}>Materiales</div>
         <div style={grilla}>
-          <Kpi label="Bloqueo real" valor={num(k.mat_bloqueo)} tono="rojo" />
-          <Kpi label="Cobertura parcial" valor={num(k.mat_parcial)} tono="ambar" />
-          <Kpi label="Despacho pendiente" valor={num(k.mat_despacho)} tono="verde" />
+          <Kpi id="mat_bloqueo" {...p} label="Bloqueo real" valor={num(k.mat_bloqueo)} tono="rojo" />
+          <Kpi id="mat_parcial" {...p} label="Cobertura parcial" valor={num(k.mat_parcial)} tono="ambar" />
+          <Kpi id="mat_despacho" {...p} label="Despacho pendiente" valor={num(k.mat_despacho)} tono="verde" />
         </div>
+        {detalle('mat_')}
       </div>
 
       <Colapsable titulo={`Inconsistencias · ${num(inconsistencias.length)}`} inicial={inconsistencias.length > 0}>

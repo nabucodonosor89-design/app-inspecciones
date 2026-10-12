@@ -70,6 +70,16 @@ export function ddmm(fecha) {
   })
 }
 
+// Evidencia de que el equipo trabajó después de crearse la orden (columnas ev_* de v_corr_sap_abiertas)
+export function evidencia(f) {
+  const partes = []
+  if (f.ev_horas_30d) partes.push(`${num(Math.round(f.ev_horas_30d))} h en 30 días`)
+  if (f.ev_km_30d) partes.push(`${num(Math.round(f.ev_km_30d))} km en 30 días`)
+  if (f.ev_orden_posterior) partes.push(`correctivo posterior ${f.ev_orden_posterior} cerrado`)
+  if (f.ev_insp_verde) partes.push(`inspección verde ${ddmm(f.ev_insp_verde)}`)
+  return partes.join(' · ')
+}
+
 export function ddmmhhmm(fecha) {
   if (!fecha) return '—'
   const d = new Date(fecha)

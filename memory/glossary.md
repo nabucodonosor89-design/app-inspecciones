@@ -107,7 +107,7 @@
 ## Módulo Correctivos (oct-2026)
 | Término | Significado |
 |---------|-------------|
-| **orden abierta SAP** | Clase `TCOC`/`TCUR`, `status_sistema` sin `CTEC` y `status_usuario` distinto de `9EQL` (los NULL cuentan como abiertos) |
+| **orden abierta SAP** | Clase `TCOC`/`TCUR`, `status_sistema` sin `CTEC` ni `CERR` y `status_usuario` distinto de `9EQL` (los NULL cuentan como abiertos). Una orden `0TES` (creada, no liberada) puede estar `CERR`: cuenta como cerrada |
 | **en app / solo SAP** | Orden correctiva SAP abierta que cruza (o no) con un correctivo abierto de la app, por N° de orden o, si la app no tiene orden, por aviso |
 | **inconsistencia** | Correctivo abierto en la app que no debería estar en taller o no se puede verificar: `orden_cerrada`, `sin_orden_ni_aviso`, `orden_no_encontrada` (puede ser anterior al export de ~12 meses), `aviso_sin_orden` (los avisos SAP no se ingieren) |
 | **bloqueo real** | Línea de reserva pendiente sin stock en el centro: la reparación no avanza hasta comprar |

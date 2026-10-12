@@ -76,6 +76,7 @@ select o.orden,
        o.fecha_entrada,
        o.fecha_fin_real,
        (coalesce(o.status_sistema, '') not like '%CTEC%'
+        and coalesce(o.status_sistema, '') not like '%CERR%'   -- CERR = cerrada (puede quedar con status usuario 0TES)
         and o.status_usuario is distinct from '9EQL') as abierta
 from public.sap_ordenes o;
 
