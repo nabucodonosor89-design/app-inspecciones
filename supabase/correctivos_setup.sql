@@ -258,7 +258,8 @@ with ords as (
   select o.orden, o.equipo, o.es_critico,
          case when a.id is not null then 'App' else 'Solo SAP' end as origen,
          coalesce(a.taller, o.ubicacion) as taller_o_ubicacion,
-         coalesce(a.dias_taller, o.dias_abierta) as dias
+         coalesce(a.dias_taller, o.dias_abierta) as dias,
+         o.texto as texto_orden, o.aviso, o.denominacion
   from corr.sap_abiertas o
   left join lateral (
     select x.id, x.taller, x.dias_taller from corr.app x
@@ -289,7 +290,7 @@ select equipo, orden, origen, taller_o_ubicacion, es_critico, dias, material, de
        case when cantidad_cubierta >= cantidad_pendiente then 'despacho'
             when cantidad_cubierta > 0 then 'parcial'
             else 'bloqueo' end as situacion,
-       posicion
+       posicion, texto_orden, aviso, denominacion
 from cub
 where (select corr_usuario_activo());
 

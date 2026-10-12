@@ -22,6 +22,9 @@ import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
 
+// Tarjetas ocultas del menú (Analista Correctivo, Caja Chica). Poner en true para volver a mostrarlas.
+const MODULOS_OCULTOS_VISIBLES = false
+
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -438,6 +441,9 @@ function App() {
             </p>
           </div>
 
+          {/* Oculto (oct-2026): reemplazado por el módulo Correctivos. El código y la ruta siguen. */}
+          {MODULOS_OCULTOS_VISIBLES && (
+          <>
           {/* Card Analista Correctivo */}
           <div
             onClick={() => setModulo('correctivo')}
@@ -471,7 +477,11 @@ function App() {
               Reparaciones en curso · MTTR · Downtime
             </p>
           </div>
-
+          </>
+          )}
+          {/* Oculto (oct-2026) a pedido de Andrés. El código y la ruta siguen. */}
+          {MODULOS_OCULTOS_VISIBLES && (
+          <>
           {/* Card Caja Chica */}
           <div
             onClick={() => setModulo('caja-chica')}
@@ -505,7 +515,8 @@ function App() {
               Fondos y cajas especiales del departamento
             </p>
           </div>
-
+          </>
+          )}
           {/* Card Logística — solo administrador y logística */}
           {(user.rol === 'admin' || user.rol === 'logistica') && (
           <div

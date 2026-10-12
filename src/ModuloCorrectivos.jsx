@@ -28,7 +28,7 @@ const CONSULTAS = {
   duplicados: () => supabase.from('v_corr_duplicados')
     .select('equipo, denominacion, tipo, aviso, orden, ubicacion, dias, status, origen, cantidad').limit(LIMITE),
   materiales: () => supabase.from('v_corr_materiales')
-    .select('equipo, orden, posicion, origen, taller_o_ubicacion, es_critico, dias, material, descripcion, cantidad_pendiente, unidad, centro, stock_centro, cantidad_cubierta, cantidad_faltante, situacion').limit(LIMITE),
+    .select('equipo, orden, posicion, origen, taller_o_ubicacion, es_critico, dias, material, descripcion, cantidad_pendiente, unidad, centro, stock_centro, cantidad_cubierta, cantidad_faltante, situacion, texto_orden, aviso, denominacion').limit(LIMITE),
   porObra: () => supabase.from('v_corr_solo_sap_por_obra').select('ubicacion, total, mas_10_dias').limit(500),
   outliers: () => supabase.from('v_corr_mttr_outliers').select('equipo, taller, ingreso, liberacion, dias').limit(LIMITE),
   cambios: () => supabase.from('v_corr_cambios')
@@ -95,7 +95,7 @@ export default function ModuloCorrectivos({ onVolver }) {
           const t = tipoPorEquipo.get(r.equipo) || 'S'
           if (!tipos.includes(t)) return false
         }
-        return coincide(q, r.equipo, r.orden, r.material, r.descripcion, r.taller_o_ubicacion)
+        return coincide(q, r.equipo, r.orden, r.aviso, r.material, r.descripcion, r.taller_o_ubicacion, r.texto_orden)
       }),
     }
   }, [datos, tipos, busqueda, tipoPorEquipo])
