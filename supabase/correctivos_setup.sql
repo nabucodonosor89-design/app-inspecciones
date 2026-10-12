@@ -156,18 +156,49 @@ left join public.equipos eqa on eqa.id = m.equipo_id
 left join corr.eq d on d.equipo = eqa.numero_identificacion
 left join elegida c on c.id = m.id;
 
--- 1.4 Órdenes correctivas SAP abiertas
+-- 1.4 Órdenes correctivas SAP abiertas + evidencia de que el equipo trabajó después + acción sugerida
+--   accion (para las que no están en la app):
+--     completar_equipo  → la orden no tiene código de equipo
+--     cierre_candidato  → 0TES (creada, no liberada) y el equipo trabajó o se reparó después
+--     verificar         → 0TES sin evidencia: alguien tiene que ver el equipo
+--     en_curso          → liberada (reparación empezada)
 create or replace view corr.sap_abiertas as
-select o.orden, o.aviso, o.equipo,
-       d.denominacion,
-       coalesce(d.tipo, 'S') as tipo,
-       coalesce(d.es_critico, false) as es_critico,
-       o.ubicacion, o.texto, o.status_usuario, o.fecha_entrada,
-       corr_hoy() - o.fecha_entrada as dias_abierta,
-       exists (select 1 from corr.app a where a.orden_cruzada = o.orden) as en_app
-from corr.ordenes o
-left join corr.eq d on d.equipo = o.equipo
-where o.es_correctiva and o.abierta;
+with base as (
+  select o.orden, o.aviso, o.equipo,
+         d.denominacion,
+         coalesce(d.tipo, 'S') as tipo,
+         coalesce(d.es_critico, false) as es_critico,
+         o.ubicacion, o.texto, o.status_usuario, o.fecha_entrada,
+         corr_hoy() - o.fecha_entrada as dias_abierta,
+         exists (select 1 from corr.app a where a.orden_cruzada = o.orden) as en_app
+  from corr.ordenes o
+  left join corr.eq d on d.equipo = o.equipo
+  where o.es_correctiva and o.abierta
+), ev as (
+  select b.*,
+         (select sum(i.cantidad) from public.sap_imputaciones i
+           where i.equipo = b.equipo and i.fecha >= corr_hoy() - 30 and i.umedida = 'HRA' and i.cantidad > 0) as ev_horas_30d,
+         (select sum(i.cantidad) from public.sap_imputaciones i
+           where i.equipo = b.equipo and i.fecha >= corr_hoy() - 30 and i.umedida = 'KM' and i.cantidad > 0) as ev_km_30d,
+         (select o2.orden from corr.ordenes o2
+           where o2.equipo = b.equipo and o2.es_correctiva and not o2.abierta and o2.fecha_entrada > b.fecha_entrada
+           order by o2.fecha_entrada desc limit 1) as ev_orden_posterior,
+         (select max(x.fecha_hora)::date from public.inspecciones x join public.equipos e on e.id = x.equipo_id
+           where e.numero_identificacion = b.equipo and x.semaforo = 'verde' and x.fecha_hora::date > b.fecha_entrada) as ev_insp_verde
+  from base b
+)
+select orden, aviso, equipo, denominacion, tipo, es_critico, ubicacion, texto, status_usuario, fecha_entrada,
+       dias_abierta, en_app,
+       ev_horas_30d, ev_km_30d, ev_orden_posterior, ev_insp_verde,
+       case
+         when equipo is null then 'completar_equipo'
+         when status_usuario = '0TES'
+              and (ev_horas_30d is not null or ev_km_30d is not null or ev_orden_posterior is not null or ev_insp_verde is not null)
+           then 'cierre_candidato'
+         when status_usuario = '0TES' then 'verificar'
+         else 'en_curso'
+       end as accion
+from ev;
 
 -- 1.5 Inconsistencias: correctivos de la app que no deberían estar en taller
 create or replace view corr.inconsistencias as
@@ -212,7 +243,8 @@ where (select corr_usuario_activo());
 -- 2.2 Órdenes SAP abiertas
 create or replace view public.v_corr_sap_abiertas as
 select orden, aviso, equipo, denominacion, tipo, es_critico, ubicacion, texto,
-       status_usuario, fecha_entrada, dias_abierta, en_app
+       status_usuario, fecha_entrada, dias_abierta, en_app,
+       ev_horas_30d, ev_km_30d, ev_orden_posterior, ev_insp_verde, accion
 from corr.sap_abiertas
 where (select corr_usuario_activo());
 
@@ -367,7 +399,11 @@ select
   -- MTTR 90 días sin outliers (> 60 días)
   (select round(avg(dias)::numeric, 1) from corr.cierres_90 where dias <= 60) as mttr_90d,
   (select count(*) from corr.cierres_90 where dias <= 60)                     as mttr_cierres,
-  (select count(*) from corr.cierres_90 where dias > 60)                      as mttr_outliers
+  (select count(*) from corr.cierres_90 where dias > 60)                      as mttr_outliers,
+  -- Acción sugerida para órdenes solo SAP
+  (select count(*) from corr.sap_abiertas where not en_app and accion = 'cierre_candidato') as sap_cierre_candidatas,
+  (select count(*) from corr.sap_abiertas where not en_app and accion = 'verificar')        as sap_verificar,
+  (select count(*) from corr.sap_abiertas where not en_app and accion = 'completar_equipo') as sap_completar_equipo
 where (select corr_usuario_activo());
 
 -- ------------------------------------------------------------

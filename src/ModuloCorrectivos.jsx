@@ -18,25 +18,24 @@ const CONSULTAS = {
   frescura: () => supabase.from('v_corr_frescura')
     .select('ie36, trabajo, reservas, stock, corte_stock_1002, ultima_sync, ultima_sync_dry_run').limit(1),
   kpis: () => supabase.from('v_corr_kpis')
-    .select('sap_abiertas, sap_en_app, sap_solo_sap, sap_solo_sap_10d, sap_sin_equipo, equipos_multi_orden, ordenes_multi_orden, tipo_v, tipo_p, tipo_m, tipo_b, tipo_s, yp_en_taller, yp_en_espera, yp_en_reparacion, yp_terceros, yp_criticos, yp_sin_orden, yp_sin_pedido, yp_urgentes, inc_total, mat_bloqueo, mat_parcial, mat_despacho, mttr_90d, mttr_cierres, mttr_outliers').limit(1),
+    .select('sap_abiertas, sap_en_app, sap_solo_sap, sap_solo_sap_10d, sap_sin_equipo, equipos_multi_orden, ordenes_multi_orden, tipo_v, tipo_p, tipo_m, tipo_b, tipo_s, yp_en_taller, yp_en_espera, yp_en_reparacion, yp_terceros, yp_criticos, yp_sin_orden, yp_sin_pedido, yp_urgentes, inc_total, mat_bloqueo, mat_parcial, mat_despacho, mttr_90d, mttr_cierres, mttr_outliers, sap_cierre_candidatas, sap_verificar, sap_completar_equipo').limit(1),
   ypane: () => supabase.from('v_corr_ypane')
     .select('id, equipo, denominacion, tipo, es_critico, numero_aviso, numero_orden, orden_cruzada, prioridad, estado_label, pedido, taller_tipo, taller, descripcion_averia, dias_taller, status_sap, orden_abierta').limit(LIMITE),
   abiertas: () => supabase.from('v_corr_sap_abiertas')
-    .select('orden, aviso, equipo, denominacion, tipo, ubicacion, texto, status_usuario, fecha_entrada, dias_abierta, en_app').limit(LIMITE),
+    .select('orden, aviso, equipo, denominacion, tipo, ubicacion, texto, status_usuario, fecha_entrada, dias_abierta, en_app, ev_horas_30d, ev_km_30d, ev_orden_posterior, ev_insp_verde, accion').limit(LIMITE),
   inconsistencias: () => supabase.from('v_corr_inconsistencias')
     .select('id, equipo, denominacion, tipo, taller, numero_aviso, numero_orden, orden_cruzada, dias_taller, motivo').limit(LIMITE),
   duplicados: () => supabase.from('v_corr_duplicados')
     .select('equipo, denominacion, tipo, aviso, orden, ubicacion, dias, status, origen, cantidad').limit(LIMITE),
   materiales: () => supabase.from('v_corr_materiales')
     .select('equipo, orden, posicion, origen, taller_o_ubicacion, es_critico, dias, material, descripcion, cantidad_pendiente, unidad, centro, stock_centro, cantidad_cubierta, cantidad_faltante, situacion, texto_orden, aviso, denominacion').limit(LIMITE),
-  porObra: () => supabase.from('v_corr_solo_sap_por_obra').select('ubicacion, total, mas_10_dias').limit(500),
   outliers: () => supabase.from('v_corr_mttr_outliers').select('equipo, taller, ingreso, liberacion, dias').limit(LIMITE),
   cambios: () => supabase.from('v_corr_cambios')
     .select('id, ejecutado_en, dry_run, regla, equipo, campo, valor_anterior, valor_nuevo, resultado, detalle')
     .order('id', { ascending: false }).limit(500),
 }
 
-const VACIO = { frescura: [], kpis: [], ypane: [], abiertas: [], inconsistencias: [], duplicados: [], materiales: [], porObra: [], outliers: [], cambios: [] }
+const VACIO = { frescura: [], kpis: [], ypane: [], abiertas: [], inconsistencias: [], duplicados: [], materiales: [], outliers: [], cambios: [] }
 
 export default function ModuloCorrectivos({ onVolver }) {
   const [datos, setDatos] = useState(VACIO)
@@ -148,7 +147,7 @@ export default function ModuloCorrectivos({ onVolver }) {
                 outliers={datos.outliers} cambios={datos.cambios} filtrando={filtrando} />
             )}
             {tab === 'ypane' && <TablaYpane filas={f.ypane} />}
-            {tab === 'empresa' && <TablaEmpresa abiertas={f.abiertas} porObra={datos.porObra} />}
+            {tab === 'empresa' && <TablaEmpresa abiertas={f.abiertas} />}
             {tab === 'materiales' && <TablaMateriales filas={f.materiales} />}
           </>
         )}

@@ -111,6 +111,8 @@ export default function Resumen({ k, ypane, inconsistencias, duplicados, outlier
           <Kpi label="Correctivos abiertos" valor={num(k.sap_abiertas)} />
           <Kpi label="En la app" valor={num(k.sap_en_app)} tono="verde" />
           <Kpi label="Solo SAP" valor={num(k.sap_solo_sap)} sub={`${num(k.sap_solo_sap_10d)} con > 10 días`} tono={k.sap_solo_sap_10d ? 'ambar' : undefined} />
+          <Kpi label="Candidatas a cierre" valor={num(k.sap_cierre_candidatas)} tono={k.sap_cierre_candidatas ? 'verde' : undefined}
+            sub={`0TES con el equipo trabajando después · ${num(k.sap_verificar)} a verificar`} />
           <Kpi label="Sin código de equipo" valor={num(k.sap_sin_equipo)} />
           <Kpi label="Equipos con > 1 orden" valor={num(k.equipos_multi_orden)} sub={`${num(k.ordenes_multi_orden)} órdenes/avisos`} />
         </div>

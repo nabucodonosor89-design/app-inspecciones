@@ -55,11 +55,19 @@ export function hoyPY() {
 
 export const num = (n) => (n == null ? '—' : Number(n).toLocaleString('es-PY'))
 
+// dd/mm (agrega /aa si no es del año en curso).
+// Las fechas sin hora (YYYY-MM-DD) se leen tal cual: con new Date() se correrían un día por la zona horaria.
 export function ddmm(fecha) {
   if (!fecha) return '—'
+  const anioActual = hoyPY().slice(0, 4)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  if (m) return m[1] === anioActual ? `${m[3]}/${m[2]}` : `${m[3]}/${m[2]}/${m[1].slice(2)}`
   const d = new Date(fecha)
   if (isNaN(d)) return '—'
-  return d.toLocaleDateString('es-PY', { day: '2-digit', month: '2-digit', timeZone: 'America/Asuncion' })
+  const anio = d.toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' }).slice(0, 4)
+  return d.toLocaleDateString('es-PY', {
+    day: '2-digit', month: '2-digit', ...(anio !== anioActual ? { year: '2-digit' } : {}), timeZone: 'America/Asuncion',
+  })
 }
 
 export function ddmmhhmm(fecha) {
