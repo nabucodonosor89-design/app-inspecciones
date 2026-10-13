@@ -7,6 +7,7 @@ import Resumen from './correctivos/Resumen'
 import TablaYpane from './correctivos/TablaYpane'
 import TablaEmpresa from './correctivos/TablaEmpresa'
 import TablaMateriales from './correctivos/TablaMateriales'
+import Reunion from './correctivos/Reunion'
 import { useEscritorio } from './correctivos/useEscritorio'
 
 // ============================================================
@@ -120,10 +121,11 @@ export default function ModuloCorrectivos({ onVolver }) {
         {/* Fija solo en escritorio: en celular ocuparía media pantalla */}
         <div style={{ ...s.barra, position: escritorio ? 'sticky' : 'static' }}>
           <div style={s.tabs}>
-            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales']].map(([id, label]) => (
+            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales'], ['reunion', 'Reunión']].map(([id, label]) => (
               <button key={id} style={s.tab(tab === id)} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
+          {tab !== 'reunion' && (<>
           <div style={s.chips}>
             <button style={s.chipBtn(!tipos.length)} onClick={() => setTipos([])}>Todos · {num(k?.sap_abiertas)}</button>
             {TIPOS.map((t) => (
@@ -134,13 +136,14 @@ export default function ModuloCorrectivos({ onVolver }) {
           </div>
           <input style={s.input} placeholder="Buscar equipo, aviso, orden o texto…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
           <div style={{ ...s.meta, fontSize: 11, marginTop: 4 }}>Contadores: órdenes correctivas SAP abiertas por tipo de equipo.</div>
+          </>)}
         </div>
 
-        {limiteAlcanzado.length > 0 && (
+        {tab !== 'reunion' && limiteAlcanzado.length > 0 && (
           <div style={s.aviso}>⚠ Mostrando las primeras {num(LIMITE)} filas en: {limiteAlcanzado.join(', ')}. Los totales de los indicadores siguen siendo completos.</div>
         )}
 
-        {cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
+        {tab === 'reunion' ? <Reunion recarga={cargadoEn} /> : cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
           <>
             {tab === 'resumen' && (
               <Resumen k={k} ypane={f.ypane} inconsistencias={f.inconsistencias} duplicados={f.duplicados}
