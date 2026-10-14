@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
 // Historial de mantenimiento: equipo → órdenes SAP → componentes consumidos,
 // y búsqueda inversa material → combinaciones equipo/material.
 // Datos vía RPC SECURITY DEFINER (todos los roles, usuario activo): historial_equipo_ordenes,
-// historial_orden_componentes, historial_orden_operaciones, historial_equipo_materiales, historial_buscar_material.
+// historial_orden_componentes, historial_orden_operaciones, historial_equipo_materiales, historial_buscar_material,
+// historial_material_ordenes (sub-tabla de la columna Órdenes).
 
 const C = { azul: '#1d4ed8', gris: '#6b7280', borde: '#e5e7eb', fondo: '#f9fafb', texto: '#111827' }
 const CLASES = { TCOC: 'Correctiva', TCPV: 'Preventiva', TCUR: 'Urgencia', TCFA: 'Falla' }
@@ -55,6 +56,9 @@ const s = {
   td: { padding: '6px 8px', borderBottom: `1px solid ${C.borde}`, verticalAlign: 'top' },
   vacio: { padding: 24, textAlign: 'center', color: C.gris },
   subtitulo: { fontSize: 13, fontWeight: 700, color: C.gris, textTransform: 'uppercase', letterSpacing: 0.4, margin: '4px 0 4px' },
+  btnOrdenes: (on) => ({ minHeight: 36, minWidth: 56, padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14,
+    whiteSpace: 'nowrap', border: `1px solid ${on ? C.azul : C.borde}`, background: on ? '#dbeafe' : '#fff', color: C.azul }),
+  detalle: { padding: '4px 8px 10px 24px', background: C.fondo, borderBottom: `1px solid ${C.borde}` },
 }
 
 function FiltroClase({ valor, onChange, contar }) {
@@ -70,22 +74,102 @@ function FiltroClase({ valor, onChange, contar }) {
   )
 }
 
-function Tabla({ cols, filas }) {
+// Props opcionales para filas expandibles: claveFila(f) da una clave estable, abierta(f) dice si se
+// muestra el detalle, detalle(f) lo renderiza en una fila extra a todo el ancho. Sin ellas, igual que antes.
+function Tabla({ cols, filas, claveFila, abierta, detalle }) {
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={s.tabla}>
         <thead><tr>{cols.map((c) => <th key={c.k} style={{ ...s.th, textAlign: c.der ? 'right' : 'left' }}>{c.t}</th>)}</tr></thead>
         <tbody>
           {filas.map((f, i) => (
-            <tr key={i}>{cols.map((c) => (
-              <td key={c.k} style={{ ...s.td, textAlign: c.der ? 'right' : 'left', whiteSpace: c.nw ? 'nowrap' : 'normal' }}>
-                {c.f ? c.f(f, i) : f[c.k] ?? '–'}
-              </td>))}
-            </tr>
+            <Fragment key={claveFila ? claveFila(f) : i}>
+              <tr>{cols.map((c) => (
+                <td key={c.k} style={{ ...s.td, textAlign: c.der ? 'right' : 'left', whiteSpace: c.nw ? 'nowrap' : 'normal' }}>
+                  {c.f ? c.f(f, i) : f[c.k] ?? '–'}
+                </td>))}
+              </tr>
+              {detalle && abierta?.(f) && (
+                <tr><td colSpan={cols.length} style={s.detalle}>{detalle(f)}</td></tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>
     </div>
+  )
+}
+
+// Estado de las filas equipo × material abiertas + caché de sus órdenes (vive en la vista, así sobrevive
+// a filtros que ocultan y vuelven a mostrar la fila).
+const claveEM = (r) => `${r.equipo}|${r.material}`
+function useFilasAbiertas() {
+  const [abiertas, setAbiertas] = useState(() => new Set())
+  const [cache] = useState(() => new Map())
+  const toggle = useCallback((k) => setAbiertas((prev) => {
+    const n = new Set(prev)
+    if (n.has(k)) n.delete(k)
+    else n.add(k)
+    return n
+  }), [])
+  const estaAbierta = useCallback((r) => abiertas.has(claveEM(r)), [abiertas])
+  return { abiertas, toggle, estaAbierta, cache }
+}
+
+// Celda de la columna Órdenes: número que abre/cierra la sub-tabla.
+function BotonOrdenes({ r, filas }) {
+  if (!r.equipo || r.equipo === 'Sin equipo') return r.n_ordenes ?? '–'
+  const on = filas.abiertas.has(claveEM(r))
+  return (
+    <button style={s.btnOrdenes(on)} onClick={() => filas.toggle(claveEM(r))}
+      aria-expanded={on} title={on ? 'Ocultar órdenes' : 'Ver las órdenes'}>
+      {r.n_ordenes} {on ? '▴' : '▾'}
+    </button>
+  )
+}
+
+// Sub-tabla: órdenes de una combinación equipo × material (carga perezosa, cacheada en la vista).
+// avisoParcial: en la búsqueda sin equipo el número de la fila sale de los 300 consumos más recientes.
+function OrdenesMaterial({ equipo, material, nFila, cache, avisoParcial }) {
+  const k = `${equipo}|${material}`
+  const [res, setRes] = useState({ k: null, filas: null }) // solo para forzar el render al llegar los datos
+  const filas = cache.get(k) ?? (res.k === k ? res.filas : null)
+
+  useEffect(() => {
+    if (cache.has(k)) return
+    let vivo = true
+    supabase.rpc('historial_material_ordenes', { p_equipo: equipo, p_material: material }).then(({ data, error }) => {
+      if (error) {
+        toast('Error al cargar las órdenes: ' + error.message, 'error')
+        if (vivo) setRes({ k, filas: [] })
+        return
+      }
+      cache.set(k, data || [])
+      if (vivo) setRes({ k, filas: data || [] })
+    })
+    return () => { vivo = false }
+  }, [k, equipo, material, cache])
+
+  if (filas === null) return <div style={s.meta}>Cargando…</div>
+  if (filas.length === 0) return <div style={s.meta}>Sin órdenes para este material.</div>
+  return (
+    <>
+      {avisoParcial && filas.length !== nFila && (
+        <div style={{ ...s.meta, margin: '4px 0' }}>
+          {filas.length} órdenes en total (la búsqueda general muestra solo las más recientes)
+        </div>
+      )}
+      <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+        <Tabla filas={filas} claveFila={(o) => o.orden} cols={[
+          { k: 'orden', t: 'N° orden', nw: true, f: (o) => <b>{o.orden}</b> },
+          { k: 'clase_orden', t: 'Clase', nw: true, f: (o) => CLASES[o.clase_orden] || o.clase_orden || '–' },
+          { k: 'fecha_entrada', t: 'Fecha', nw: true, f: (o) => fecha(o.fecha_entrada) },
+          { k: 'texto', t: 'Texto' },
+          { k: 'cantidad_usada', t: 'Cantidad', der: true, nw: true, f: (o) => `${num(o.cantidad_usada)} ${o.unidad || ''}` },
+          { k: 'cerrada', t: 'Estado', nw: true, f: (o) => (o.cerrada ? 'Cerrada' : <span style={s.chip('#fee2e2', '#b91c1c')}>Abierta</span>) },
+        ]} />
+      </div>
+    </>
   )
 }
 
@@ -206,6 +290,7 @@ function VistaEquipo({ equipos }) {
   const [filtroClase, setFiltroClase] = useState('')
   const [textoOrd, setTextoOrd] = useState('')
   const [textoMat, setTextoMat] = useState('')
+  const filasMat = useFilasAbiertas()
 
   useEffect(() => {
     if (!equipo) return
@@ -259,11 +344,14 @@ function VistaEquipo({ equipos }) {
                 placeholder="Filtrar por código o descripción (ej. filtro aire)" />
               {matsVisibles.length === 0 ? <div style={s.vacio}>No hay materiales con ese filtro.</div> : (
                 <div style={s.card}>
-                  <Tabla filas={matsVisibles} cols={[
+                  <Tabla filas={matsVisibles.map((m) => ({ ...m, equipo }))} claveFila={claveEM}
+                    abierta={filasMat.estaAbierta}
+                    detalle={(r) => <OrdenesMaterial equipo={r.equipo} material={r.material} nFila={r.n_ordenes} cache={filasMat.cache} />}
+                    cols={[
                     { k: 'material', t: 'Código', nw: true },
                     { k: 'descripcion', t: 'Descripción' },
                     { k: 'cantidad_usada', t: 'Total', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
-                    { k: 'n_ordenes', t: 'Órdenes', der: true },
+                    { k: 'n_ordenes', t: 'Órdenes', der: true, f: (r) => <BotonOrdenes r={r} filas={filasMat} /> },
                     { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
                   ]} />
                 </div>
@@ -285,6 +373,7 @@ function VistaMaterial({ equipos }) {
   const [busqueda, setBusqueda] = useState(null) // filas de historial_buscar_material
   const [buscando, setBuscando] = useState(false)
   const [datosEquipo, setDatosEquipo] = useState({ equipo: null, filas: [] })
+  const filasMat = useFilasAbiertas()
 
   const ids = useMemo(() => new Set(equipos.map((e) => e.numero_identificacion)), [equipos])
   const den = useMemo(() => new Map(equipos.map((e) => [e.numero_identificacion, e.denominacion])), [equipos])
@@ -366,12 +455,15 @@ function VistaMaterial({ equipos }) {
         pares.length === 0 ? <div style={s.vacio}>No hay combinaciones equipo/material con ese filtro.</div> : (
           <div style={{ ...s.card, marginTop: 12 }}>
             <div style={{ ...s.meta, padding: '8px 8px 0' }}>{pares.length} combinaciones equipo / material</div>
-            <Tabla filas={pares} cols={[
+            <Tabla filas={pares} claveFila={claveEM} abierta={filasMat.estaAbierta}
+              detalle={(r) => <OrdenesMaterial equipo={r.equipo} material={r.material} nFila={r.n_ordenes}
+                cache={filasMat.cache} avisoParcial={!exacto} />}
+              cols={[
               { k: 'n', t: '#', der: true, f: (_r, i) => i + 1 },
               { k: 'equipo', t: 'Equipo', nw: true, f: (r) => <b>{r.equipo}</b> },
               { k: 'material', t: 'Código', nw: true },
               { k: 'descripcion', t: 'Descripción' },
-              { k: 'n_ordenes', t: 'Órdenes', der: true },
+              { k: 'n_ordenes', t: 'Órdenes', der: true, f: (r) => <BotonOrdenes r={r} filas={filasMat} /> },
               { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
             ]} />
             {!exacto && busqueda?.length === 300 && (
