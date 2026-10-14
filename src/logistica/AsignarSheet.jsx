@@ -41,16 +41,26 @@ export default function AsignarSheet({ catalogos, encargo: encargoProp, asignaci
 
   const encargo = encargoProp || encargos.find(e => e.id === encargoId) || null
 
-  // Ocupación de camiones en la fecha elegida
+  // Ocupación de camiones en la fecha elegida.
+  // Incluye las copias proyectadas: planificadas de días anteriores que siguen pendientes (solo hasta hoy).
   useEffect(() => {
     if (!fecha) return
     let vivo = true
-    supabase.from('asignaciones')
-      .select('id, equipo_id, encargo_id, encargos(descripcion, destino_lugar_id, destino_obra_id)')
-      .eq('fecha', fecha).limit(500)
-      .then(({ data, error }) => { if (vivo) { if (error) toast('❌ ' + error.message); else setOcupacion(data) } })
+    const cols = 'id, equipo_id, encargo_id, encargos(descripcion, destino_lugar_id, destino_obra_id)'
+    ;(async () => {
+      const consultas = [supabase.from('asignaciones').select(cols).eq('fecha', fecha).limit(500)]
+      if (fecha <= hoy) {
+        consultas.push(supabase.from('asignaciones').select(cols)
+          .eq('estado', 'planificada').lt('fecha', fecha).limit(500))
+      }
+      const res = await Promise.all(consultas)
+      if (!vivo) return
+      const error = res.find(r => r.error)?.error
+      if (error) return toast('❌ ' + error.message)
+      setOcupacion(res.flatMap(r => r.data))
+    })()
     return () => { vivo = false }
-  }, [fecha])
+  }, [fecha, hoy])
 
 
   const conteoPorCamion = useMemo(() => {

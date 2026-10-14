@@ -2,14 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import AsignarSheet from './AsignarSheet'
-import { COLS_ASIG, COLS_ENCARGO, nombreOperador } from './datos'
+import ConfirmarSheet from './ConfirmarSheet'
+import { COLS_ASIG, COLS_ENCARGO, nombreCamion, nombreOperador } from './datos'
 import {
   ESTADO_ASIG, estilos, fmtFecha, fmtFechaRelativa, fmtNum, hoyPY, lunesDe, msgError, necesitaAgenda, sumarDias, unidadLabel, useEsEscritorio,
 } from './constantes'
 
-/** Asignaciones en un rango de fechas + los encargos a los que pertenecen. */
+/**
+ * Asignaciones en un rango de fechas + los encargos a los que pertenecen.
+ * Además arma las copias visuales de las planificadas atrasadas: una por cada día
+ * desde fecha + 1 hasta hoy, dentro del rango. No son registros: { ...asignacion, copia: true, dia }.
+ */
 function useAsignacionesRango(desde, hasta, version) {
   const [asignaciones, setAsignaciones] = useState([])
+  const [copias, setCopias] = useState([])
   const [encargos, setEncargos] = useState({})
   const [cargando, setCargando] = useState(true)
   const [recarga, setRecarga] = useState(0)
@@ -17,11 +23,26 @@ function useAsignacionesRango(desde, hasta, version) {
   useEffect(() => {
     let vivo = true
     ;(async () => {
-    const { data, error } = await supabase.from('asignaciones').select(COLS_ASIG)
-      .gte('fecha', desde).lte('fecha', hasta).order('fecha').limit(1000)
+    const hoy = hoyPY()
+    const tope = hasta < hoy ? hasta : hoy // las copias nunca van más allá de hoy
+    const consultas = [supabase.from('asignaciones').select(COLS_ASIG)
+      .gte('fecha', desde).lte('fecha', hasta).order('fecha').limit(1000)]
+    if (desde <= hoy) {
+      consultas.push(supabase.from('asignaciones').select(COLS_ASIG)
+        .eq('estado', 'planificada').lt('fecha', tope).order('fecha').limit(500))
+    }
+    const [r1, r2] = await Promise.all(consultas)
     if (!vivo) return
+    const error = r1.error || r2?.error
     if (error) { toast('❌ ' + error.message); setCargando(false); return }
-    const ids = [...new Set(data.map(a => a.encargo_id))]
+    const data = r1.data
+    const nuevasCopias = []
+    ;(r2?.data || []).forEach(p => {
+      let d = sumarDias(p.fecha, 1)
+      if (d < desde) d = desde
+      for (; d <= tope; d = sumarDias(d, 1)) nuevasCopias.push({ ...p, copia: true, dia: d })
+    })
+    const ids = [...new Set([...data, ...nuevasCopias].map(a => a.encargo_id))]
     let mapa = {}
     if (ids.length) {
       const r = await supabase.from('v_encargos').select(COLS_ENCARGO).in('id', ids)
@@ -29,32 +50,38 @@ function useAsignacionesRango(desde, hasta, version) {
       mapa = Object.fromEntries((r.data || []).map(e => [e.id, e]))
     }
     if (!vivo) return
-    setAsignaciones(data); setEncargos(mapa); setCargando(false)
+    setAsignaciones(data); setCopias(nuevasCopias); setEncargos(mapa); setCargando(false)
     })()
     return () => { vivo = false }
   }, [desde, hasta, version, recarga])
-  return { asignaciones, encargos, cargando, recargar: () => setRecarga(r => r + 1) }
+  return { asignaciones, copias, encargos, cargando, recargar: () => setRecarga(r => r + 1) }
 }
+
+const ESTILO_COPIA = { color: '#4b5563', bg: '#f3f4f6', borde: '#9ca3af' }
 
 function ChipAsignacion({ a, encargo, onClick, compacto }) {
   const hoy = hoyPY()
-  const atrasada = a.estado === 'planificada' && a.fecha < hoy
+  const copia = !!a.copia
+  const atrasada = !copia && a.estado === 'planificada' && a.fecha < hoy
   const est = ESTADO_ASIG[a.estado]
-  const color = atrasada ? '#b91c1c' : est.color
-  const bg = atrasada ? '#fee2e2' : est.bg
+  const color = copia ? ESTILO_COPIA.color : atrasada ? '#b91c1c' : est.color
+  const bg = copia ? ESTILO_COPIA.bg : atrasada ? '#fee2e2' : est.bg
   if (!encargo) return null
+  const etiqueta = copia ? `Pendiente desde ${fmtFecha(a.fecha)}` : atrasada ? 'No cumplida' : est.label
   return (
-    <div onClick={onClick} title={`${encargo.descripcion} · ${encargo.origen_nombre} → ${encargo.destino_nombre}`}
+    <div onClick={onClick} title={`${encargo.descripcion} · ${encargo.origen_nombre} → ${encargo.destino_nombre} · ${etiqueta}`}
       style={{ background: bg, color, borderRadius: '8px', padding: compacto ? '4px 6px' : '8px 10px', cursor: 'pointer',
-        fontSize: compacto ? '11px' : '14px', lineHeight: 1.3, borderLeft: `3px solid ${color}` }}>
+        fontSize: compacto ? '11px' : '14px', lineHeight: 1.3,
+        ...(copia ? { border: `1px dashed ${ESTILO_COPIA.borde}` } : { borderLeft: `3px solid ${color}` }) }}>
       <div style={{ fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>
         {encargo.descripcion}
       </div>
       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>
         → {encargo.destino_nombre}
         {a.cantidad_real != null && ` · ${fmtNum(a.cantidad_real)} ${unidadLabel(encargo.unidad)}`}
-        {!compacto && ` · ${atrasada ? 'Atrasada' : est.label}`}
+        {!compacto && ` · ${etiqueta}`}
       </div>
+      {compacto && (copia || atrasada) && <div style={{ fontWeight: 700, fontSize: '10px' }}>{etiqueta}</div>}
     </div>
   )
 }
@@ -136,13 +163,41 @@ function TarjetaPorAgendar({ e, onAbrir, onAsignar, arrastrable }) {
   )
 }
 
+/** Copia de una asignación pendiente de un día anterior, con sus acciones. */
+function TarjetaCopia({ a, encargo, camion, chofer, onAbrir, onEntregado, onReprogramar }) {
+  if (!encargo) return null
+  return (
+    <div onClick={onAbrir} style={{ background: ESTILO_COPIA.bg, border: `1px dashed ${ESTILO_COPIA.borde}`, borderRadius: '10px',
+      padding: '10px 12px', cursor: 'pointer', display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+          Pendiente desde {fmtFecha(a.fecha)}
+        </div>
+        <div style={{ fontWeight: 800, fontSize: '14px', color: '#111827', marginTop: '2px' }}>{encargo.descripcion}</div>
+        <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+          {encargo.origen_nombre} <span style={{ color: '#9ca3af' }}>→</span> {encargo.destino_nombre}
+        </div>
+        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>🚛 {camion} · {chofer ? `👤 ${chofer}` : 'Sin chofer'}</div>
+      </div>
+      {encargo.estado === 'abierto' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <button onClick={ev => { ev.stopPropagation(); onEntregado() }} style={{ ...estilos.btnChico, background: '#16a34a' }}>Entregado</button>
+          <button onClick={ev => { ev.stopPropagation(); onReprogramar() }}
+            style={{ ...estilos.btnChico, background: '#fff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>Reprogramar</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Celular: un día ──────────────────────────────────────────────────────────
 function VistaDia({ catalogos, camiones, porAgendar, onAbrirEncargo, recargar, version }) {
   const [fecha, setFecha] = useState(hoyPY())
   const [sheet, setSheet] = useState(null)
   const [touchX, setTouchX] = useState(null)
   const [verPendientes, setVerPendientes] = useState(true)
-  const { asignaciones, encargos, cargando } = useAsignacionesRango(fecha, fecha, version)
+  const [accion, setAccion] = useState(null) // { tipo: 'confirmar' | 'reprogramar', asignacion }
+  const { asignaciones, copias, encargos, cargando } = useAsignacionesRango(fecha, fecha, version)
 
   const porCamion = useMemo(() => {
     const m = {}
@@ -150,9 +205,15 @@ function VistaDia({ catalogos, camiones, porAgendar, onAbrirEncargo, recargar, v
     return m
   }, [asignaciones])
 
+  const copiasPorCamion = useMemo(() => {
+    const m = {}
+    copias.forEach(a => { m[a.equipo_id] = (m[a.equipo_id] || 0) + 1 })
+    return m
+  }, [copias])
+
   const hoy = hoyPY()
   const mover = (n) => setFecha(f => sumarDias(f, n))
-  const ocupados = camiones.filter(c => porCamion[c.id]).length
+  const ocupados = camiones.filter(c => porCamion[c.id] || copiasPorCamion[c.id]).length
   const cat = { ...catalogos, camiones }
 
   return (
@@ -176,6 +237,25 @@ function VistaDia({ catalogos, camiones, porAgendar, onAbrirEncargo, recargar, v
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
           <button onClick={() => setFecha(hoy)} style={estilos.chip(false)}>Volver a hoy</button>
         </div>
+      )}
+
+      {!cargando && copias.length > 0 && (
+        <section style={{ marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 2px',
+            fontSize: '14px', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            ↩️ Pendientes de días anteriores
+            <span style={{ background: '#b45309', color: '#fff', borderRadius: '999px', padding: '1px 8px', fontSize: '12px' }}>{copias.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+            {copias.map(a => (
+              <TarjetaCopia key={`${a.id}-${a.dia}`} a={a} encargo={encargos[a.encargo_id]}
+                camion={nombreCamion(camiones, a)} chofer={nombreOperador(catalogos.operadores, a.operador_id)}
+                onAbrir={() => onAbrirEncargo(a.encargo_id)}
+                onEntregado={() => setAccion({ tipo: 'confirmar', asignacion: a })}
+                onReprogramar={() => setAccion({ tipo: 'reprogramar', asignacion: a })} />
+            ))}
+          </div>
+        </section>
       )}
 
       {porAgendar.length > 0 && (
@@ -211,7 +291,10 @@ function VistaDia({ catalogos, camiones, porAgendar, onAbrirEncargo, recargar, v
                     <span style={{ fontWeight: 800, fontSize: '15px' }}>🚛 {c.numero_identificacion}</span>
                     {op && <span style={{ fontSize: '12px', color: '#6b7280' }}> · {op}</span>}
                   </div>
-                  {lista.length === 0 && <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 700 }}>Libre</span>}
+                  {lista.length === 0 && !copiasPorCamion[c.id] && <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 700 }}>Libre</span>}
+                  {copiasPorCamion[c.id] > 0 && (
+                    <span style={{ fontSize: '12px', color: '#b45309', fontWeight: 700 }}>↑ {copiasPorCamion[c.id]} pendiente{copiasPorCamion[c.id] > 1 ? 's' : ''}</span>
+                  )}
                   <button onClick={() => setSheet({ preset: { fecha, equipo_id: c.id } })}
                     style={{ ...estilos.btnChico, background: '#fff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>＋</button>
                 </div>
@@ -228,6 +311,14 @@ function VistaDia({ catalogos, camiones, porAgendar, onAbrirEncargo, recargar, v
         <AsignarSheet catalogos={cat} encargo={sheet.encargo} preset={sheet.preset} onCerrar={() => setSheet(null)}
           onGuardado={() => { setSheet(null); recargar() }} />
       )}
+      {accion?.tipo === 'reprogramar' && encargos[accion.asignacion.encargo_id] && (
+        <AsignarSheet catalogos={cat} encargo={encargos[accion.asignacion.encargo_id]} asignacion={accion.asignacion}
+          onCerrar={() => setAccion(null)} onGuardado={() => { setAccion(null); recargar() }} />
+      )}
+      {accion?.tipo === 'confirmar' && encargos[accion.asignacion.encargo_id] && (
+        <ConfirmarSheet catalogos={cat} encargo={encargos[accion.asignacion.encargo_id]} asignacion={accion.asignacion}
+          onCerrar={() => setAccion(null)} onGuardado={() => { setAccion(null); recargar() }} />
+      )}
     </div>
   )
 }
@@ -239,15 +330,16 @@ function GrillaSemana({ catalogos, camiones, porAgendar, onAbrirEncargo, recarga
   const [sobre, setSobre] = useState(null) // celda bajo el arrastre
   const [guardando, setGuardando] = useState(false)
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i))
-  const { asignaciones, encargos, cargando } = useAsignacionesRango(dias[0], dias[6], version)
+  const { asignaciones, copias, encargos, cargando } = useAsignacionesRango(dias[0], dias[6], version)
   const hoy = hoyPY()
   const cat = { ...catalogos, camiones }
 
   const celdas = useMemo(() => {
     const m = {}
     asignaciones.forEach(a => { (m[`${a.equipo_id}|${a.fecha}`] ||= []).push(a) })
+    copias.forEach(a => { (m[`${a.equipo_id}|${a.dia}`] ||= []).push(a) })
     return m
-  }, [asignaciones])
+  }, [asignaciones, copias])
 
   // Asignaciones de la semana en camiones que ya no están marcados como logística
   const huerfanas = asignaciones.filter(a => !camiones.some(c => c.id === a.equipo_id))
@@ -327,7 +419,10 @@ function GrillaSemana({ catalogos, camiones, porAgendar, onAbrirEncargo, recarga
                           outline: activo ? '2px dashed #1d4ed8' : 'none', outlineOffset: '-3px',
                           cursor: lista.length ? 'default' : 'pointer', height: '58px', transition: 'background 0.1s' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {lista.map(a => (
+                          {lista.map(a => a.copia ? (
+                            <ChipAsignacion key={`${a.id}-${a.dia}`} a={a} encargo={encargos[a.encargo_id]} compacto
+                              onClick={(e) => { e.stopPropagation(); onAbrirEncargo(a.encargo_id) }} />
+                          ) : (
                             <div key={a.id}
                               draggable={a.estado === 'planificada'}
                               onDragStart={ev => {
@@ -364,7 +459,8 @@ function GrillaSemana({ catalogos, camiones, porAgendar, onAbrirEncargo, recarga
           {Object.entries(ESTADO_ASIG).map(([k, v]) => (
             <span key={k}><span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: v.bg, border: `1px solid ${v.color}`, marginRight: '4px' }} />{v.label}</span>
           ))}
-          <span><span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: '#fee2e2', border: '1px solid #b91c1c', marginRight: '4px' }} />Atrasada</span>
+          <span><span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: '#fee2e2', border: '1px solid #b91c1c', marginRight: '4px' }} />No cumplida</span>
+          <span><span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: ESTILO_COPIA.bg, border: `1px dashed ${ESTILO_COPIA.borde}`, marginRight: '4px' }} />Pendiente de un día anterior</span>
           <span>· Arrastrá un encargo a una celda para asignarlo · Arrastrá una asignación planificada para reprogramarla</span>
         </div>
       </div>
