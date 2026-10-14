@@ -6,7 +6,8 @@ import { toast } from './utils/ui'
 // y búsqueda inversa material → combinaciones equipo/material.
 // Datos vía RPC SECURITY DEFINER (todos los roles, usuario activo): historial_equipo_ordenes,
 // historial_orden_componentes, historial_orden_operaciones, historial_equipo_materiales, historial_buscar_material,
-// historial_material_ordenes (sub-tabla de la columna Órdenes).
+// historial_material_ordenes (sub-tabla de la columna Órdenes), historial_clase_materiales y
+// historial_clase_material_equipos (Por material filtrando por Clase vehículo).
 
 const C = { azul: '#1d4ed8', gris: '#6b7280', borde: '#e5e7eb', fondo: '#f9fafb', texto: '#111827' }
 const CLASES = { TCOC: 'Correctiva', TCPV: 'Preventiva', TCUR: 'Urgencia', TCFA: 'Falla' }
@@ -103,7 +104,7 @@ function Tabla({ cols, filas, claveFila, abierta, detalle }) {
 // Estado de las filas equipo × material abiertas + caché de sus órdenes (vive en la vista, así sobrevive
 // a filtros que ocultan y vuelven a mostrar la fila).
 const claveEM = (r) => `${r.equipo}|${r.material}`
-function useFilasAbiertas() {
+function useFilasAbiertas(clave = claveEM) {
   const [abiertas, setAbiertas] = useState(() => new Set())
   const [cache] = useState(() => new Map())
   const toggle = useCallback((k) => setAbiertas((prev) => {
@@ -112,7 +113,7 @@ function useFilasAbiertas() {
     else n.add(k)
     return n
   }), [])
-  const estaAbierta = useCallback((r) => abiertas.has(claveEM(r)), [abiertas])
+  const estaAbierta = useCallback((r) => abiertas.has(clave(r)), [abiertas, clave])
   return { abiertas, toggle, estaAbierta, cache }
 }
 
@@ -281,6 +282,56 @@ function OrdenCard({ o }) {
   )
 }
 
+// Por clase: clave de fila = clase + material (así una fila abierta no queda abierta al cambiar de clase).
+const claveMat = (r) => `${r.clase}|${r.material}`
+
+// Celda de la columna Equipos (modo clase): abre la lista de equipos de la clase que usaron el material.
+function BotonEquipos({ r, filas }) {
+  const on = filas.abiertas.has(claveMat(r))
+  return (
+    <button style={s.btnOrdenes(on)} onClick={() => filas.toggle(claveMat(r))}
+      aria-expanded={on} title={on ? 'Ocultar equipos' : 'Ver los equipos'}>
+      {r.n_equipos} {on ? '▴' : '▾'}
+    </button>
+  )
+}
+
+// Sub-tabla (modo clase): equipos de la clase que usaron el material (carga perezosa, cacheada en la vista).
+function EquiposClaseMaterial({ clase, material, cache }) {
+  const k = `${clase}|${material}`
+  const [res, setRes] = useState({ k: null, filas: null })
+  const filas = cache.get(k) ?? (res.k === k ? res.filas : null)
+
+  useEffect(() => {
+    if (cache.has(k)) return
+    let vivo = true
+    supabase.rpc('historial_clase_material_equipos', { p_clase: clase, p_material: material }).then(({ data, error }) => {
+      if (error) {
+        toast('Error al cargar los equipos: ' + error.message, 'error')
+        if (vivo) setRes({ k, filas: [] })
+        return
+      }
+      cache.set(k, data || [])
+      if (vivo) setRes({ k, filas: data || [] })
+    })
+    return () => { vivo = false }
+  }, [k, clase, material, cache])
+
+  if (filas === null) return <div style={s.meta}>Cargando…</div>
+  if (filas.length === 0) return <div style={s.meta}>Sin equipos para este material.</div>
+  return (
+    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+      <Tabla filas={filas} claveFila={(e) => e.equipo} cols={[
+        { k: 'equipo', t: 'Equipo', nw: true, f: (e) => <b>{e.equipo}</b> },
+        { k: 'denominacion', t: 'Denominación' },
+        { k: 'n_ordenes', t: 'Órdenes', der: true },
+        { k: 'cantidad_usada', t: 'Total', der: true, nw: true, f: (e) => `${num(e.cantidad_usada)} ${e.unidad || ''}` },
+        { k: 'ultima', t: 'Última', nw: true, f: (e) => fecha(e.ultima) },
+      ]} />
+    </div>
+  )
+}
+
 function VistaEquipo({ equipos }) {
   const [equipo, setEquipo] = useState('')
   const [sub, setSub] = useState('ordenes')
@@ -374,6 +425,21 @@ function VistaMaterial({ equipos }) {
   const [buscando, setBuscando] = useState(false)
   const [datosEquipo, setDatosEquipo] = useState({ equipo: null, filas: [] })
   const filasMat = useFilasAbiertas()
+  const [claseQ, setClaseQ] = useState('')
+  const [datosClase, setDatosClase] = useState({ clase: null, filas: [] })
+  const filasClase = useFilasAbiertas(claveMat)
+
+  // Clases tal como están en el inventario (sin limpiar); equipos sin clase no entran.
+  const clases = useMemo(() => {
+    const m = new Map()
+    for (const e of equipos) {
+      const c = (e.clase_vehiculo || '').trim()
+      if (c) m.set(c, (m.get(c) || 0) + 1)
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [equipos])
+  const claseNorm = claseQ.trim().toUpperCase()
+  const claseExacta = clases.some(([c]) => c === claseNorm) ? claseNorm : null
 
   const ids = useMemo(() => new Set(equipos.map((e) => e.numero_identificacion)), [equipos])
   const den = useMemo(() => new Map(equipos.map((e) => [e.numero_identificacion, e.denominacion])), [equipos])
@@ -390,6 +456,27 @@ function VistaMaterial({ equipos }) {
     })
     return () => { vivo = false }
   }, [exacto])
+
+  useEffect(() => {
+    if (!claseExacta) return
+    let vivo = true
+    supabase.rpc('historial_clase_materiales', { p_clase: claseExacta }).then(({ data, error }) => {
+      if (!vivo) return
+      if (error) toast('Error al cargar materiales de la clase: ' + error.message, 'error')
+      setDatosClase({ clase: claseExacta, filas: data || [] })
+    })
+    return () => { vivo = false }
+  }, [claseExacta])
+
+  const cargandoClase = claseExacta && datosClase.clase !== claseExacta
+  const matsClase = useMemo(() => {
+    if (!claseExacta || datosClase.clase !== claseExacta) return []
+    return datosClase.filas.filter((m) => coincide(texto, m.material, m.descripcion)).map((m) => ({ ...m, clase: claseExacta }))
+  }, [claseExacta, datosClase, texto])
+
+  // Equipo y clase son excluyentes: escribir en uno vacía el otro.
+  const cambiarEquipo = (v) => { setEquipoQ(v); if (v) setClaseQ('') }
+  const cambiarClase = (v) => { setClaseQ(v); if (v) setEquipoQ('') }
 
   const buscar = async () => {
     // El servidor busca una sola palabra (la más larga); el resto se filtra acá.
@@ -436,22 +523,47 @@ function VistaMaterial({ equipos }) {
         <input style={{ ...s.input, flex: '2 1 240px', width: 'auto' }} value={texto} onChange={(e) => setTexto(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !exacto && buscar()}
           placeholder="Material: código o texto (ej. filtro aire, 1R1808)" />
-        <input style={{ ...s.input, flex: '1 1 160px', width: 'auto' }} value={equipoQ} onChange={(e) => setEquipoQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !exacto && buscar()}
+        <input style={{ ...s.input, flex: '1 1 160px', width: 'auto' }} value={equipoQ} onChange={(e) => cambiarEquipo(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !exacto && !claseExacta && buscar()}
           list="historial-equipos" placeholder="Equipo (opcional, ej. BM-DA002)" />
         <datalist id="historial-equipos">
           {equipos.map((e) => <option key={e.numero_identificacion} value={e.numero_identificacion}>{e.denominacion}</option>)}
         </datalist>
-        {!exacto && <button style={{ ...s.tab(true), flex: '0 0 96px' }} onClick={buscar}>Buscar</button>}
+        <input style={{ ...s.input, flex: '1 1 140px', width: 'auto' }} value={claseQ} onChange={(e) => cambiarClase(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !exacto && !claseExacta && buscar()}
+          list="historial-clases" placeholder="Clase (opcional, ej. VP-CZ)" />
+        <datalist id="historial-clases">
+          {clases.map(([c, n]) => <option key={c} value={c}>{n} equipos</option>)}
+        </datalist>
+        {!exacto && !claseExacta && <button style={{ ...s.tab(true), flex: '0 0 96px' }} onClick={buscar}>Buscar</button>}
       </div>
       <div style={{ ...s.meta, margin: '6px 0 0' }}>
-        {exacto
+        {claseExacta
+          ? <>Mostrando todos los materiales usados por equipos de la clase <b>{claseExacta}</b>, una fila por material (los usados por más equipos primero). El texto filtra al tipear.</>
+          : exacto
           ? <>Mostrando todos los materiales usados por <b>{exacto}</b> {den.get(exacto) ? `(${den.get(exacto)})` : ''}. El texto filtra al tipear.</>
-          : 'Con un equipo, la lista es completa y filtra al tipear. Sin equipo, buscá un material en toda la flota.'}
+          : 'Con un equipo o una clase, la lista es completa y filtra al tipear. Sin ninguno, buscá un material en toda la flota.'}
       </div>
 
-      {(buscando || cargandoEquipo) && <div style={s.vacio}>Cargando…</div>}
-      {!buscando && !cargandoEquipo && (exacto || busqueda) && (
+      {claseExacta && (cargandoClase ? <div style={s.vacio}>Cargando…</div>
+        : matsClase.length === 0 ? <div style={s.vacio}>No hay materiales de esa clase con ese filtro.</div> : (
+          <div style={{ ...s.card, marginTop: 12 }}>
+            <div style={{ ...s.meta, padding: '8px 8px 0' }}>{matsClase.length} materiales en la clase {claseExacta}</div>
+            <Tabla filas={matsClase} claveFila={claveMat} abierta={filasClase.estaAbierta}
+              detalle={(r) => <EquiposClaseMaterial clase={claseExacta} material={r.material} cache={filasClase.cache} />}
+              cols={[
+              { k: 'n', t: '#', der: true, f: (_r, i) => i + 1 },
+              { k: 'material', t: 'Código', nw: true },
+              { k: 'descripcion', t: 'Descripción' },
+              { k: 'n_equipos', t: 'Equipos', der: true, f: (r) => <BotonEquipos r={r} filas={filasClase} /> },
+              { k: 'n_ordenes', t: 'Órdenes', der: true },
+              { k: 'cantidad_usada', t: 'Total', der: true, nw: true, f: (r) => `${num(r.cantidad_usada)} ${r.unidad || ''}` },
+              { k: 'ultima', t: 'Última', nw: true, f: (r) => fecha(r.ultima) },
+            ]} />
+          </div>
+        ))}
+      {!claseExacta && (buscando || cargandoEquipo) && <div style={s.vacio}>Cargando…</div>}
+      {!claseExacta && !buscando && !cargandoEquipo && (exacto || busqueda) && (
         pares.length === 0 ? <div style={s.vacio}>No hay combinaciones equipo/material con ese filtro.</div> : (
           <div style={{ ...s.card, marginTop: 12 }}>
             <div style={{ ...s.meta, padding: '8px 8px 0' }}>{pares.length} combinaciones equipo / material</div>
@@ -484,7 +596,7 @@ export default function HistorialEquipo({ onVolver, onSalir, usuario }) {
   const [equipos, setEquipos] = useState([])
 
   useEffect(() => {
-    supabase.from('equipos').select('numero_identificacion, denominacion').order('numero_identificacion').limit(2000)
+    supabase.from('equipos').select('numero_identificacion, denominacion, clase_vehiculo').order('numero_identificacion').limit(2000)
       .then(({ data, error }) => {
         if (error) toast('Error al cargar equipos: ' + error.message, 'error')
         setEquipos(data || [])
