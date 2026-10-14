@@ -21,6 +21,7 @@ import AsistenteTecnico from './AsistenteTecnico.jsx'
 import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
+import { PERFIL_COLUMNAS } from './lib/perfil.js'
 
 // Tarjetas ocultas del menú (Analista Correctivo, Caja Chica). Poner en true para volver a mostrarlas.
 const MODULOS_OCULTOS_VISIBLES = false
@@ -50,12 +51,17 @@ function App() {
     checkUser()
   }, [])
 
+  // Correctivos solo con permiso ve_correctivos: si se llega sin él, volver al menú
+  useEffect(() => {
+    if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
+  }, [modulo, user])
+
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
       const { data: userData } = await supabase
         .from('usuarios')
-        .select('*')
+        .select(PERFIL_COLUMNAS)
         .eq('email', session.user.email)
         .single()
       
@@ -588,7 +594,8 @@ function App() {
               </p>
             </div>
           )}
-          {/* Card Correctivos — todos los usuarios activos (las vistas v_corr_* validan usuario activo) */}
+          {/* Card Correctivos — solo usuarios con usuarios.ve_correctivos = true (ver supabase/correctivos_acceso.sql) */}
+          {user.ve_correctivos === true && (
           <div
             onClick={() => setModulo('correctivos')}
             style={{
@@ -621,6 +628,7 @@ function App() {
               Estado del mantenimiento correctivo · App + SAP
             </p>
           </div>
+          )}
           {/* Card Historial de equipos — todos los roles (la RPC valida usuario activo) */}
           {(
             <div
@@ -1074,9 +1082,11 @@ function App() {
   }
 
   // ============================================
-  // MÓDULO CORRECTIVOS (solo lectura, todos los usuarios activos)
+  // MÓDULO CORRECTIVOS (solo lectura, solo usuarios con ve_correctivos = true)
   // ============================================
   if (modulo === 'correctivos') {
+    // Sin permiso (estado viejo o navegación forzada): no renderizar; el efecto de arriba vuelve al menú
+    if (user.ve_correctivos !== true) return null
     return <ModuloCorrectivos onVolver={volverAlMenu} />
   }
 

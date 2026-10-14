@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './lib/supabase'
+import { PERFIL_COLUMNAS } from './lib/perfil.js'
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -23,7 +24,7 @@ function Login({ onLogin }) {
       // Buscar el usuario en la tabla usuarios
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
-        .select('*')
+        .select(PERFIL_COLUMNAS)
         .eq('email', email)
         .single()
 
