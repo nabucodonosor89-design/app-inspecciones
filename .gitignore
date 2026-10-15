@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 .claude/
 Claude outputs/
+
+# historia de partes diarios (carga única a Drive)
+_partes_historia/

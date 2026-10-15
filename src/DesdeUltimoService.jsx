@@ -7,11 +7,12 @@ import ServicesEquipoModal from './ServicesEquipoModal.jsx'
 // DESDE EL ÚLTIMO SERVICE — solo lectura
 // Equipos que trabajan (carga de combustible o uso en rastreo en 6 meses, o mantenimiento cargado)
 // con el último mantenimiento (ficha de mantenimiento cargada en la inspección) y el trabajo
-// desde entonces por dos fuentes, para que la encargada de preventivo compare y decida:
+// desde entonces por tres fuentes, para que la encargada de preventivo compare y decida:
 //   · por contador: última carga de combustible − contador del mantenimiento
 //   · por rastreo (Monitor): horas de marcha, ralentí y km sumados desde el día siguiente al mantenimiento
+//   · por parte diario (Jotform): último contador válido de los partes − contador del mantenimiento
 // Con período de mantenimiento cargado (Gestión de Equipos) muestra cuánto falta / cuánto se pasó.
-// Datos: RPC mantenimiento_seguimiento / service_frescura (ver supabase/periodo_mantenimiento.sql)
+// Datos: RPC mantenimiento_seguimiento_v2 / service_frescura (ver supabase/partes_seguimiento.sql)
 // ============================================================
 
 const C = {
@@ -38,6 +39,7 @@ function trabajo(r) {
   const vals = []
   if (r.por_contador != null && (!r.carga_fecha || !r.service_fecha || r.carga_fecha >= r.service_fecha)) vals.push(Number(r.por_contador))
   if (r.rastreo_horas != null) vals.push(Number(r.rastreo_horas) + Number(r.rastreo_ralenti || 0))
+  if (r.por_parte != null) vals.push(Number(r.por_parte))
   return vals.length ? Math.max(...vals) : -1
 }
 
@@ -52,6 +54,7 @@ function proximo(r) {
     const usado = r.periodo_unidad === 'km' ? Number(r.rastreo_km || 0) : Number(r.rastreo_horas || 0) + Number(r.rastreo_ralenti || 0)
     fuentes.push({ fuente: 'rastreo', falta: p - usado })
   }
+  if (r.por_parte != null && (!r.periodo_unidad || r.pd_modo === r.periodo_unidad)) fuentes.push({ fuente: 'parte', falta: p - Number(r.por_parte) })
   if (!fuentes.length) return { fuentes, estado: 'sin', peor: null }
   const peor = Math.min(...fuentes.map((x) => x.falta))
   const estado = peor < 0 ? 'rojo' : peor <= p * UMBRAL_AVISO ? 'ambar' : 'verde'
@@ -124,6 +127,25 @@ function CeldaRastreo({ r }) {
   )
 }
 
+function CeldaParte({ r }) {
+  if (r.pd_contador == null) return <span style={{ color: C.gris }}>sin partes</span>
+  const u = r.pd_modo === 'km' ? 'km' : 'h'
+  const anterior = r.service_fecha && r.pd_fecha < r.service_fecha
+  const otraUnidad = r.periodo_unidad && r.pd_modo !== r.periodo_unidad
+  const negativo = r.por_parte != null && Number(r.por_parte) < 0
+  return (
+    <>
+      {r.por_parte != null && (
+        <div style={{ fontWeight: 700, color: negativo ? C.rojo : C.texto }}>+{num(r.por_parte, 1)} {u}</div>
+      )}
+      <div style={s.sub}>último parte {fechaCorta(r.pd_fecha)}: {num(r.pd_contador, 1)} {u}</div>
+      {anterior && <div style={{ ...s.sub, color: C.ambar }}>el parte es anterior al mantenimiento</div>}
+      {otraUnidad && <div style={{ ...s.sub, color: C.ambar }}>los partes miden en {u} y el período en {r.periodo_unidad}</div>}
+      {negativo && <div style={{ ...s.sub, color: C.rojo }}>menor que el contador del mantenimiento: revisar</div>}
+    </>
+  )
+}
+
 export default function DesdeUltimoService({ onVolver }) {
   const [filas, setFilas] = useState([])
   const [frescura, setFrescura] = useState(null)
@@ -139,7 +161,7 @@ export default function DesdeUltimoService({ onVolver }) {
     try {
       const todas = []
       for (let desde = 0; ; desde += PAGINA) {
-        const { data, error } = await supabase.rpc('mantenimiento_seguimiento').range(desde, desde + PAGINA - 1)
+        const { data, error } = await supabase.rpc('mantenimiento_seguimiento_v2').range(desde, desde + PAGINA - 1)
         if (error) throw error
         todas.push(...(data || []))
         if (!data || data.length < PAGINA) break
@@ -177,6 +199,7 @@ export default function DesdeUltimoService({ onVolver }) {
 
   const conService = useMemo(() => filas.filter((r) => r.service_fecha).length, [filas])
   const sinPeriodo = useMemo(() => filas.filter((r) => !r.periodo).length, [filas])
+  const ultimoParte = useMemo(() => filas.reduce((m, r) => (r.pd_fecha && r.pd_fecha > m ? r.pd_fecha : m), ''), [filas])
 
   const vista = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -209,7 +232,7 @@ export default function DesdeUltimoService({ onVolver }) {
             <h2 style={{ margin: 0, fontSize: 20 }}>Desde el último mantenimiento</h2>
             {frescura && (
               <div style={{ fontSize: 12, color: C.gris }}>
-                rastreo al {fechaCorta(frescura.rastreo)} · consumos SAP al {fechaCorta(frescura.consumos)} · IE36 al {fechaCorta(frescura.ie36)}
+                rastreo al {fechaCorta(frescura.rastreo)} · consumos SAP al {fechaCorta(frescura.consumos)} · IE36 al {fechaCorta(frescura.ie36)}{ultimoParte ? ` · partes al ${fechaCorta(ultimoParte)}` : ''}
               </div>
             )}
           </div>
@@ -220,8 +243,9 @@ export default function DesdeUltimoService({ onVolver }) {
 
         <p style={{ color: C.gris, fontSize: 13, marginTop: 0 }}>
           El último mantenimiento sale de la ficha de mantenimiento de las inspecciones o de la carga en Gestión de Equipos (🔧 Mantenimiento). El trabajo desde entonces se muestra
-          por dos fuentes para comparar: <b>por contador</b> (última carga de combustible SAP menos el contador del mantenimiento) y{' '}
-          <b>por rastreo</b> (horas de motor y km de Monitor desde el día siguiente al mantenimiento).
+          por tres fuentes para comparar: <b>por contador</b> (última carga de combustible SAP menos el contador del mantenimiento),{' '}
+          <b>por rastreo</b> (horas de motor y km de Monitor desde el día siguiente al mantenimiento) y{' '}
+          <b>por parte diario</b> (último contador válido de los partes de Jotform menos el contador del mantenimiento).
         </p>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -241,10 +265,10 @@ export default function DesdeUltimoService({ onVolver }) {
         </div>
 
         <div style={{ overflow: 'auto', maxHeight: '70vh', border: `1px solid ${C.borde}`, borderRadius: 8, background: 'white' }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 1060 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 1220 }}>
             <thead>
               <tr>
-                {['', 'Equipo', 'Ubicación', 'Próximo mantenimiento', 'Último mantenimiento', 'Por contador', 'Por rastreo'].map((h) => <th key={h} style={s.th}>{h}</th>)}
+                {['', 'Equipo', 'Ubicación', 'Próximo mantenimiento', 'Último mantenimiento', 'Por contador', 'Por rastreo', 'Por parte diario'].map((h) => <th key={h} style={s.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -265,10 +289,11 @@ export default function DesdeUltimoService({ onVolver }) {
                   <td style={s.td}><CeldaService r={r} /></td>
                   <td style={s.td}><CeldaContador r={r} /></td>
                   <td style={s.td}><CeldaRastreo r={r} /></td>
+                  <td style={s.td}><CeldaParte r={r} /></td>
                 </tr>
               ))}
               {!vista.length && (
-                <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center', color: C.gris, padding: 24 }}>
+                <tr><td colSpan={8} style={{ ...s.td, textAlign: 'center', color: C.gris, padding: 24 }}>
                   {cargando ? 'Cargando…' : 'No hay equipos con ese filtro.'}
                 </td></tr>
               )}
