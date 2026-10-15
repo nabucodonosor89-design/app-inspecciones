@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
+import ServicesEquipoModal from './ServicesEquipoModal.jsx'
 
 // ============================================================
 // DESDE EL ÚLTIMO SERVICE — solo lectura
@@ -130,6 +131,8 @@ export default function DesdeUltimoService({ onVolver }) {
   const [busqueda, setBusqueda] = useState('')
   const [ubicacion, setUbicacion] = useState('')
   const [dato, setDato] = useState('todos') // todos | con | sin | sinper
+  const [equipoModal, setEquipoModal] = useState(null) // equipo de la app (tabla equipos) para cargar mantenimiento/período
+  const [abriendo, setAbriendo] = useState('')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -153,6 +156,20 @@ export default function DesdeUltimoService({ onVolver }) {
     }
   }, [])
   useEffect(() => { cargar() }, [cargar])
+
+  // La fila viene por ID técnico (SAP); la ventana necesita el equipo de la app (Gestión de Equipos)
+  async function abrirCarga(r) {
+    setAbriendo(r.equipo)
+    const { data, error } = await supabase.from('equipos')
+      .select('id, numero_identificacion, denominacion')
+      .ilike('numero_identificacion', r.equipo)
+      .order('activo', { ascending: false })
+      .limit(1)
+    setAbriendo('')
+    if (error) { toast('❌ ' + error.message, 'error'); return }
+    if (!data?.length) { toast(`⚠️ ${r.equipo} no está dado de alta en Gestión de Equipos: hay que crearlo ahí primero`, 'warning'); return }
+    setEquipoModal(data[0])
+  }
 
   const ubicaciones = useMemo(
     () => [...new Set(filas.map((r) => r.ubicacion).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -182,6 +199,9 @@ export default function DesdeUltimoService({ onVolver }) {
 
   return (
     <div style={{ minHeight: '100vh', background: C.fondo, color: C.texto }}>
+      {equipoModal && (
+        <ServicesEquipoModal equipo={equipoModal} onCerrar={() => { setEquipoModal(null); cargar() }} />
+      )}
       <div style={s.wrap}>
         <div style={s.header}>
           <button style={s.boton} onClick={onVolver} aria-label="Volver">←</button>
@@ -221,15 +241,21 @@ export default function DesdeUltimoService({ onVolver }) {
         </div>
 
         <div style={{ overflow: 'auto', maxHeight: '70vh', border: `1px solid ${C.borde}`, borderRadius: 8, background: 'white' }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 980 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 1060 }}>
             <thead>
               <tr>
-                {['Equipo', 'Ubicación', 'Próximo mantenimiento', 'Último mantenimiento', 'Por contador', 'Por rastreo'].map((h) => <th key={h} style={s.th}>{h}</th>)}
+                {['', 'Equipo', 'Ubicación', 'Próximo mantenimiento', 'Último mantenimiento', 'Por contador', 'Por rastreo'].map((h) => <th key={h} style={s.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {vista.map((r) => (
                 <tr key={r.equipo}>
+                  <td style={{ ...s.td, width: 1 }}>
+                    <button onClick={() => abrirCarga(r)} disabled={abriendo === r.equipo} title="Cargar último mantenimiento o período"
+                      style={{ border: 'none', background: C.acento, color: 'white', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {abriendo === r.equipo ? '…' : '🔧 Cargar'}
+                    </button>
+                  </td>
                   <td style={s.td}>
                     <div style={{ fontWeight: 600 }}>{r.equipo}</div>
                     {r.denominacion && <div style={s.sub}>{r.denominacion.replace(/^\S+\s+/, '').trim()}</div>}
@@ -242,7 +268,7 @@ export default function DesdeUltimoService({ onVolver }) {
                 </tr>
               ))}
               {!vista.length && (
-                <tr><td colSpan={6} style={{ ...s.td, textAlign: 'center', color: C.gris, padding: 24 }}>
+                <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center', color: C.gris, padding: 24 }}>
                   {cargando ? 'Cargando…' : 'No hay equipos con ese filtro.'}
                 </td></tr>
               )}
