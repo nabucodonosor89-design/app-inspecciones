@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { toast, confirmar } from './utils/ui'
+import ServicesEquipoModal from './ServicesEquipoModal.jsx'
 
 function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
   const [equipos, setEquipos] = useState([])
   const [loading, setLoading] = useState(true)
+  // Mantenimientos (solo con permiso ve_completar_ordenes: encargada de preventivo)
+  const puedeServices = usuario?.ve_completar_ordenes === true
+  const [equipoServices, setEquipoServices] = useState(null)
   
   // Filtros
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
@@ -172,6 +176,7 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
 
   return (
     <div style={{ maxWidth: '1800px', margin: '0 auto' }}>
+      {equipoServices && <ServicesEquipoModal equipo={equipoServices} onCerrar={() => setEquipoServices(null)} />}
       {/* Controles superiores */}
       <div style={{
         background: 'white',
@@ -418,6 +423,24 @@ function ListaEquipos({ onNuevo, onEditar, usuario, recargarKey }) {
                           >
                             ✏️ Editar
                           </button>
+                          {puedeServices && (
+                            <button
+                              onClick={() => setEquipoServices(equipo)}
+                              title="Registrar o ver mantenimientos"
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                background: '#7c3aed',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: '600'
+                              }}
+                            >
+                              🔧 Mantenimiento
+                            </button>
+                          )}
                           {equipo.activo ? (
                             <button
                               onClick={() => darDeBaja(equipo)}

@@ -4,6 +4,13 @@ import SubidaFotos from './SubidaFotos.jsx'
 import { getSemaforoColor, getSemaforoEmoji, getSemaforoTexto } from './utils/semaforo'
 import { toast } from './utils/ui'
 
+// Ítem del checklist "Ficha de mantenimiento - Presente y actualizada" (existe en todos los tipos de equipo)
+const esItemFicha = (nombre) => /^\s*ficha de mantenimiento/i.test(nombre || '')
+const hoyISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [paso, setPaso] = useState(equipoPreseleccionado ? 2 : 1)
   const [equipos, setEquipos] = useState([])
@@ -18,6 +25,9 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [observaciones, setObservaciones] = useState('')
   const [checklist, setChecklist] = useState({})
   const [checklistObservaciones, setChecklistObservaciones] = useState({}) // NUEVO: Observaciones por ítem
+  // Último mantenimiento según la ficha de mantenimiento (ver supabase/desde_ultimo_service.sql)
+  const [fichaContador, setFichaContador] = useState('')
+  const [fichaFecha, setFichaFecha] = useState('')
   const [fotos, setFotos] = useState([])
   const [inspeccionEnvioRelacionada, setInspeccionEnvioRelacionada] = useState('')
   const [inspeccionesEnvio, setInspeccionesEnvio] = useState([])
@@ -232,6 +242,13 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
         }
       }
 
+      const errFicha = errorFicha()
+      if (errFicha) {
+        toast('⚠️ ' + errFicha)
+        setLoading(false)
+        return
+      }
+
       // Calcular el semáforo
       const semaforoCalculado = calcularSemaforo()
 
@@ -253,7 +270,10 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           pedido_equipo_linea_id: tipoInspeccion === 'envio' && motivoEnvio === 'pedido' ? pedidoEquipoLineaId : null,
           observaciones_envio: tipoInspeccion === 'envio' && observacionesEnvio ? observacionesEnvio.trim() : null,
           // Operador que usaba el equipo al momento de la inspección
-          operador_id: operadorAsignado || null
+          operador_id: operadorAsignado || null,
+          // Último mantenimiento según la ficha (solo si la ficha está presente: OK o aviso)
+          ficha_service_contador: fichaPresente && fichaContador !== '' ? Number(fichaContador) : null,
+          ficha_service_fecha: fichaPresente && fichaFecha ? fichaFecha : null
         })
         .select()
         .single()
@@ -357,8 +377,28 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     e.numero_identificacion.toLowerCase().includes(busqueda.toLowerCase())
   )
 
+  // ---- Ficha de mantenimiento: contador y fecha del último mantenimiento ----
+  // OK = obligatorios · Aviso = opcionales · Falla / sin responder = no se piden
+  const fichaTemplate = checklistTemplates.find(t => esItemFicha(t.item_nombre))
+  const fichaEstado = fichaTemplate ? checklist[fichaTemplate.id] : null
+  const fichaPresente = fichaEstado === 'ok' || fichaEstado === 'warning'
+
+  function errorFicha() {
+    if (!fichaPresente) return null
+    const hayAlgo = fichaContador !== '' || fichaFecha
+    if (fichaEstado === 'warning' && !hayAlgo) return null
+    if (fichaContador === '' || !fichaFecha) return 'Cargá el contador y la fecha del último mantenimiento que figuran en la ficha de mantenimiento'
+    const c = Number(fichaContador)
+    if (!Number.isFinite(c) || c < 0) return 'El contador del último mantenimiento no es un número válido'
+    const actual = Number(horometro)
+    if (horometro !== '' && Number.isFinite(actual) && c > actual) return `El contador del último mantenimiento (${c}) no puede ser mayor que el horómetro/odómetro actual (${actual})`
+    if (fichaFecha > hoyISO()) return 'La fecha del último mantenimiento no puede ser futura'
+    return null
+  }
+
   const puedeGuardar = () => {
     if (!tipoInspeccion || !horometro || !ubicacion) return false
+    if (errorFicha()) return false
     if (tipoInspeccion === 'envio') {
       if (!motivoEnvio) return false
       if (motivoEnvio === 'pedido' && !pedidoEquipoLineaId) return false
@@ -826,6 +866,31 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                         }}
                       />
                     )}
+                    {/* Ficha de mantenimiento presente: contador y fecha del último mantenimiento */}
+                    {esItemFicha(item.item_nombre) && fichaPresente && (
+                      <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#075985', marginBottom: '0.5rem' }}>
+                          Último mantenimiento según la ficha {fichaEstado === 'ok' ? '(obligatorio)' : '(opcional)'}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem' }}>
+                          <label style={{ fontSize: '0.8rem', color: '#374151' }}>
+                            Contador (hs o km)
+                            <input type="number" inputMode="decimal" min="0" value={fichaContador}
+                              onChange={(e) => setFichaContador(e.target.value)} placeholder="Ej: 12250"
+                              style={{ width: '100%', padding: '0.6rem', border: '2px solid #e5e7eb', borderRadius: '6px', fontSize: '1rem', marginTop: '0.25rem', boxSizing: 'border-box' }} />
+                          </label>
+                          <label style={{ fontSize: '0.8rem', color: '#374151' }}>
+                            Fecha
+                            <input type="date" max={hoyISO()} value={fichaFecha}
+                              onChange={(e) => setFichaFecha(e.target.value)}
+                              style={{ width: '100%', padding: '0.6rem', border: '2px solid #e5e7eb', borderRadius: '6px', fontSize: '1rem', marginTop: '0.25rem', boxSizing: 'border-box' }} />
+                          </label>
+                        </div>
+                        {errorFicha() && (fichaContador !== '' || fichaFecha || fichaEstado === 'ok') && (
+                          <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#b91c1c' }}>{errorFicha()}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -858,7 +923,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           style={{ width: '100%', padding: '1rem', background: puedeGuardar() && !loading ? '#667eea' : '#9ca3af', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: '600', cursor: puedeGuardar() && !loading ? 'pointer' : 'not-allowed' }}>
           {loading ? 'Guardando...' : 'Guardar Inspección'}
         </button>
-        {!puedeGuardar() && <p style={{ marginTop: '1rem', textAlign: 'center', color: '#ef4444', fontSize: '0.875rem' }}>Complete todos los campos obligatorios y todos los ítems críticos</p>}
+        {!puedeGuardar() && <p style={{ marginTop: '1rem', textAlign: 'center', color: '#ef4444', fontSize: '0.875rem' }}>{errorFicha() || 'Complete todos los campos obligatorios y todos los ítems críticos'}</p>}
       </div>
     )
   }

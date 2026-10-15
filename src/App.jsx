@@ -22,6 +22,7 @@ import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
 import CompletarOrdenes from './CompletarOrdenes.jsx'
+import DesdeUltimoService from './DesdeUltimoService.jsx'
 import { PERFIL_COLUMNAS } from './lib/perfil.js'
 
 // Tarjetas ocultas del menú (Analista Correctivo, Caja Chica). Poner en true para volver a mostrarlas.
@@ -30,7 +31,7 @@ const MODULOS_OCULTOS_VISIBLES = false
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service'
 
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -55,7 +56,7 @@ function App() {
   // Correctivos solo con permiso ve_correctivos: si se llega sin él, volver al menú
   useEffect(() => {
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
-    if (modulo === 'completar-ordenes' && user && user.ve_completar_ordenes !== true) setModulo('menu')
+    if ((modulo === 'completar-ordenes' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
   }, [modulo, user])
 
   async function checkUser() {
@@ -666,6 +667,41 @@ function App() {
             </p>
           </div>
           )}
+          {/* Card Desde el último mantenimiento — mismo permiso que Completar órdenes IP30 (ver supabase/desde_ultimo_service.sql) */}
+          {user.ve_completar_ordenes === true && (
+          <div
+            onClick={() => setModulo('desde-service')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(124, 58, 237, 0.3)'
+              e.currentTarget.style.borderColor = '#7c3aed'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              ⏱️
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#7c3aed' }}>
+              Desde el último mantenimiento
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Horas y km trabajados desde el último preventivo
+            </p>
+          </div>
+          )}
           {/* Card Historial de equipos — todos los roles (la RPC valida usuario activo) */}
           {(
             <div
@@ -1133,6 +1169,14 @@ function App() {
   if (modulo === 'completar-ordenes') {
     if (user.ve_completar_ordenes !== true) return null
     return <CompletarOrdenes onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // DESDE EL ÚLTIMO SERVICE (mismo permiso ve_completar_ordenes; la RPC también lo valida)
+  // ============================================
+  if (modulo === 'desde-service') {
+    if (user.ve_completar_ordenes !== true) return null
+    return <DesdeUltimoService onVolver={volverAlMenu} />
   }
 
   // ============================================

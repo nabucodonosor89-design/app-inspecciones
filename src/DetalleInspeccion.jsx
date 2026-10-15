@@ -169,6 +169,15 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
                 <span style={{ fontWeight: '600', color: '#6b7280' }}>Horómetro: </span>
                 <span>{inspeccion.horometro_odometro || 'N/A'}</span>
               </div>
+              {(inspeccion.ficha_service_contador != null || inspeccion.ficha_service_fecha) && (
+                <div>
+                  <span style={{ fontWeight: '600', color: '#6b7280' }}>Último mantenimiento (ficha): </span>
+                  <span>
+                    {inspeccion.ficha_service_contador != null ? Number(inspeccion.ficha_service_contador).toLocaleString('es-PY') : '—'}
+                    {inspeccion.ficha_service_fecha ? ` · ${inspeccion.ficha_service_fecha.split('-').reverse().join('/')}` : ''}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
