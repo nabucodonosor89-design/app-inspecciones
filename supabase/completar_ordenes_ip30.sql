@@ -1,6 +1,6 @@
 -- ============================================================
 -- COMPLETAR ÓRDENES IP30 — datos para completar el Excel de órdenes preventivas
--- Aplicado en Supabase el 15/10/2026. Idempotente.
+-- Aplicado en Supabase el 15/10/2026 (orden estable para paginar: 15/10/2026). Idempotente.
 --
 -- Reemplaza la herramienta HTML "completar_ordenes": la encargada de preventivo
 -- sube el Excel del IP30 y la app completa Ubicación técnica, Última carga y
@@ -99,6 +99,7 @@ as $$
   full join lec on lec.equipo = eq.equipo
   left join dist on dist.equipo = coalesce(eq.equipo, lec.equipo)
   where puede_completar_ordenes()
+  order by 1  -- orden estable: la app pagina de a 1000 filas (límite de la API de Supabase)
 $$;
 
 -- ------------------------------------------------------------

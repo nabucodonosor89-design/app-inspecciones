@@ -31,6 +31,8 @@ const s = {
   td: { padding: '6px 10px', fontSize: 13, whiteSpace: 'nowrap', borderBottom: `1px solid ${C.borde}` },
 }
 
+const PAGINA = 1000
+
 const ddmm = (d) => d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : ''
 const ddmmhhmm = (iso) => {
   if (!iso) return '—'
@@ -105,13 +107,17 @@ export default function CompletarOrdenes({ onVolver }) {
   const cargarDatos = useCallback(async () => {
     setCargando(true)
     try {
-      const [d, f] = await Promise.all([
-        supabase.rpc('ip30_datos_equipos'),
-        supabase.rpc('ip30_frescura'),
-      ])
-      if (d.error) throw d.error
+      // La API de Supabase devuelve como máximo 1000 filas por llamada: se pagina hasta traer todo
+      const todas = []
+      for (let desde = 0; ; desde += PAGINA) {
+        const { data, error } = await supabase.rpc('ip30_datos_equipos').range(desde, desde + PAGINA - 1)
+        if (error) throw error
+        todas.push(...(data || []))
+        if (!data || data.length < PAGINA) break
+      }
+      const f = await supabase.rpc('ip30_frescura')
       if (f.error) throw f.error
-      setDatos(d.data || [])
+      setDatos(todas)
       setFrescura((f.data || [])[0] || null)
       setCargadoEn(Date.now())
     } catch (e) {
