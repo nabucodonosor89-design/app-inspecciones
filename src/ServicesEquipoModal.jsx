@@ -7,6 +7,7 @@ import { toast, confirmar } from './utils/ui'
 // Carga manual del último mantenimiento con los datos de cierre de la orden preventiva
 // (solo contador y fecha) + historial (inspección y manual). Los manuales se anulan, no se borran.
 // RPC: services_de_equipo / registrar_service / anular_service (ver supabase/services_equipo.sql)
+// Período de mantenimiento del equipo: mantenimiento_periodo / fijar_periodo_mantenimiento (ver supabase/periodo_mantenimiento.sql)
 // ============================================================
 
 const hoyISO = () => {
@@ -22,6 +23,11 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
   const [fecha, setFecha] = useState('')
   const [contador, setContador] = useState('')
   const [guardando, setGuardando] = useState(false)
+  // Período de mantenimiento (cada cuántas horas o km)
+  const [periodo, setPeriodo] = useState(null)          // { periodo, unidad, actualizado_en, actualizado_por } guardado
+  const [perValor, setPerValor] = useState('')
+  const [perUnidad, setPerUnidad] = useState('h')
+  const [guardandoPer, setGuardandoPer] = useState(false)
 
   const aplicar = useCallback(({ data, error }) => {
     if (error) toast('❌ Error al cargar mantenimientos: ' + error.message, 'error')
@@ -34,6 +40,33 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
   useEffect(() => {
     supabase.rpc('services_de_equipo', { p_equipo_id: equipo.id }).then(aplicar)
   }, [equipo.id, aplicar])
+
+  const aplicarPeriodo = useCallback(({ data, error }) => {
+    if (error) { toast('❌ Error al cargar el período: ' + error.message, 'error'); return }
+    const p = (data || [])[0] || null
+    setPeriodo(p)
+    setPerValor(p?.periodo != null ? String(p.periodo) : '')
+    setPerUnidad(p?.unidad || 'h')
+  }, [])
+  useEffect(() => {
+    supabase.rpc('mantenimiento_periodo', { p_equipo_id: equipo.id }).then(aplicarPeriodo)
+  }, [equipo.id, aplicarPeriodo])
+
+  const perNum = perValor === '' ? null : Number(perValor)
+  const perError = perNum !== null && (!Number.isFinite(perNum) || perNum <= 0) ? 'El período tiene que ser un número mayor a 0' : null
+  const perCambio = (perNum ?? null) !== (periodo?.periodo != null ? Number(periodo.periodo) : null) ||
+    (perNum !== null && perUnidad !== (periodo?.unidad || 'h'))
+
+  async function guardarPeriodo() {
+    if (perError || !perCambio) return
+    if (perNum === null && !(await confirmar('¿Quitar el período de mantenimiento de este equipo?'))) return
+    setGuardandoPer(true)
+    const { error: e } = await supabase.rpc('fijar_periodo_mantenimiento', { p_equipo_id: equipo.id, p_periodo: perNum, p_unidad: perNum === null ? null : perUnidad })
+    setGuardandoPer(false)
+    if (e) { toast('❌ ' + e.message, 'error'); return }
+    toast('✅ Período de mantenimiento guardado', 'success')
+    supabase.rpc('mantenimiento_periodo', { p_equipo_id: equipo.id }).then(aplicarPeriodo)
+  }
 
   const error = (() => {
     if (!fecha || contador === '') return 'Completá la fecha y el contador'
@@ -81,6 +114,37 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
             {equipo.denominacion && <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{equipo.denominacion}</div>}
           </div>
           <button onClick={onCerrar} aria-label="Cerrar" style={{ border: 'none', background: '#f3f4f6', borderRadius: '8px', padding: '0.4rem 0.7rem', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+        </div>
+
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: '10px', padding: '0.9rem', marginBottom: '1rem' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.25rem', fontSize: '0.9rem' }}>Período de mantenimiento</div>
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+            Cada cuántas horas o km se hace el preventivo. Si es por horas, el contador (ficha y carga de combustible) también tiene que ser en horas.
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input type="number" inputMode="decimal" min="0" value={perValor} onChange={(e) => setPerValor(e.target.value)} placeholder="Ej: 250"
+              style={{ ...input, marginTop: 0, flex: '1 1 120px', width: 'auto' }} />
+            <div style={{ display: 'flex', border: '2px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+              {[['h', 'horas'], ['km', 'km']].map(([k, l]) => (
+                <button key={k} onClick={() => setPerUnidad(k)}
+                  style={{ border: 'none', padding: '0.55rem 0.9rem', cursor: 'pointer', fontSize: '0.9rem', background: perUnidad === k ? '#7c3aed' : 'white', color: perUnidad === k ? 'white' : '#374151' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <button onClick={guardarPeriodo} disabled={!!perError || !perCambio || guardandoPer}
+              style={{ padding: '0.6rem 0.9rem', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem',
+                background: perError || !perCambio || guardandoPer ? '#e5e7eb' : '#7c3aed', color: perError || !perCambio || guardandoPer ? '#6b7280' : 'white',
+                cursor: perError || !perCambio || guardandoPer ? 'not-allowed' : 'pointer' }}>
+              {guardandoPer ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+          {perError && <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: '#b91c1c' }}>{perError}</div>}
+          {periodo?.actualizado_en && (
+            <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#6b7280' }}>
+              Última modificación: {fechaCorta(periodo.actualizado_en)}{periodo.actualizado_por ? ` · ${periodo.actualizado_por}` : ''}
+            </div>
+          )}
         </div>
 
         <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '0.9rem', marginBottom: '1rem' }}>
