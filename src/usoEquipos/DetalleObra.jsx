@@ -190,7 +190,8 @@ function TablaDias({ filas, sel, setSel }) {
     g.p = g.items[0]                       // el de mayor monto define diferencia y monto
     g.ids = g.items.map((h) => h.id)
   })
-  grupos.sort((a, b) => (Number(b.p.monto) || 0) - (Number(a.p.monto) || 0) || a.p.fecha.localeCompare(b.p.fecha))
+  // Días del equipo por fecha, del más viejo al más nuevo (así se regularizan)
+  grupos.sort((a, b) => a.p.fecha.localeCompare(b.p.fecha) || a.clave.localeCompare(b.clave))
 
   const toggleGrupo = (g) => setSel((prev) => {
     const n = new Set(prev)
