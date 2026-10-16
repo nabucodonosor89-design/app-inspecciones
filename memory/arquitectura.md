@@ -97,3 +97,8 @@ const ok = await confirmar('¿Estás seguro?')
   - Body: `{"p_dry_run": true}` las primeras 2 semanas; después `{"p_dry_run": false}` y apagar la rutina de Cowork ese mismo día.
   - Si la respuesta trae `"ok": false`, notificar por el mismo canal de errores de la ingesta.
 - Revisar el modo prueba: Correctivos → Resumen → Cambios automáticos (o `select * from corr.sync_log order by id desc`).
+
+
+## Uso de equipos — refresco
+- `uso_refrescar()` recalcula `uso_equipos_info`, `uso_diario` (UNLOGGED), `uso_hallazgos` (upsert con estados), `uso_ociosos` y casos. Corre por **pg_cron** todos los días a las 14:30 Asunción (job `uso_equipos_refresco_diario`, `30 17 * * *` UTC), después de la ingesta SAP (~11:00–13:45). No hay botón en la app: por PostgREST el rol authenticated corta a los 8 s y el refresco tarda 5–8 s.
+- Permiso de `uso_refrescar`: service_role, conexión directa sin JWT (SQL Editor / pg_cron) o usuario gerencia.

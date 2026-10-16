@@ -118,3 +118,18 @@
 | **outlier (MTTR)** | Cierre de más de 60 días. Se lista aparte y no entra en el promedio (ej.: el cierre masivo del 28/08/2026) |
 | **taller tercero** | Correctivo con `ingresa_taller_ypane = false`; se gestiona desde Ypané. La pestaña Ypané los separa para pedir el cierre |
 | **sync SAP → app** | `corr_sync_sap()`: R1 asigna orden, R2 libera, R3 actualiza ubicación. `dry_run` = solo registra lo que haría |
+
+
+## Uso de equipos (16/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **hallazgo** | Equipo + día (o carga de combustible) donde se corta la cadena uso real → parte → SAP. Tipos: uso_sin_parte, combustible_sin_parte, parte_sin_sap, parte_sobre_rastreo, rastreo_sobre_parte |
+| **caso** | Uno activo por obra mientras tenga hallazgos abiertos. Estados: nuevo → en_gestion → escalado → cerrado (se cierra solo al quedar sin abiertos) |
+| **corte** | Última fecha con datos de una fuente (rastreo, partes, SAP, combustible). Un día solo se evalúa si está dentro del corte de todas las fuentes de la regla |
+| **ocioso confirmado** | Racha de ≥ DIAS_OCIOSO días sin uso en ninguna fuente y con rastreo todos esos días (el GPS muestra que no se movió) |
+| **ocioso probable** | Misma racha pero sin rastreo completo: no se puede descartar trabajo sin registro |
+| **monto sin respaldo** | Cantidad sin respaldo × costo unitario del equipo (o promedio de su clase, marcado ≈) |
+| **justificado** | Hallazgo explicado por la gestión; se reabre solo si cambian sus cantidades |
+| **resuelto** | Hallazgo que dejó de detectarse (llegó el parte, se imputó, etc.) |
+| **vencido** | Hallazgo abierto de un año anterior: ya no se puede regularizar |
+| **receso de obra** | Ocio esperado; no se modela: los hallazgos se justifican y los ociosos se interpretan |

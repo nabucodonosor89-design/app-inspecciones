@@ -23,6 +23,7 @@ import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
 import CompletarOrdenes from './CompletarOrdenes.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
+import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
 import { PERFIL_COLUMNAS } from './lib/perfil.js'
 
 // Tarjetas ocultas del menú (Analista Correctivo, Caja Chica). Poner en true para volver a mostrarlas.
@@ -31,7 +32,7 @@ const MODULOS_OCULTOS_VISIBLES = false
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service'
+  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos'
 
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -57,6 +58,7 @@ function App() {
   useEffect(() => {
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
     if ((modulo === 'completar-ordenes' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
+    if (modulo === 'uso-equipos' && user && !['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) setModulo('menu')
   }, [modulo, user])
 
   async function checkUser() {
@@ -702,6 +704,41 @@ function App() {
             </p>
           </div>
           )}
+          {/* Card Uso de equipos — solo usuarios con usuarios.uso_equipos_acceso = 'gestion' | 'gerencia' (ver supabase/uso_equipos_setup.sql) */}
+          {['gestion', 'gerencia'].includes(user.uso_equipos_acceso) && (
+          <div
+            onClick={() => setModulo('uso-equipos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(180, 83, 9, 0.3)'
+              e.currentTarget.style.borderColor = '#b45309'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📡
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#b45309' }}>
+              Uso de equipos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Rastreo, combustible, partes y SAP por obra
+            </p>
+          </div>
+          )}
           {/* Card Historial de equipos — todos los roles (la RPC valida usuario activo) */}
           {(
             <div
@@ -1177,6 +1214,14 @@ function App() {
   if (modulo === 'desde-service') {
     if (user.ve_completar_ordenes !== true) return null
     return <DesdeUltimoService onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // USO DE EQUIPOS (solo usuarios con uso_equipos_acceso; las vistas y RPC también lo validan)
+  // ============================================
+  if (modulo === 'uso-equipos') {
+    if (!['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) return null
+    return <ModuloUsoEquipos acceso={user.uso_equipos_acceso} onVolver={volverAlMenu} />
   }
 
   // ============================================
