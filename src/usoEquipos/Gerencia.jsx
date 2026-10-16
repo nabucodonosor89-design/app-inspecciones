@@ -76,7 +76,7 @@ export default function Gerencia({ escalados, ociosos, indicadores, faltantes, o
       <div style={s.card}>
         <div style={s.subtitulo}>Datos faltantes · {num(faltantes.length)}</div>
         <div style={{ ...s.meta, marginBottom: 8 }}>
-          Equipos activos en el maestro que el módulo no puede evaluar bien. “Sin actividad en el año”: ni rastreo, ni parte, ni SAP, ni combustible en todo el año (revisar el maestro).
+          Equipos activos en el maestro que el módulo no puede evaluar bien. “Sin actividad en el año”: ni rastreo, ni parte, ni SAP, ni combustible en todo el año (revisar el maestro). “GPS a revisar”: días de los últimos 30 con 15 h o más de motor y 0 km. “GPS sin señal”: 3 días o más seguidos en 0 h y 0 km mientras hay partes o combustible. En los dos casos esos días no cuentan como rastreo.
         </div>
         <TablaResponsive filas={faltantes} getKey={(r) => r.equipo} vacio="Sin datos faltantes" columnas={[
           { key: 'equipo', label: 'Equipo', tarjeta: 'titulo', render: (r) => <><b>{r.equipo}</b> <span style={s.meta}>{(r.denominacion || '').replace(r.equipo, '').trim()}</span></> },
@@ -85,6 +85,8 @@ export default function Gerencia({ escalados, ociosos, indicadores, faltantes, o
           { key: 'falta', label: 'Qué falta', render: (r) => (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {r.sin_actividad_anio && <span style={s.chip(C.ambarBg, C.ambar)}>Sin actividad en el año</span>}
+              {r.gps_dudoso_dias_30 > 0 && <span style={s.chip(C.rojoBg, C.rojo)} title="Días con 15 h o más de motor y 0 km: encendido trabado o sensor a revisar">GPS a revisar · {r.gps_dudoso_dias_30} días</span>}
+              {r.gps_sin_senal_dias_30 > 0 && <span style={s.chip(C.rojoBg, C.rojo)} title="3 días o más seguidos con 0 h y 0 km mientras hay partes o combustible: el GPS no reporta">GPS sin señal · {r.gps_sin_senal_dias_30} días</span>}
               {r.sin_unidad && <span style={s.chip('#f3f4f6', C.gris)}>Sin unidad</span>}
               {r.sin_costo && <span style={s.chip('#f3f4f6', C.gris)}>Sin costo</span>}
               {r.sin_obra && <span style={s.chip('#f3f4f6', C.gris)}>Sin obra</span>}

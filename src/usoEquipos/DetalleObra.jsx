@@ -40,10 +40,11 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
   const equipos = useMemo(() => {
     const m = new Map()
     hallazgos.forEach((h) => {
-      if (!m.has(h.equipo)) m.set(h.equipo, { equipo: h.equipo, denominacion: h.denominacion, tipo_equipo: h.tipo_equipo, clase: h.clase, unidad: h.unidad, filas: [], monto: 0, conMonto: false, masViejo: h.fecha, porTipo: {} })
+      if (!m.has(h.equipo)) m.set(h.equipo, { equipo: h.equipo, denominacion: h.denominacion, tipo_equipo: h.tipo_equipo, clase: h.clase, unidad: h.unidad, filas: [], monto: 0, conMonto: false, masViejo: h.fecha, porTipo: {}, dias: new Set() })
       const e = m.get(h.equipo)
       e.filas.push(h)
-      if (h.monto != null) { e.monto += Number(h.monto); e.conMonto = true }
+      if (h.monto != null) { e.monto += Number(h.monto_neto) || 0; e.conMonto = true }
+      e.dias.add(h.tipo === 'combustible_sin_parte' ? h.id : h.fecha)
       if (h.fecha < e.masViejo) e.masViejo = h.fecha
       e.porTipo[h.tipo] = (e.porTipo[h.tipo] || 0) + 1
     })
@@ -58,10 +59,9 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
 
   const tiposPresentes = ORDEN_TIPOS.filter((t) => hallazgos.some((h) => h.tipo === t))
   const porUbicacion = hallazgos.filter((h) => h.obra_origen === 4).length
-  const monto = hallazgos.reduce((a, h) => a + (Number(h.monto) || 0), 0)
+  const monto = hallazgos.reduce((a, h) => a + (Number(h.monto_neto) || 0), 0)  // un día con dos hallazgos cuenta una vez
   const est = ESTADOS_CASO[caso.estado] || ESTADOS_CASO.nuevo
 
-  const toggle = (id) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleEquipo = (e) => setSel((p) => {
     const n = new Set(p)
     const todos = e.filas.every((f) => n.has(f.id))
@@ -146,10 +146,10 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700 }}>{e.conMonto ? gsCorto(e.monto) : '—'}</div>
-                <div style={s.meta}>{abierto ? '▲' : '▼'} {e.filas.length} día(s)</div>
+                <div style={s.meta}>{abierto ? '▲' : '▼'} {e.dias.size} día(s)</div>
               </div>
             </div>
-            {abierto && <TablaDias filas={e.filas} sel={sel} toggle={toggle} />}
+            {abierto && <TablaDias filas={e.filas} sel={sel} setSel={setSel} />}
           </div>
         )
       })}
@@ -175,7 +175,30 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
   )
 }
 
-function TablaDias({ filas, sel, toggle }) {
+// Una fila por día: si el mismo día tiene dos hallazgos (ej. Sin SAP + Parte > rastreo) se muestran juntos
+// y el monto se cuenta una sola vez (el mayor). Las cargas de combustible van en su propia fila.
+function TablaDias({ filas, sel, setSel }) {
+  const grupos = []
+  const porClave = new Map()
+  filas.forEach((h) => {
+    const clave = h.tipo === 'combustible_sin_parte' ? 'c' + h.id : h.fecha
+    if (!porClave.has(clave)) { const g = { clave, items: [] }; porClave.set(clave, g); grupos.push(g) }
+    porClave.get(clave).items.push(h)
+  })
+  grupos.forEach((g) => {
+    g.items.sort((a, b) => (Number(b.monto) || 0) - (Number(a.monto) || 0))
+    g.p = g.items[0]                       // el de mayor monto define diferencia y monto
+    g.ids = g.items.map((h) => h.id)
+  })
+  grupos.sort((a, b) => (Number(b.p.monto) || 0) - (Number(a.p.monto) || 0) || a.p.fecha.localeCompare(b.p.fecha))
+
+  const toggleGrupo = (g) => setSel((prev) => {
+    const n = new Set(prev)
+    const todos = g.ids.every((id) => n.has(id))
+    g.ids.forEach((id) => (todos ? n.delete(id) : n.add(id)))
+    return n
+  })
+
   return (
     <div style={{ ...s.scroll, borderTop: `1px solid ${C.borde}` }}>
       <table style={s.tabla}>
@@ -193,23 +216,29 @@ function TablaDias({ filas, sel, toggle }) {
           </tr>
         </thead>
         <tbody>
-          {filas.map((h) => {
-            const t = TIPOS_HALLAZGO[h.tipo]
+          {grupos.map((g) => {
+            const h = g.p
             const comb = h.tipo === 'combustible_sin_parte'
+            const marcado = g.ids.every((id) => sel.has(id))
             return (
-              <tr key={h.id} style={{ background: sel.has(h.id) ? '#f0fdf4' : undefined }}>
-                <td style={s.td}><input type="checkbox" checked={sel.has(h.id)} onChange={() => toggle(h.id)} style={{ width: 18, height: 18 }} aria-label="Seleccionar" /></td>
+              <tr key={g.clave} style={{ background: marcado ? '#f0fdf4' : undefined }}>
+                <td style={s.td}><input type="checkbox" checked={marcado} onChange={() => toggleGrupo(g)} style={{ width: 18, height: 18 }} aria-label="Seleccionar" /></td>
                 <td style={{ ...s.td, whiteSpace: 'nowrap' }}>
                   {comb ? <>carga {ddmm(h.fecha)}<div style={s.meta}>sin partes {ddmm(h.periodo_desde)}–{ddmm(h.periodo_hasta)}</div></> : ddmm(h.fecha)}
                   {h.obra_origen === 4 && <span title="Obra deducida por la ubicación actual"> 📍</span>}
                 </td>
-                <td style={s.td}><span style={s.chip(t.bg, t.fg)}>{t.corto}</span></td>
+                <td style={s.td}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {g.items.map((x) => <span key={x.id} style={s.chip(TIPOS_HALLAZGO[x.tipo].bg, TIPOS_HALLAZGO[x.tipo].fg)}>{TIPOS_HALLAZGO[x.tipo].corto}</span>)}
+                  </div>
+                </td>
                 <td style={s.td}>{cant(h.rastreo_q, h.unidad)}</td>
                 <td style={s.td}>{cant(h.parte_q, h.unidad)}</td>
                 <td style={s.td}>{cant(h.sap_q, h.unidad)}</td>
                 <td style={s.td}>{litros(h.litros)}</td>
                 <td style={{ ...s.td, fontWeight: 600 }}>{comb ? '—' : cant(h.cantidad_sin_respaldo, h.unidad)}</td>
-                <td style={{ ...s.td, whiteSpace: 'nowrap' }} title={h.costo_unitario ? `${gs(h.costo_unitario)} por ${h.unidad}` : undefined}>
+                <td style={{ ...s.td, whiteSpace: 'nowrap' }}
+                  title={[h.costo_unitario ? `${gs(h.costo_unitario)} por ${h.unidad}` : '', g.items.length > 1 ? 'Dos hallazgos el mismo día: el monto se cuenta una sola vez' : ''].filter(Boolean).join(' · ') || undefined}>
                   {h.monto != null ? gs(h.monto) : '—'}
                   {h.costo_por_clase && <span title="Costo promedio de la clase (el equipo no tiene costo propio)"> ≈</span>}
                 </td>

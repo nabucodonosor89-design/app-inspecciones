@@ -9,18 +9,22 @@
 --  -----------------  --------------------------------------------------
 --  Rastreo            consumo_combustible (flujo n8n "Reporte Diario de Flota - Monitor")
 --                       equipo = nombre_movil (ID técnico) · fecha
---                       horas motor = horas_marcha + horas_ralenti  (horas_marcha NO incluye ralentí)
+--                       horas motor = horas_marcha (YA INCLUYE el ralentí: horas_ralenti nunca supera a horas_marcha;
+--                       corregido 16/10/2026, antes se sumaban las dos y se duplicaba el ralentí)
 --                       km = distancia_km
 --                       Diario. Un móvil sin uso aparece con 0 → "tiene rastreo" = existe la fila.
 --                       Historia desde 26/08/2026.
+--                       GPS trabado (≥ 15 h y 0 km) o sin señal (≥ 3 días seguidos en 0 con partes o combustible):
+--                       esos días no cuentan como rastreo y el equipo va a Datos faltantes.
 --  Parte diario       pd_partes (Jotform → n8n)
 --                       equipo · fecha · obra (texto "OBRA_1022 Ruta…") · modo h|km
 --                       cantidad = contador_fin − contador_ini (solo filas valido = true)
 --                       Varias filas por equipo+día → se suman.
---  Certificación SAP  sap_imputaciones con clase_coste = 7100000001 (FACT. INTERNA EQUIPOS T&C)
+--  Certificación SAP  sap_imputaciones con clase_coste 7100000001 (FACT. INTERNA EQUIPOS T&C, h/km) o
+--                       7100000002 (FLETES T&C PARA OBRAS, UN): ambas cuentan como imputado (16/10/2026)
 --                       equipo · fecha · umedida HRA|KM · cantidad · obra_codigo ('1022')
 --                       Granularidad equipo + día. Historia desde 06/04/2026.
---                       (Fletes 7100000002 / UN quedan afuera.)
+--                       El costo unitario sale solo de 7100000001 (h/km).
 --  Combustible        sap_cargas_combustible (ingesta 'consumos'): equipo · fecha · litros
 --                       Su columna "obra" (OB34, CL01…) es otro código y NO se usa.
 --  costo_equipo       ES LA MISMA sap_imputaciones (ingesta 'costo_equipo'):
@@ -106,6 +110,8 @@ insert into public.uso_parametros (clave, valor, fecha, descripcion) values
   ('TOL_RASTREO_SOBRE_PARTE_KM',30,   null, 'rastreo − parte (km) tolerado — provisorio'),
   ('UMBRAL_USO_RASTREO_H',      0.5,  null, 'Mínimo de horas de motor para considerar uso — provisorio'),
   ('UMBRAL_USO_RASTREO_KM',     2,    null, 'Mínimo de km para considerar uso — provisorio'),
+  ('UMBRAL_GPS_TRABADO_H',      15,   null, 'Día con ≥ N h de motor y 0 km = GPS dudoso (encendido trabado): no cuenta como rastreo'),
+  ('DIAS_GPS_SIN_SENAL',        3,    null, 'N días seguidos con 0 h y 0 km mientras hay partes con trabajo o combustible = GPS sin señal: esos días no cuentan como rastreo'),
   ('DIAS_GRACIA_SAP',           7,    null, 'Días que tiene la obra para imputar un parte — provisorio'),
   ('TOL_DIAS_SAP',              3,    null, 'Un parte cuenta como imputado si hay imputación del equipo a ± N días'),
   ('VENTANA_COMBUSTIBLE',       3,    null, 'Días antes y después de la carga en que se buscan partes'),
@@ -190,6 +196,10 @@ create table if not exists public.uso_diario (
   obra_origen   smallint,         -- 1 parte · 2 SAP · 3 anterior · 4 ubicación actual
   primary key (equipo, fecha)
 );
+-- GPS dudoso: ≥ UMBRAL_GPS_TRABADO_H h de motor con 0 km → el día se toma como sin rastreo
+alter table public.uso_diario add column if not exists gps_dudoso boolean not null default false;
+-- GPS sin señal: racha de ≥ DIAS_GPS_SIN_SENAL días con 0 h y 0 km mientras hay partes con trabajo o combustible
+alter table public.uso_diario add column if not exists gps_sin_senal boolean not null default false;
 
 -- 3.3 Hallazgos
 create table if not exists public.uso_hallazgos (
@@ -227,6 +237,8 @@ create table if not exists public.uso_hallazgos (
   actualizado_at           timestamptz not null default now(),
   unique (equipo, fecha, tipo)
 );
+-- Monto contado una sola vez por equipo + día (si un día tiene dos hallazgos, cuenta solo el mayor)
+alter table public.uso_hallazgos add column if not exists monto_neto numeric;
 
 -- 3.4 Ociosos (estado actual)
 create table if not exists public.uso_ociosos (
@@ -332,6 +344,8 @@ declare
   i_r date; i_s date; i_c date;
   u_h numeric := uso_param('UMBRAL_USO_RASTREO_H');
   u_km numeric := uso_param('UMBRAL_USO_RASTREO_KM');
+  u_gps numeric := coalesce(uso_param('UMBRAL_GPS_TRABADO_H'), 15);
+  d_sin int := coalesce(uso_param('DIAS_GPS_SIN_SENAL'), 3)::int;
   tol_psr_h numeric := uso_param('TOL_PARTE_SOBRE_RASTREO_H');
   tol_psr_km numeric := uso_param('TOL_PARTE_SOBRE_RASTREO_KM');
   tol_rsp_h numeric := uso_param('TOL_RASTREO_SOBRE_PARTE_H');
@@ -450,14 +464,14 @@ begin
   truncate uso_diario;
   insert into uso_diario (equipo, fecha, unidad, tiene_rastreo, rastreo_h, rastreo_km, rastreo_q,
                           uso_rastreo, partes_n, parte_q, parte_trabajo, parte_obra,
-                          tiene_sap, sap_q, sap_obra, litros, en_taller, obra, obra_origen)
+                          tiene_sap, sap_q, sap_obra, litros, en_taller, obra, obra_origen, gps_dudoso, gps_sin_senal)
   with d as (
     select e.equipo, e.unidad, e.centro, g::date fecha
     from uso_equipos_info e
     cross join generate_series(v_ini, v_hoy, interval '1 day') g
   ), r as (
     select nombre_movil equipo, fecha,
-           sum(coalesce(horas_marcha, 0) + coalesce(horas_ralenti, 0)) h,
+           sum(coalesce(horas_marcha, 0)) h,   -- horas_marcha ya incluye el ralentí
            sum(coalesce(distancia_km, 0)) km
     from consumo_combustible where fecha between v_ini and v_hoy group by 1, 2
   ), p as (
@@ -474,7 +488,9 @@ begin
            sum(cantidad) filter (where umedida = 'KM')  qkm,
            mode() within group (order by nullif(trim(obra_codigo), '')) obra
     from sap_imputaciones
-    where clase_coste = 7100000001 and fecha between v_ini and v_hoy group by 1, 2
+    -- 7100000001 = horas/km · 7100000002 = fletes (volquetes y camiones se certifican por flete):
+    -- cualquiera de las dos cuenta como "imputado"; las cantidades h/km salen solo de HRA/KM
+    where clase_coste in (7100000001, 7100000002) and fecha between v_ini and v_hoy group by 1, 2
   ), c as (
     select equipo, fecha, sum(litros) litros
     from sap_cargas_combustible where fecha between v_ini and v_hoy group by 1, 2
@@ -512,18 +528,32 @@ begin
   ), g as (
     select j.*, count(obra12) over (partition by equipo order by fecha) grp from j
   ), k as (
-    select g.*, first_value(obra12) over (partition by equipo, grp order by fecha) obra_ant from g
+    select g.*, first_value(obra12) over (partition by equipo, grp order by fecha) obra_ant,
+           (tiene_rastreo and coalesce(h, 0) >= u_gps and coalesce(km, 0) <= 0.1) dud,
+           (tiene_rastreo and coalesce(h, 0) = 0 and coalesce(km, 0) <= 0.1) cero
+    from g
+  ), z as (   -- rachas de días seguidos con GPS en cero
+    select k.*, row_number() over (partition by equipo order by fecha)
+              - row_number() over (partition by equipo, cero order by fecha) isla
+    from k
+  ), zr as (
+    select z.*,
+           cero and count(*) over (partition by equipo, cero, isla) >= d_sin
+                and bool_or(ptrab or coalesce(litros, 0) > 0) over (partition by equipo, cero, isla) sin_senal
+    from z
   )
-  select equipo, fecha, unidad, tiene_rastreo, h, km, rq,
-         case when not tiene_rastreo then false
+  select equipo, fecha, unidad, tiene_rastreo and not dud and not sin_senal, h, km,
+         case when dud or sin_senal then null else rq end,
+         case when not tiene_rastreo or dud or sin_senal then false
               when unidad = 'h'  then coalesce(h, 0)  >= u_h
               when unidad = 'km' then coalesce(km, 0) >= u_km
               else coalesce(h, 0) >= u_h or coalesce(km, 0) >= u_km end,
          pn, pq, ptrab, pobra, tsap, sq, sobra, litros, taller,
          coalesce(pobra, sobra, obra_ant, centro, 'SIN'),
          case when pobra is not null then 1 when sobra is not null then 2
-              when obra_ant is not null then 3 when centro is not null then 4 end
-  from k;
+              when obra_ant is not null then 3 when centro is not null then 4 end,
+         dud, sin_senal
+  from zr;
 
   -- ── 5.4 Hallazgos detectados hoy ────────────────────────────────────
   drop table if exists t_h;
@@ -656,6 +686,14 @@ begin
     returning h.tipo
   ) select coalesce(jsonb_object_agg(tipo, n), '{}') into r_resueltos
     from (select tipo, count(*) n from res group by 1) x;
+
+  -- monto neto: una sola vez por equipo + día entre los abiertos (el mayor)
+  update uso_hallazgos h set monto_neto = x.neto
+  from (select id, case when row_number() over (partition by equipo, fecha
+                                               order by monto desc nulls last, tipo) = 1
+                        then monto else 0 end neto
+        from uso_hallazgos where estado = 'abierto') x
+  where h.id = x.id and h.monto_neto is distinct from x.neto;
 
   -- ── 5.6 Ociosos ─────────────────────────────────────────────────────
   delete from uso_ociosos;
@@ -817,7 +855,8 @@ select h.id, h.equipo, h.denominacion, h.fecha, h.tipo, h.obra, o.nombre obra_no
        h.periodo_desde, h.periodo_hasta, h.cantidad_sin_respaldo, h.costo_unitario, h.costo_por_clase,
        h.monto, h.detectado_at, h.reabierto_at, c.id caso_id,
        (c.ultima_gestion_at is not null
-        and greatest(h.detectado_at, coalesce(h.reabierto_at, h.detectado_at)) > c.ultima_gestion_at) nuevo
+        and greatest(h.detectado_at, coalesce(h.reabierto_at, h.detectado_at)) > c.ultima_gestion_at) nuevo,
+       h.monto_neto
 from uso_hallazgos h
 left join uso_obras o on o.codigo = h.obra
 left join uso_casos c on c.obra = h.obra and c.estado <> 'cerrado'
@@ -831,7 +870,7 @@ select c.id caso_id, c.obra, o.nombre obra_nombre, c.estado, c.creado_at, c.ulti
        count(h.id) filter (where h.tipo = 'parte_sin_sap')         n_parte_sin_sap,
        count(h.id) filter (where h.tipo = 'parte_sobre_rastreo')   n_parte_sobre_rastreo,
        count(h.id) filter (where h.tipo = 'rastreo_sobre_parte')   n_rastreo_sobre_parte,
-       coalesce(sum(h.monto), 0)                                    monto_abierto,
+       coalesce(sum(h.monto_neto), 0)                               monto_abierto,
        min(h.fecha)                                                 fecha_mas_vieja,
        (now() at time zone 'America/Asuncion')::date - min(h.fecha) dias_mas_viejo,
        count(h.id) filter (where c.ultima_gestion_at is not null
@@ -858,7 +897,7 @@ with ini as (select date_trunc('year', (now() at time zone 'America/Asuncion')):
 h as (
   select h.obra,
          count(*) filter (where estado = 'abierto') abiertos,
-         coalesce(sum(monto) filter (where estado = 'abierto'), 0) monto_abierto,
+         coalesce(sum(monto_neto) filter (where estado = 'abierto'), 0) monto_abierto,
          count(*) filter (where estado = 'resuelto')    resueltos,
          count(*) filter (where estado = 'justificado') justificados,
          count(*) filter (where estado = 'vencido')     vencidos,
@@ -880,17 +919,22 @@ create or replace view public.v_uso_datos_faltantes with (security_invoker = tru
 with a as (
   select equipo,
          bool_or(uso_rastreo or parte_trabajo or tiene_sap or coalesce(litros, 0) > 0) con_uso,
-         bool_or(obra <> 'SIN') con_obra
+         bool_or(obra <> 'SIN') con_obra,
+         count(*) filter (where gps_dudoso and fecha >= (now() at time zone 'America/Asuncion')::date - 30) gps_dias,
+         count(*) filter (where gps_sin_senal and fecha >= (now() at time zone 'America/Asuncion')::date - 30) sin_senal_dias
   from uso_diario group by 1
 )
 select e.equipo, e.denominacion, e.tipo, e.clase, e.unidad, e.unidad_origen, e.costo_unitario, e.centro,
        (e.unidad is null) sin_unidad,
        (e.costo_unitario is null) sin_costo,
        not coalesce(a.con_obra, false) sin_obra,
-       not coalesce(a.con_uso, false) sin_actividad_anio   -- activo en el maestro sin ningún uso en el año
+       not coalesce(a.con_uso, false) sin_actividad_anio,   -- activo en el maestro sin ningún uso en el año
+       coalesce(a.gps_dias, 0) gps_dudoso_dias_30,          -- días con GPS dudoso (encendido trabado) en 30 días
+       coalesce(a.sin_senal_dias, 0) gps_sin_senal_dias_30  -- días con GPS sin señal (0 h y 0 km con trabajo) en 30 días
 from uso_equipos_info e left join a using (equipo)
 where e.unidad is null or e.costo_unitario is null
-   or not coalesce(a.con_obra, false) or not coalesce(a.con_uso, false);
+   or not coalesce(a.con_obra, false) or not coalesce(a.con_uso, false) or coalesce(a.gps_dias, 0) > 0
+   or coalesce(a.sin_senal_dias, 0) > 0;
 
 
 -- =====================================================================
@@ -905,7 +949,7 @@ begin
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
     execute format('drop policy if exists %I on public.%I', t || '_sel', t);
-    execute format('create policy %I on public.%I for select to authenticated using (public.puede_uso_equipos())',
+    execute format('create policy %I on public.%I for select to authenticated using ((select public.puede_uso_equipos()))',
                    t || '_sel', t);
   end loop;
 end $$;
@@ -914,7 +958,8 @@ alter table public.uso_ociosos enable row level security;
 revoke all on public.uso_ociosos from anon, authenticated;
 grant select on public.uso_ociosos to authenticated;
 drop policy if exists uso_ociosos_sel on public.uso_ociosos;
-create policy uso_ociosos_sel on public.uso_ociosos for select to authenticated using (public.es_gerencia_uso());
+create policy uso_ociosos_sel on public.uso_ociosos for select to authenticated using ((select public.es_gerencia_uso()));
+-- (select …) hace que la política se evalúe una vez por consulta y no por fila (16/10/2026: v_uso_datos_faltantes pasó de 17 s a 0,2 s)
 
 revoke all on public.v_uso_frescura, public.v_uso_hallazgos_abiertos, public.v_uso_bandeja,
               public.v_uso_ociosos, public.v_uso_indicadores_obra, public.v_uso_datos_faltantes

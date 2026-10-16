@@ -14,11 +14,11 @@ import Gerencia from './usoEquipos/Gerencia'
 // Datos: vistas v_uso_* (ver supabase/uso_equipos_setup.sql). Escrituras solo por RPC.
 // ============================================================
 
-const COL_HALLAZGOS = 'id, equipo, denominacion, fecha, tipo, obra, obra_nombre, obra_origen, tipo_equipo, clase, unidad, rastreo_q, parte_q, sap_q, litros, periodo_desde, periodo_hasta, cantidad_sin_respaldo, costo_unitario, costo_por_clase, monto, detectado_at, caso_id, nuevo'
+const COL_HALLAZGOS = 'id, equipo, denominacion, fecha, tipo, obra, obra_nombre, obra_origen, tipo_equipo, clase, unidad, rastreo_q, parte_q, sap_q, litros, periodo_desde, periodo_hasta, cantidad_sin_respaldo, costo_unitario, costo_por_clase, monto, detectado_at, caso_id, nuevo, monto_neto'
 const COL_BANDEJA = 'caso_id, obra, obra_nombre, estado, creado_at, ultima_gestion_at, escalado_at, abiertos, n_uso_sin_parte, n_combustible_sin_parte, n_parte_sin_sap, n_parte_sobre_rastreo, n_rastreo_sobre_parte, monto_abierto, fecha_mas_vieja, dias_mas_viejo, nuevos_desde_gestion, ultima_gestion_fecha, ultima_gestion_texto, ultima_gestion_tipo'
 const COL_OCIOSOS = 'equipo, denominacion, tipo_equipo, clase, obra, obra_nombre, obra_origen, ultimo_uso, desde, hasta, dias, dias_con_rastreo, confirmado'
 const COL_INDICADORES = 'obra, obra_nombre, abiertos, monto_abierto, resueltos, justificados, vencidos, nuevos_30d, dias_prom_resolucion, veces_escalada'
-const COL_FALTANTES = 'equipo, denominacion, tipo, clase, unidad, unidad_origen, costo_unitario, centro, sin_unidad, sin_costo, sin_obra, sin_actividad_anio'
+const COL_FALTANTES = 'equipo, denominacion, tipo, clase, unidad, unidad_origen, costo_unitario, centro, sin_unidad, sin_costo, sin_obra, sin_actividad_anio, gps_dudoso_dias_30, gps_sin_senal_dias_30'
 
 // Trae todas las filas en páginas de LOTE (PostgREST corta en 1000), hasta LIMITE
 async function traerTodo(armar) {
@@ -113,7 +113,7 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
       const a = agg.get(h.obra)
       a.porTipo[h.tipo] = (a.porTipo[h.tipo] || 0) + 1
       a.abiertos += 1
-      a.monto += Number(h.monto) || 0
+      a.monto += Number(h.monto_neto) || 0
       if (h.fecha < a.fechaMasVieja) a.fechaMasVieja = h.fecha
       if (h.nuevo) a.nuevos += 1
     })
