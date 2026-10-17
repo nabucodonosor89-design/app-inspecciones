@@ -25,14 +25,19 @@ import CompletarOrdenes from './CompletarOrdenes.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
 import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
 import { PERFIL_COLUMNAS } from './lib/perfil.js'
+import Planificador from './planificador/Planificador.jsx'
+import MiListaSemana from './planificador/MiListaSemana.jsx'
 
-// Tarjetas ocultas del menú (Analista Correctivo, Caja Chica). Poner en true para volver a mostrarlas.
+// Tarjetas ocultas del menú (Analista Correctivo, Caja Chica, Pedidos de Compra, Dashboard Ejecutivo, Panel de Flota,
+// Asistente Técnico). No se borró código, rutas ni datos. Poner en true para volver a mostrarlas.
 const MODULOS_OCULTOS_VISIBLES = false
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modulo, setModulo] = useState('menu') // 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos'
+  // Planificador de inspecciones: true si el usuario está asignado a una zona con vigencia esta semana
+  const [tieneListaInsp, setTieneListaInsp] = useState(false)
+  const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos'
 
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -54,8 +59,19 @@ function App() {
     checkUser()
   }, [])
 
+  // ¿Ve "Mi lista de la semana"? (insp_mi_zona filtra por el usuario logueado)
+  useEffect(() => {
+    if (!user) return
+    let vivo = true
+    supabase.rpc('insp_mi_zona').then(({ data, error }) => {
+      if (vivo) setTieneListaInsp(!error && (data || []).length > 0)
+    })
+    return () => { vivo = false }
+  }, [user])
+
   // Correctivos solo con permiso ve_correctivos: si se llega sin él, volver al menú
   useEffect(() => {
+    if (modulo === 'planificador' && user && user.rol !== 'admin') setModulo('menu')
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
     if ((modulo === 'completar-ordenes' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
     if (modulo === 'uso-equipos' && user && !['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) setModulo('menu')
@@ -214,7 +230,80 @@ function App() {
             </p>
           </div>
 
-          {/* Card Pedidos de Compra */}
+          {/* Card Mi lista de la semana — inspectores asignados a una zona esta semana (ver supabase/planificador_inspecciones.sql) */}
+          {tieneListaInsp && (
+          <div
+            onClick={() => setModulo('mi-lista')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.15)'
+              e.currentTarget.style.borderColor = '#15803d'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📋
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#15803d' }}>
+              Mi lista de la semana
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Equipos a inspeccionar esta semana
+            </p>
+          </div>
+          )}
+
+          {/* Card Planificador — solo admin (ver supabase/planificador_inspecciones.sql) */}
+          {user.rol === 'admin' && (
+          <div
+            onClick={() => setModulo('planificador')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.15)'
+              e.currentTarget.style.borderColor = '#1d4ed8'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🗓️
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#1d4ed8' }}>
+              Planificador
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Inspecciones vencidas, listas por zona y zonas
+            </p>
+          </div>
+          )}
+
+          {/* Card Pedidos de Compra — oculta (oct-2026) */}
+          {MODULOS_OCULTOS_VISIBLES && (
           <div
             onClick={() => setModulo('pedidos-compra')}
             style={{
@@ -247,6 +336,7 @@ function App() {
               Solicitudes de materiales y servicios
             </p>
           </div>
+          )}
 
           {/* Card Mantenimientos */}
           <div
@@ -282,7 +372,8 @@ function App() {
             </p>
           </div>
 
-          {/* Card Dashboard Ejecutivo */}
+          {/* Card Dashboard Ejecutivo — oculta (oct-2026) */}
+          {MODULOS_OCULTOS_VISIBLES && (
           <div
             onClick={() => setModulo('dashboard-ejecutivo')}
             style={{
@@ -315,6 +406,7 @@ function App() {
               Vista general y estadísticas
             </p>
           </div>
+          )}
 
           {/* Card Pedidos de Equipos */}
           <div
@@ -384,7 +476,8 @@ function App() {
             </p>
           </div>
 
-          {/* Card Panel de Flota */}
+          {/* Card Panel de Flota — oculta (oct-2026) */}
+          {MODULOS_OCULTOS_VISIBLES && (
           <div
             onClick={() => setModulo('dashboard-flota')}
             style={{
@@ -417,6 +510,7 @@ function App() {
               Estado operativo diario
             </p>
           </div>
+          )}
 
           {/* Card Operadores */}
           <div
@@ -564,8 +658,8 @@ function App() {
           </div>
           )}
 
-          {/* Card Asistente Técnico — solo administrador y logística */}
-          {(user.rol === 'admin') && (
+          {/* Card Asistente Técnico — oculta (oct-2026); el código y la ruta siguen */}
+          {MODULOS_OCULTOS_VISIBLES && user.rol === 'admin' && (
             <div
               onClick={() => setModulo('asistente-tecnico')}
               style={{
@@ -1222,6 +1316,21 @@ function App() {
   if (modulo === 'uso-equipos') {
     if (!['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) return null
     return <ModuloUsoEquipos acceso={user.uso_equipos_acceso} onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // PLANIFICADOR DE INSPECCIONES (solo admin; las RPC también lo validan)
+  // ============================================
+  if (modulo === 'planificador') {
+    if (user.rol !== 'admin') return null
+    return <Planificador onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // MI LISTA DE LA SEMANA (inspectores asignados; la RPC filtra por el usuario)
+  // ============================================
+  if (modulo === 'mi-lista') {
+    return <MiListaSemana user={user} onVolver={volverAlMenu} />
   }
 
   // ============================================
