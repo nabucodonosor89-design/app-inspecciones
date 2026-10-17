@@ -19,7 +19,9 @@ const C = {
   acento: '#7c3aed', acentoBg: '#ede9fe', fondo: '#f9fafb', borde: '#e5e7eb', gris: '#6b7280', texto: '#111827',
   rojo: '#b91c1c', rojoBg: '#fee2e2', ambar: '#b45309', ambarBg: '#fef3c7', verde: '#15803d', verdeBg: '#dcfce7',
 }
-const UMBRAL_AVISO = 0.1 // ámbar cuando falta el 10 % del período o menos
+// Aviso de próximo mantenimiento: ámbar cuando 0 < falta ≤ umbral; rojo cuando falta ≤ 0
+const UMBRAL_AVISO_H = 50   // período por horas
+const UMBRAL_AVISO_KM = 700 // período por km
 const s = {
   wrap: { maxWidth: 1250, margin: '0 auto', padding: '16px 16px 48px' },
   header: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 },
@@ -43,6 +45,17 @@ function trabajo(r) {
   return vals.length ? Math.max(...vals) : -1
 }
 
+// Estado de un chip de "falta" según su propio valor y la unidad del período
+function estadoFalta(falta, unidad) {
+  if (falta <= 0) return 'rojo'
+  return falta <= (unidad === 'km' ? UMBRAL_AVISO_KM : UMBRAL_AVISO_H) ? 'ambar' : 'verde'
+}
+const COLOR_ESTADO = {
+  rojo: { background: C.rojoBg, color: C.rojo },
+  ambar: { background: C.ambarBg, color: C.ambar },
+  verde: { background: C.verdeBg, color: C.verde },
+}
+
 // Cuánto falta para el próximo mantenimiento, por cada fuente (null si no se puede calcular)
 function proximo(r) {
   if (!r.periodo || !r.service_fecha) return null
@@ -57,10 +70,13 @@ function proximo(r) {
   if (r.por_parte != null && (!r.periodo_unidad || r.pd_modo === r.periodo_unidad)) fuentes.push({ fuente: 'parte', falta: p - Number(r.por_parte) })
   if (!fuentes.length) return { fuentes, estado: 'sin', peor: null }
   const peor = Math.min(...fuentes.map((x) => x.falta))
-  const estado = peor < 0 ? 'rojo' : peor <= p * UMBRAL_AVISO ? 'ambar' : 'verde'
+  // el equipo toma el estado de su peor fuente (todas comparten la unidad del período)
+  const estado = estadoFalta(peor, r.periodo_unidad)
   return { fuentes, estado, peor }
 }
 const RANGO_ESTADO = { rojo: 0, ambar: 1, verde: 2, sin: 3 }
+// Próximos: al menos un chip en aviso o vencido (= estado del equipo rojo o ámbar)
+const esProximo = (r) => r._px?.estado === 'rojo' || r._px?.estado === 'ambar'
 
 function CeldaProximo({ r, px }) {
   if (!r.periodo) return <span style={{ color: C.gris }}>sin período</span>
@@ -72,8 +88,7 @@ function CeldaProximo({ r, px }) {
     <>
       {px.fuentes.map((f) => (
         <div key={f.fuente} style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 2 }}>
-          <span style={{ background: f.falta < 0 ? C.rojoBg : f.falta <= Number(r.periodo) * UMBRAL_AVISO ? C.ambarBg : C.verdeBg,
-            color: f.falta < 0 ? C.rojo : f.falta <= Number(r.periodo) * UMBRAL_AVISO ? C.ambar : C.verde,
+          <span style={{ ...COLOR_ESTADO[estadoFalta(f.falta, r.periodo_unidad)],
             borderRadius: 10, padding: '1px 8px', fontWeight: 700, whiteSpace: 'nowrap' }}>
             {f.falta < 0 ? `pasado ${num(-f.falta, 1)} ${u}` : `falta ${num(f.falta, 1)} ${u}`}
           </span>
@@ -152,7 +167,7 @@ export default function DesdeUltimoService({ onVolver }) {
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [ubicacion, setUbicacion] = useState('')
-  const [dato, setDato] = useState('todos') // todos | con | sin | sinper
+  const [dato, setDato] = useState('todos') // todos | con | prox | sin | sinper
   const [equipoModal, setEquipoModal] = useState(null) // equipo de la app (tabla equipos) para cargar mantenimiento/período
   const [abriendo, setAbriendo] = useState('')
 
@@ -201,13 +216,20 @@ export default function DesdeUltimoService({ onVolver }) {
   const sinPeriodo = useMemo(() => filas.filter((r) => !r.periodo).length, [filas])
   const ultimoParte = useMemo(() => filas.reduce((m, r) => (r.pd_fecha && r.pd_fecha > m ? r.pd_fecha : m), ''), [filas])
 
-  const vista = useMemo(() => {
+  // Búsqueda + ubicación (base de la tabla y del contador de Próximos)
+  const base = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
     return filas
       .filter((r) => !ubicacion || r.ubicacion === ubicacion)
-      .filter((r) => dato === 'todos' || (dato === 'con' ? !!r.service_fecha : dato === 'sin' ? !r.service_fecha : !r.periodo))
       .filter((r) => !q || [r.equipo, r.denominacion, r.ubicacion].some((v) => (v || '').toLowerCase().includes(q)))
       .map((r) => ({ ...r, _t: trabajo(r), _px: proximo(r) }))
+  }, [filas, busqueda, ubicacion])
+
+  const proximos = useMemo(() => base.filter(esProximo).length, [base])
+
+  const vista = useMemo(() => {
+    return base
+      .filter((r) => dato === 'todos' || (dato === 'con' ? !!r.service_fecha : dato === 'sin' ? !r.service_fecha : dato === 'prox' ? esProximo(r) : !r.periodo))
       .sort((a, b) => {
         // primero los vencidos (rojo), después los próximos (ámbar), y dentro de cada uno el que más se pasó / menos le falta
         const ea = RANGO_ESTADO[a._px?.estado ?? 'sin'], eb = RANGO_ESTADO[b._px?.estado ?? 'sin']
@@ -218,7 +240,7 @@ export default function DesdeUltimoService({ onVolver }) {
         if (b._t !== a._t) return b._t - a._t  // más trabajo acumulado primero
         return a.equipo.localeCompare(b.equipo)
       })
-  }, [filas, busqueda, ubicacion, dato])
+  }, [base, dato])
 
   return (
     <div style={{ minHeight: '100vh', background: C.fondo, color: C.texto }}>
@@ -255,7 +277,7 @@ export default function DesdeUltimoService({ onVolver }) {
             {ubicaciones.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
           <div style={{ display: 'flex', border: `1px solid ${C.borde}`, borderRadius: 8, overflow: 'hidden', flexWrap: 'wrap' }}>
-            {[['todos', `Todos (${filas.length})`], ['con', `Con mantenimiento (${conService})`], ['sin', `Sin mantenimiento (${filas.length - conService})`], ['sinper', `Sin período (${sinPeriodo})`]].map(([k, l]) => (
+            {[['todos', `Todos (${filas.length})`], ['con', `Con mantenimiento (${conService})`], ['prox', `Próximos (${proximos})`], ['sin', `Sin mantenimiento (${filas.length - conService})`], ['sinper', `Sin período (${sinPeriodo})`]].map(([k, l]) => (
               <button key={k} onClick={() => setDato(k)}
                 style={{ border: 'none', padding: '8px 12px', fontSize: 13, cursor: 'pointer', background: dato === k ? C.acento : 'white', color: dato === k ? 'white' : C.texto }}>
                 {l}
