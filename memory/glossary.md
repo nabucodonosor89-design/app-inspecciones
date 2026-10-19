@@ -133,3 +133,13 @@
 | **resuelto** | Hallazgo que dejó de detectarse (llegó el parte, se imputó, etc.) |
 | **vencido** | Hallazgo abierto de un año anterior: ya no se puede regularizar |
 | **receso de obra** | Ocio esperado; no se modela: los hallazgos se justifican y los ociosos se interpretan |
+
+## Repuestos (19/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **mantenimiento** | En T&C, el preventivo (orden SAP clase `TCPV`). En la interfaz siempre "mantenimiento", nunca "service" |
+| **familia** | Grupo de equipos con el mismo FABRICANTE MODELO efectivo (mayúsculas, espacios colapsados). Equipo sin modelo = sin familia: no entra en ningún kit |
+| **modelo sugerido / revisado** | Fabricante y modelo por equipo en `equipo_familia`. Sugerido = provisorio (planilla `revision_modelos_equipos.xlsx`, 17/10/2026). Revisado = confirmado; manda sobre el sugerido, y este sobre el de la app (`equipos.modelo`). "Modelo sin revisar" = la familia sale del sugerido o de la app |
+| **kit de mantenimiento** | Materiales que se consumen en al menos `umbral_kit` (50 %) de los mantenimientos con consumo de la familia (mínimo `min_mantenimientos` = 3). Cantidad por mantenimiento = mediana por orden |
+| **cobertura** | Meses que alcanza el stock de Ypané (centro 1002, último corte) al ritmo del consumo de los últimos 12 meses (todas las órdenes y equipos). Riesgo < plazo de reposición; atención < plazo + margen; sin consumo = 0 en 12 meses |
+| **mantenimiento trabado** | Orden TCPV de los últimos 12 meses con material reservado, nada consumido y más de `dias_trabado` (30) días. Si SAP la cerró (CTEC) es "cerrada sin consumo"; si es más nueva, "en curso" |

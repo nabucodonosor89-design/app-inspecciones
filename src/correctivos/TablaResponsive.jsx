@@ -6,15 +6,17 @@ import { useEscritorio } from './useEscritorio'
  * Tabla en escritorio, tarjetas en celular.
  * columnas: [{ key, label, render?(fila), tarjeta?: 'titulo' | 'oculta' }]
  * detalle?(fila): contenido expandible (opcional)
+ * onFila?(fila): acción al tocar la fila (opcional; si no hay detalle)
  */
-export default function TablaResponsive({ filas, columnas, getKey, detalle, vacio = 'Sin datos' }) {
+export default function TablaResponsive({ filas, columnas, getKey, detalle, onFila, vacio = 'Sin datos' }) {
   const escritorio = useEscritorio()
   const [abierto, setAbierto] = useState(null)
 
   if (!filas.length) return <div style={s.vacio}>{vacio}</div>
 
   const valor = (c, f) => (c.render ? c.render(f) : f[c.key] ?? '—')
-  const toggle = (k) => detalle && setAbierto(abierto === k ? null : k)
+  const toggle = (k, f) => (detalle ? setAbierto(abierto === k ? null : k) : onFila && onFila(f))
+  const clicable = Boolean(detalle || onFila)
 
   if (escritorio) {
     return (
@@ -28,7 +30,7 @@ export default function TablaResponsive({ filas, columnas, getKey, detalle, vaci
               const k = getKey(f)
               return (
                 <Fragment key={k}>
-                  <tr onClick={() => toggle(k)} style={{ cursor: detalle ? 'pointer' : 'default' }}>
+                  <tr onClick={() => toggle(k, f)} style={{ cursor: clicable ? 'pointer' : 'default' }}>
                     {columnas.map((c) => <td key={c.key} style={s.td}>{valor(c, f)}</td>)}
                   </tr>
                   {detalle && abierto === k && (
@@ -50,7 +52,7 @@ export default function TablaResponsive({ filas, columnas, getKey, detalle, vaci
       {filas.map((f) => {
         const k = getKey(f)
         return (
-          <div key={k} style={{ ...s.card, padding: 10, marginBottom: 8, cursor: detalle ? 'pointer' : 'default' }} onClick={() => toggle(k)}>
+          <div key={k} style={{ ...s.card, padding: 10, marginBottom: 8, cursor: clicable ? 'pointer' : 'default' }} onClick={() => toggle(k, f)}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>{valor(titulo, f)}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 10px', fontSize: 14 }}>
               {resto.map((c) => (

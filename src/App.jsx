@@ -21,6 +21,7 @@ import AsistenteTecnico from './AsistenteTecnico.jsx'
 import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
+import ModuloRepuestos from './ModuloRepuestos.jsx'
 import CompletarOrdenes from './CompletarOrdenes.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
 import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
@@ -37,7 +38,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   // Planificador de inspecciones: true si el usuario está asignado a una zona con vigencia esta semana
   const [tieneListaInsp, setTieneListaInsp] = useState(false)
-  const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos'
+  const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos', 'repuestos'
 
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -73,6 +74,7 @@ function App() {
   useEffect(() => {
     if (modulo === 'planificador' && user && user.rol !== 'admin') setModulo('menu')
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
+    if (modulo === 'repuestos' && user && user.ve_repuestos !== true) setModulo('menu')
     if ((modulo === 'completar-ordenes' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
     if (modulo === 'uso-equipos' && user && !['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) setModulo('menu')
   }, [modulo, user])
@@ -728,6 +730,41 @@ function App() {
             </p>
           </div>
           )}
+          {/* Card Repuestos — solo usuarios con usuarios.ve_repuestos = true (ver supabase/repuestos_acceso.sql) */}
+          {user.ve_repuestos === true && (
+          <div
+            onClick={() => setModulo('repuestos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(29, 78, 216, 0.3)'
+              e.currentTarget.style.borderColor = '#1d4ed8'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🔩
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#1d4ed8' }}>
+              Repuestos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Kits de mantenimiento y cobertura de stock
+            </p>
+          </div>
+          )}
           {/* Card Completar órdenes IP30 — solo usuarios con usuarios.ve_completar_ordenes = true (ver supabase/completar_ordenes_ip30.sql) */}
           {user.ve_completar_ordenes === true && (
           <div
@@ -1292,6 +1329,15 @@ function App() {
     // Sin permiso (estado viejo o navegación forzada): no renderizar; el efecto de arriba vuelve al menú
     if (user.ve_correctivos !== true) return null
     return <ModuloCorrectivos onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // MÓDULO REPUESTOS (solo lectura, solo usuarios con ve_repuestos = true)
+  // ============================================
+  if (modulo === 'repuestos') {
+    // Sin permiso: no renderizar; el efecto de arriba vuelve al menú
+    if (user.ve_repuestos !== true) return null
+    return <ModuloRepuestos onVolver={volverAlMenu} />
   }
 
   // ============================================
