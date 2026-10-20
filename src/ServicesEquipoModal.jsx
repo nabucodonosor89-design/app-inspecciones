@@ -6,7 +6,8 @@ import { toast, confirmar } from './utils/ui'
 // Mantenimientos de un equipo (Gestión de Equipos) — solo usuarios con ve_completar_ordenes
 // Carga manual del último mantenimiento con los datos de cierre de la orden preventiva
 // (solo contador y fecha) + historial (inspección y manual). Los manuales se anulan, no se borran.
-// RPC: services_de_equipo / registrar_service / anular_service (ver supabase/services_equipo.sql)
+// RPC: services_de_equipo_v2 / registrar_service / anular_service (ver supabase/services_equipo.sql y services_equipo_orden_sap.sql)
+// Los de origen orden_sap los crea la Bandeja de preventivos al cerrarse la orden en SAP (pueden venir sin contador).
 // Período de mantenimiento del equipo: mantenimiento_periodo / fijar_periodo_mantenimiento (ver supabase/periodo_mantenimiento.sql)
 // ============================================================
 
@@ -35,10 +36,10 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
     setCargando(false)
   }, [])
   const cargar = useCallback(
-    () => supabase.rpc('services_de_equipo', { p_equipo_id: equipo.id }).then(aplicar),
+    () => supabase.rpc('services_de_equipo_v2', { p_equipo_id: equipo.id }).then(aplicar),
     [equipo.id, aplicar])
   useEffect(() => {
-    supabase.rpc('services_de_equipo', { p_equipo_id: equipo.id }).then(aplicar)
+    supabase.rpc('services_de_equipo_v2', { p_equipo_id: equipo.id }).then(aplicar)
   }, [equipo.id, aplicar])
 
   const aplicarPeriodo = useCallback(({ data, error }) => {
@@ -80,7 +81,7 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
     if (error) return
     const c = Number(contador)
     // Contador menor que el de un mantenimiento anterior (más viejo): puede ser error de tipeo o cambio de horómetro
-    const anterior = lista.find((s) => s.fecha <= fecha)
+    const anterior = lista.find((s) => s.fecha <= fecha && s.contador != null)
     if (anterior && c < Number(anterior.contador)) {
       const ok = await confirmar(`El contador (${num(c)}) es menor que el del mantenimiento del ${fechaCorta(anterior.fecha)} (${num(anterior.contador)}). ¿Lo guardo igual? (por ejemplo, si cambiaron el horómetro)`)
       if (!ok) return
@@ -175,12 +176,12 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
             {lista.map((s, i) => (
               <div key={s.id} style={{ border: `1px solid ${i === 0 ? '#c4b5fd' : '#e5e7eb'}`, background: i === 0 ? '#faf5ff' : 'white', borderRadius: '8px', padding: '0.6rem 0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
                 <div>
-                  <div><b>{num(s.contador)}</b> · {fechaCorta(s.fecha)} {i === 0 && <span style={{ fontSize: '0.7rem', background: '#7c3aed', color: 'white', borderRadius: '10px', padding: '1px 7px', marginLeft: 4 }}>vigente</span>}</div>
+                  <div>{s.contador == null ? <b style={{ color: '#b45309' }}>falta contador</b> : <b>{num(s.contador)}</b>}{s.contador_estado === 'estimado' ? <span style={{ fontSize: '0.7rem', color: '#b45309' }}> (estimado)</span> : null} · {fechaCorta(s.fecha)} {i === 0 && <span style={{ fontSize: '0.7rem', background: '#7c3aed', color: 'white', borderRadius: '10px', padding: '1px 7px', marginLeft: 4 }}>vigente</span>}</div>
                   <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    {s.origen === 'manual' ? 'Carga manual' : 'Inspección'} · {s.cargado_por || '—'} · {fechaCorta(s.cargado_en)}
+                    {s.origen === 'manual' ? 'Carga manual' : s.origen === 'orden_sap' ? `Orden SAP ${s.orden || ''}` : 'Inspección'} · {s.cargado_por || '—'} · {fechaCorta(s.cargado_en)}
                   </div>
                 </div>
-                {s.origen === 'manual' && (
+                {(s.origen === 'manual' || s.origen === 'orden_sap') && (
                   <button onClick={() => anular(s)} style={{ border: '1px solid #fecaca', background: 'white', color: '#b91c1c', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     Anular
                   </button>

@@ -12,7 +12,9 @@ import ServicesEquipoModal from './ServicesEquipoModal.jsx'
 //   · por rastreo (Monitor): horas de marcha, ralentí y km sumados desde el día siguiente al mantenimiento
 //   · por parte diario (Jotform): último contador válido de los partes − contador del mantenimiento
 // Con período de mantenimiento cargado (Gestión de Equipos) muestra cuánto falta / cuánto se pasó.
-// Datos: RPC mantenimiento_seguimiento_v2 / service_frescura (ver supabase/partes_seguimiento.sql)
+// Datos: RPC mantenimiento_seguimiento_v3 / service_frescura (ver supabase/services_equipo_orden_sap.sql)
+// Mantenimientos creados desde una orden SAP (bandeja de preventivos) pueden venir sin contador ("falta contador")
+// o con contador estimado (parte diario del día del cierre).
 // ============================================================
 
 const C = {
@@ -57,19 +59,24 @@ const COLOR_ESTADO = {
 }
 
 // Cuánto falta para el próximo mantenimiento, por cada fuente (null si no se puede calcular)
+// · un por_contador o por_parte negativo (lectura menor que el contador del mantenimiento) no entra
+// · con rastreo incompleto (arranca después del mantenimiento) el rastreo se muestra pero no define el color
+// · con el contador del mantenimiento pendiente no se calcula (solo se sabe la fecha)
 function proximo(r) {
   if (!r.periodo || !r.service_fecha) return null
+  if (r.service_contador_estado === 'pendiente') return { fuentes: [], estado: 'sin', peor: null, faltaContador: true }
   const p = Number(r.periodo)
   const fuentes = []
   const cargaAnterior = r.carga_fecha && r.carga_fecha < r.service_fecha
-  if (r.por_contador != null && !cargaAnterior) fuentes.push({ fuente: 'contador', falta: p - Number(r.por_contador) })
+  if (r.por_contador != null && !cargaAnterior && Number(r.por_contador) >= 0) fuentes.push({ fuente: 'contador', falta: p - Number(r.por_contador), cuenta: true })
   if (r.tiene_rastreo && r.rastreo_horas != null) {
     const usado = r.periodo_unidad === 'km' ? Number(r.rastreo_km || 0) : Number(r.rastreo_horas || 0) + Number(r.rastreo_ralenti || 0)
-    fuentes.push({ fuente: 'rastreo', falta: p - usado })
+    fuentes.push({ fuente: 'rastreo', falta: p - usado, cuenta: r.rastreo_completo !== false })
   }
-  if (r.por_parte != null && (!r.periodo_unidad || r.pd_modo === r.periodo_unidad)) fuentes.push({ fuente: 'parte', falta: p - Number(r.por_parte) })
-  if (!fuentes.length) return { fuentes, estado: 'sin', peor: null }
-  const peor = Math.min(...fuentes.map((x) => x.falta))
+  if (r.por_parte != null && Number(r.por_parte) >= 0 && (!r.periodo_unidad || r.pd_modo === r.periodo_unidad)) fuentes.push({ fuente: 'parte', falta: p - Number(r.por_parte), cuenta: true })
+  const validas = fuentes.filter((x) => x.cuenta)
+  if (!validas.length) return { fuentes, estado: 'sin', peor: null }
+  const peor = Math.min(...validas.map((x) => x.falta))
   // el equipo toma el estado de su peor fuente (todas comparten la unidad del período)
   const estado = estadoFalta(peor, r.periodo_unidad)
   return { fuentes, estado, peor }
@@ -83,6 +90,7 @@ function CeldaProximo({ r, px }) {
   const u = r.periodo_unidad === 'km' ? 'km' : 'h'
   const cab = <div style={s.sub}>cada {num(r.periodo)} {u}</div>
   if (!r.service_fecha) return <>{cab}<span style={{ color: C.gris }}>falta el último mantenimiento</span></>
+  if (px?.faltaContador) return <>{cab}<span style={{ color: C.ambar, fontWeight: 600 }}>falta contador</span></>
   if (!px || !px.fuentes.length) return <>{cab}<span style={{ color: C.gris }}>sin datos de uso</span></>
   return (
     <>
@@ -92,7 +100,7 @@ function CeldaProximo({ r, px }) {
             borderRadius: 10, padding: '1px 8px', fontWeight: 700, whiteSpace: 'nowrap' }}>
             {f.falta < 0 ? `pasado ${num(-f.falta, 1)} ${u}` : `falta ${num(f.falta, 1)} ${u}`}
           </span>
-          <span style={{ fontSize: 11, color: C.gris }}>{f.fuente}</span>
+          <span style={{ fontSize: 11, color: C.gris }}>{f.fuente}{f.cuenta ? '' : ' (no cuenta: faltan días)'}</span>
         </div>
       ))}
       {cab}
@@ -104,13 +112,20 @@ function CeldaService({ r }) {
   if (!r.service_fecha) return <span style={{ color: C.gris }}>sin dato</span>
   return (
     <>
-      <div><b>{num(r.service_contador, 1)}</b> · {fechaCorta(r.service_fecha)}</div>
+      <div>
+        {r.service_contador_estado === 'pendiente'
+          ? <b style={{ color: C.ambar }}>falta contador</b>
+          : <b>{num(r.service_contador, 1)}</b>} · {fechaCorta(r.service_fecha)}
+        {r.service_contador_estado === 'estimado' && <span style={{ fontSize: 11, background: C.ambarBg, color: C.ambar, borderRadius: 8, padding: '0 6px', marginLeft: 4 }}>estimado</span>}
+      </div>
+      {r.service_orden && <div style={s.sub}>orden {r.service_orden}</div>}
       <div style={s.sub}>cargado {fechaCorta(r.service_inspeccion_fecha)}{r.service_inspector ? ` · ${r.service_inspector}` : ''}</div>
     </>
   )
 }
 
 function CeldaContador({ r }) {
+  if (r.service_contador_estado === 'pendiente') return <span style={{ color: C.ambar }}>falta contador</span>
   if (r.carga_lectura == null) return <span style={{ color: C.gris }}>sin carga con contador</span>
   const anterior = r.service_fecha && r.carga_fecha && r.carga_fecha < r.service_fecha
   const negativo = r.por_contador != null && Number(r.por_contador) < 0
@@ -143,6 +158,7 @@ function CeldaRastreo({ r }) {
 }
 
 function CeldaParte({ r }) {
+  if (r.service_contador_estado === 'pendiente') return <span style={{ color: C.ambar }}>falta contador</span>
   if (r.pd_contador == null) return <span style={{ color: C.gris }}>sin partes</span>
   const u = r.pd_modo === 'km' ? 'km' : 'h'
   const anterior = r.service_fecha && r.pd_fecha < r.service_fecha
@@ -167,7 +183,7 @@ export default function DesdeUltimoService({ onVolver }) {
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [ubicacion, setUbicacion] = useState('')
-  const [dato, setDato] = useState('todos') // todos | con | prox | sin | sinper
+  const [dato, setDato] = useState('todos') // todos | con | prox | sin | sinper | pend
   const [equipoModal, setEquipoModal] = useState(null) // equipo de la app (tabla equipos) para cargar mantenimiento/período
   const [abriendo, setAbriendo] = useState('')
 
@@ -176,7 +192,7 @@ export default function DesdeUltimoService({ onVolver }) {
     try {
       const todas = []
       for (let desde = 0; ; desde += PAGINA) {
-        const { data, error } = await supabase.rpc('mantenimiento_seguimiento_v2').range(desde, desde + PAGINA - 1)
+        const { data, error } = await supabase.rpc('mantenimiento_seguimiento_v3').range(desde, desde + PAGINA - 1)
         if (error) throw error
         todas.push(...(data || []))
         if (!data || data.length < PAGINA) break
@@ -214,6 +230,7 @@ export default function DesdeUltimoService({ onVolver }) {
 
   const conService = useMemo(() => filas.filter((r) => r.service_fecha).length, [filas])
   const sinPeriodo = useMemo(() => filas.filter((r) => !r.periodo).length, [filas])
+  const contadorPendiente = useMemo(() => filas.filter((r) => r.service_contador_estado === 'pendiente').length, [filas])
   const ultimoParte = useMemo(() => filas.reduce((m, r) => (r.pd_fecha && r.pd_fecha > m ? r.pd_fecha : m), ''), [filas])
 
   // Búsqueda + ubicación (base de la tabla y del contador de Próximos)
@@ -229,7 +246,8 @@ export default function DesdeUltimoService({ onVolver }) {
 
   const vista = useMemo(() => {
     return base
-      .filter((r) => dato === 'todos' || (dato === 'con' ? !!r.service_fecha : dato === 'sin' ? !r.service_fecha : dato === 'prox' ? esProximo(r) : !r.periodo))
+      .filter((r) => dato === 'todos' || (dato === 'con' ? !!r.service_fecha : dato === 'sin' ? !r.service_fecha : dato === 'prox' ? esProximo(r)
+        : dato === 'pend' ? r.service_contador_estado === 'pendiente' : !r.periodo))
       .sort((a, b) => {
         // primero los vencidos (rojo), después los próximos (ámbar), y dentro de cada uno el que más se pasó / menos le falta
         const ea = RANGO_ESTADO[a._px?.estado ?? 'sin'], eb = RANGO_ESTADO[b._px?.estado ?? 'sin']
@@ -277,7 +295,7 @@ export default function DesdeUltimoService({ onVolver }) {
             {ubicaciones.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
           <div style={{ display: 'flex', border: `1px solid ${C.borde}`, borderRadius: 8, overflow: 'hidden', flexWrap: 'wrap' }}>
-            {[['todos', `Todos (${filas.length})`], ['con', `Con mantenimiento (${conService})`], ['prox', `Próximos (${proximos})`], ['sin', `Sin mantenimiento (${filas.length - conService})`], ['sinper', `Sin período (${sinPeriodo})`]].map(([k, l]) => (
+            {[['todos', `Todos (${filas.length})`], ['con', `Con mantenimiento (${conService})`], ['prox', `Próximos (${proximos})`], ['sin', `Sin mantenimiento (${filas.length - conService})`], ['sinper', `Sin período (${sinPeriodo})`], ['pend', `Contador pendiente (${contadorPendiente})`]].map(([k, l]) => (
               <button key={k} onClick={() => setDato(k)}
                 style={{ border: 'none', padding: '8px 12px', fontSize: 13, cursor: 'pointer', background: dato === k ? C.acento : 'white', color: dato === k ? 'white' : C.texto }}>
                 {l}

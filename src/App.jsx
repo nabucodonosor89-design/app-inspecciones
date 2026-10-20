@@ -22,7 +22,7 @@ import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
 import ModuloRepuestos from './ModuloRepuestos.jsx'
-import CompletarOrdenes from './CompletarOrdenes.jsx'
+import BandejaPreventivos from './BandejaPreventivos.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
 import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
 import { PERFIL_COLUMNAS } from './lib/perfil.js'
@@ -765,7 +765,7 @@ function App() {
             </p>
           </div>
           )}
-          {/* Card Completar órdenes IP30 — solo usuarios con usuarios.ve_completar_ordenes = true (ver supabase/completar_ordenes_ip30.sql) */}
+          {/* Card Bandeja de preventivos (reemplaza a Completar órdenes IP30) — solo usuarios con usuarios.ve_completar_ordenes = true (ver supabase/bandeja_preventivos.sql) */}
           {user.ve_completar_ordenes === true && (
           <div
             onClick={() => setModulo('completar-ordenes')}
@@ -793,14 +793,14 @@ function App() {
               📋
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#0f766e' }}>
-              Completar órdenes IP30
+              Bandeja de preventivos
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
-              Ubicación y último contador para planificar preventivos
+              Órdenes del IP30: cuánto falta, qué programar y qué reprogramar
             </p>
           </div>
           )}
-          {/* Card Desde el último mantenimiento — mismo permiso que Completar órdenes IP30 (ver supabase/desde_ultimo_service.sql) */}
+          {/* Card Desde el último mantenimiento — mismo permiso que la Bandeja de preventivos (ver supabase/desde_ultimo_service.sql) */}
           {user.ve_completar_ordenes === true && (
           <div
             onClick={() => setModulo('desde-service')}
@@ -1341,11 +1341,11 @@ function App() {
   }
 
   // ============================================
-  // COMPLETAR ÓRDENES IP30 (solo usuarios con ve_completar_ordenes = true; las RPC también lo validan)
+  // BANDEJA DE PREVENTIVOS (reemplaza a Completar órdenes IP30; solo usuarios con ve_completar_ordenes = true; las RPC también lo validan)
   // ============================================
   if (modulo === 'completar-ordenes') {
     if (user.ve_completar_ordenes !== true) return null
-    return <CompletarOrdenes onVolver={volverAlMenu} />
+    return <BandejaPreventivos onVolver={volverAlMenu} />
   }
 
   // ============================================
