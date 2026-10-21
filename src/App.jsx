@@ -30,7 +30,7 @@ import { PERFIL_COLUMNAS } from './lib/perfil.js'
 import Planificador from './planificador/Planificador.jsx'
 import MiListaSemana from './planificador/MiListaSemana.jsx'
 
-// Tarjetas ocultas del menú (Analista Correctivo, Caja Chica, Pedidos de Compra, Dashboard Ejecutivo, Panel de Flota,
+// Tarjetas ocultas del menú (Analista Correctivo, Caja Chica, Dashboard Ejecutivo, Panel de Flota,
 // Asistente Técnico). No se borró código, rutas ni datos. Poner en true para volver a mostrarlas.
 const MODULOS_OCULTOS_VISIBLES = false
 
@@ -305,8 +305,8 @@ function App() {
           </div>
           )}
 
-          {/* Card Pedidos de Compra — oculta (oct-2026) */}
-          {MODULOS_OCULTOS_VISIBLES && (
+          {/* Card Pedidos de Compra — visible de nuevo desde 21/10/2026 */}
+          {(
           <div
             onClick={() => setModulo('pedidos-compra')}
             style={{
