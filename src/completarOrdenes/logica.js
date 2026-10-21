@@ -3,6 +3,7 @@
 // Portado de la herramienta HTML "completar_ordenes" (sin parte diario).
 // ============================================================
 import * as XLSX from 'xlsx'
+import { colLetra } from './excelPatch'
 
 export const DIAS_LECTURA_VIEJA = 30
 
@@ -12,6 +13,9 @@ export const CAMPOS = [
   { id: 'loc', label: 'Ubicación técnica', pats: [/ubicaci.*t[eé]cn/i, /ubicaci/i] },
   { id: 'val', label: 'Última carga (contador)', pats: [/^(?!.*fecha).*[uú]ltim[ao].*carga/i, /^(?!.*fecha).*(contador|lectura|hkm)/i] },
   { id: 'date', label: 'Fecha de última carga', pats: [/fecha.*[uú]ltim[ao].*carga/i, /fecha.*(carga|contador|lectura)/i] },
+  // Opcionales: si no se eligen, no se completan
+  { id: 'prox', label: 'Próximo mantenimiento (opcional)', opcional: true, pats: [/pr[oó]x/i] },
+  { id: 'falta', label: 'Falta/Pasó (opcional)', opcional: true, pats: [/falta|pas[oó]/i] },
 ]
 
 export function normKey(v) {
@@ -91,7 +95,7 @@ const diasEntre = (a, b) => Math.round((b - a) / 86400000)
 // Devuelve las escrituras (fila/columna Excel base 1) y el resumen para la pantalla
 export function cruzar({ aoa, r0, c0, filaTitulos, map, idx, hoy = new Date() }) {
   const st = {
-    total: 0, conUbic: 0, conLect: 0,
+    total: 0, conUbic: 0, conLect: 0, conProx: 0, proxYaCargado: 0,
     noIe36: new Set(), sinLectura: new Set(), viejas: new Map(), ubicDudosa: new Set(),
   }
   const escrituras = [], filas = []
@@ -120,7 +124,29 @@ export function cruzar({ aoa, r0, c0, filaTitulos, map, idx, hoy = new Date() })
       if (dias > DIAS_LECTURA_VIEJA) st.viejas.set(nombre, dias)
     } else st.sinLectura.add(nombre)
 
-    filas.push({ fila: filaExcel, equipo: String(kRaw).trim(), ubicacion: ubic, lectura: d?.lectura ?? null, fecha, dias })
+    // Próximo mantenimiento: solo si la celda está vacía y la app lo puede calcular
+    // (último mantenimiento con contador + período del equipo). Lo que ya cargó la encargada no se pisa.
+    let prox = null
+    if (map.prox >= 0) {
+      const actual = row[map.prox]
+      const vacia = actual == null || String(actual).trim() === ''
+      if (!vacia) { st.proxYaCargado++; prox = Number.isFinite(Number(actual)) ? Number(actual) : null }
+      else if (d?.prox_mantto != null) {
+        prox = Number(d.prox_mantto)
+        escrituras.push({ row: filaExcel, col: c0 + map.prox + 1, kind: 'num', v: prox })
+        st.conProx++
+      }
+    }
+    // Falta/Pasó: fórmula =H−I (se recalcula si la encargada corrige el próximo a mano)
+    let falta = null
+    if (map.falta >= 0 && map.prox >= 0) {
+      const H = colLetra(c0 + map.prox + 1) + filaExcel, I = colLetra(c0 + map.val + 1) + filaExcel
+      const lect = d?.lectura != null && fecha ? Number(d.lectura) : (typeof row[map.val] === 'number' ? row[map.val] : null)
+      falta = prox != null && Number.isFinite(prox) && lect != null ? prox - lect : null
+      escrituras.push({ row: filaExcel, col: c0 + map.falta + 1, kind: 'formula', f: `IF(OR(${H}="",${I}=""),"",${H}-${I})`, v: falta })
+    }
+
+    filas.push({ fila: filaExcel, equipo: String(kRaw).trim(), ubicacion: ubic, lectura: d?.lectura ?? null, fecha, dias, prox, falta })
   }
   return { escrituras, filas, st }
 }

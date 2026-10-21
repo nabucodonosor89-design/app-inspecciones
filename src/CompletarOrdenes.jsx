@@ -11,7 +11,9 @@ import { escribirCeldas } from './completarOrdenes/excelPatch'
 // La encargada de preventivo sube el Excel del IP30; la app completa
 // Ubicación técnica, Última carga y Fecha de última carga con el IE36 y los
 // consumos ya cargados en Supabase, y devuelve el mismo Excel.
-// Datos: RPC ip30_datos_equipos / ip30_frescura (ver supabase/completar_ordenes_ip30.sql)
+// Datos: RPC ip30_datos_equipos_v2 (+ próximo mantenimiento calculado) / ip30_frescura (ver supabase/completar_ordenes_ip30.sql)
+// Desde 21/10/2026 también completa Próximo mantenimiento (solo si la celda está vacía y se puede calcular)
+// y Falta/Pasó como fórmula =H−I.
 // Nada se guarda: el Excel se procesa en el navegador.
 // ============================================================
 
@@ -110,7 +112,7 @@ export default function CompletarOrdenes({ onVolver }) {
       // La API de Supabase devuelve como máximo 1000 filas por llamada: se pagina hasta traer todo
       const todas = []
       for (let desde = 0; ; desde += PAGINA) {
-        const { data, error } = await supabase.rpc('ip30_datos_equipos').range(desde, desde + PAGINA - 1)
+        const { data, error } = await supabase.rpc('ip30_datos_equipos_v2').range(desde, desde + PAGINA - 1)
         if (error) throw error
         todas.push(...(data || []))
         if (!data || data.length < PAGINA) break
@@ -142,7 +144,7 @@ export default function CompletarOrdenes({ onVolver }) {
     setFilaTitulos(fila)
     const m = autoMapear(titulos(aoa, fila))
     setMap(m)
-    setVerColumnas(CAMPOS.some((c) => !(m[c.id] >= 0)))
+    setVerColumnas(CAMPOS.some((c) => !c.opcional && !(m[c.id] >= 0)))
   }
   function cambiarFilaTitulos(n) {
     const fila = Math.max(0, (Number(n) || 1) - 1)
@@ -168,7 +170,7 @@ export default function CompletarOrdenes({ onVolver }) {
     }
   }
 
-  const mapeoCompleto = CAMPOS.every((c) => map[c.id] >= 0)
+  const mapeoCompleto = CAMPOS.every((c) => c.opcional || map[c.id] >= 0)
   const resultado = useMemo(() => {
     if (!hojaDatos || !datos || !mapeoCompleto) return null
     return cruzar({ ...hojaDatos, filaTitulos, map, idx })
@@ -218,7 +220,8 @@ export default function CompletarOrdenes({ onVolver }) {
 
         <p style={{ color: C.gris, fontSize: 14, marginTop: 0 }}>
           Subí el Excel de órdenes del IP30. Se completan <b>Ubicación técnica</b> (IE36), <b>Última carga</b> y <b>Fecha de última carga</b> (último
-          horómetro/km de los consumos de combustible) y se descarga el mismo Excel con su formato. No se guarda nada en la app.
+          horómetro/km de los consumos de combustible), <b>Próximo mantenimiento</b> (solo si está vacío y el equipo tiene último mantenimiento y
+          período cargados) y <b>Falta/Pasó</b> (fórmula próximo − última carga), y se descarga el mismo Excel con su formato. No se guarda nada en la app.
         </p>
 
         {/* Archivo */}
@@ -264,9 +267,9 @@ export default function CompletarOrdenes({ onVolver }) {
               </div>
               {CAMPOS.map((c) => (
                 <div key={c.id}>
-                  <label style={{ ...s.label, color: map[c.id] >= 0 ? C.gris : C.rojo }}>{c.label}</label>
+                  <label style={{ ...s.label, color: map[c.id] >= 0 || c.opcional ? C.gris : C.rojo }}>{c.label}</label>
                   <select style={s.select} value={map[c.id] ?? -1} onChange={(e) => setMap((m) => ({ ...m, [c.id]: Number(e.target.value) }))}>
-                    <option value={-1}>— elegir columna —</option>
+                    <option value={-1}>{c.opcional ? '— no completar —' : '— elegir columna —'}</option>
                     {hs.map((h, i) => <option key={i} value={i}>{h}</option>)}
                   </select>
                 </div>
@@ -283,6 +286,7 @@ export default function CompletarOrdenes({ onVolver }) {
               <Stat valor={`${pct(st.conUbic, st.total)}%`} texto={`con ubicación (${st.conUbic})`} tono={tono(st.conUbic)} />
               <Stat valor={`${pct(st.conLect, st.total)}%`} texto={`con contador y fecha (${st.conLect})`} tono={tono(st.conLect)} />
               <Stat valor={st.viejas.size} texto={`equipos con lectura de más de ${DIAS_LECTURA_VIEJA} días`} tono={st.viejas.size ? 'warn' : undefined} />
+              {map.prox >= 0 && <Stat valor={st.conProx} texto={`próximo mantenimiento completado (${st.proxYaCargado} ya tenían)`} />}
             </div>
 
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -290,7 +294,7 @@ export default function CompletarOrdenes({ onVolver }) {
                 {descargando ? 'Generando…' : '⬇ Descargar Excel completado'}
               </button>
               <span style={{ fontSize: 13, color: C.gris }}>
-                Solo se escriben las 3 columnas; si un equipo no tiene dato, la celda queda como estaba.
+                Si un equipo no tiene dato, la celda queda como estaba. El próximo mantenimiento que ya estaba cargado no se toca.
               </span>
             </div>
 
@@ -304,7 +308,7 @@ export default function CompletarOrdenes({ onVolver }) {
               <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                 <thead>
                   <tr>
-                    {['Fila', 'Equipo', 'Ubicación técnica', 'Última carga', 'Fecha', 'Antigüedad'].map((h) => <th key={h} style={s.th}>{h}</th>)}
+                    {['Fila', 'Equipo', 'Ubicación técnica', 'Última carga', 'Fecha', 'Antigüedad', 'Próx. mantto', 'Falta/Pasó'].map((h) => <th key={h} style={s.th}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -320,6 +324,9 @@ export default function CompletarOrdenes({ onVolver }) {
                         <td style={{ ...s.td, color: vieja ? C.ambar : C.gris, fontWeight: vieja ? 700 : 400 }}>
                           {f.dias == null ? '—' : `${f.dias} d`}
                         </td>
+                        <td style={{ ...s.td, textAlign: 'right' }}>{fmtNum(f.prox)}</td>
+                        <td style={{ ...s.td, textAlign: 'right', fontWeight: 700,
+                          color: f.falta == null ? C.gris : f.falta <= 0 ? C.rojo : C.texto }}>{fmtNum(f.falta)}</td>
                       </tr>
                     )
                   })}

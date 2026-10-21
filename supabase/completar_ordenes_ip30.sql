@@ -125,3 +125,42 @@ revoke all on function public.ip30_frescura()           from public, anon;
 grant execute on function public.puede_completar_ordenes() to authenticated;
 grant execute on function public.ip30_datos_equipos()      to authenticated;
 grant execute on function public.ip30_frescura()           to authenticated;
+
+-- ============================================================
+-- 21/10/2026 — Próximo mantenimiento para Completar órdenes IP30 (aplicado en Supabase)
+-- La pantalla lee ip30_datos_equipos_v2(): mismas columnas + prox_mantto / prox_unidad
+-- prox_mantto = contador del último mantenimiento (services_equipo, no anulado; si el último no tiene
+-- contador → null) + equipos.periodo_mtto. En el Excel solo se escribe si la celda PROX MANTTO está vacía.
+-- FALTA/PASO se escribe como fórmula =SI(H o I vacías; ""; H−I).
+-- ============================================================
+create or replace function public.ip30_datos_equipos_v2()
+returns table(equipo text, equipo_sap bigint, ubicacion text, ubicaciones_distintas integer, en_ie36 boolean,
+              lectura numeric, fecha_lectura date, prox_mantto numeric, prox_unidad text)
+language sql stable security definer
+set search_path = public
+as $$
+  with d as (select * from ip30_datos_equipos()),
+  q as (
+    select distinct on (upper(trim(q.numero_identificacion)))
+           upper(trim(q.numero_identificacion)) as equipo, q.id, q.periodo_mtto, q.periodo_mtto_unidad
+    from equipos q
+    where q.periodo_mtto is not null
+    order by upper(trim(q.numero_identificacion)), q.activo desc, q.periodo_mtto_actualizado_en desc nulls last
+  ),
+  s as (
+    select distinct on (s.equipo_id) s.equipo_id, s.contador
+    from services_equipo s
+    where s.anulado_en is null
+    order by s.equipo_id, s.fecha desc, s.created_at desc
+  )
+  select d.equipo, d.equipo_sap, d.ubicacion, d.ubicaciones_distintas, d.en_ie36, d.lectura, d.fecha_lectura,
+         case when s.contador is not null then s.contador + q.periodo_mtto end,
+         case when s.contador is not null then q.periodo_mtto_unidad end
+  from d
+  left join q on q.equipo = d.equipo
+  left join s on s.equipo_id = q.id
+  where puede_completar_ordenes()
+  order by 1
+$$;
+revoke all on function public.ip30_datos_equipos_v2() from public, anon;
+grant execute on function public.ip30_datos_equipos_v2() to authenticated;

@@ -138,7 +138,8 @@ function celdaDe(doc, fila, c, r) {
 /**
  * @param {ArrayBuffer} buf  archivo original
  * @param {string} hoja      nombre de la hoja a modificar
- * @param {Array<{row:number,col:number,kind:'text'|'num'|'date',v:any}>} escrituras  fila/columna base 1
+ * @param {Array<{row:number,col:number,kind:'text'|'num'|'date'|'formula',v:any,f?:string}>} escrituras  fila/columna base 1
+ *        kind 'formula': f = fórmula sin '='; v = valor ya calculado (o null) para que se vea aunque no se recalcule
  * @returns {Promise<Blob>}
  */
 export async function escribirCeldas(buf, hoja, escrituras) {
@@ -152,6 +153,7 @@ export async function escribirCeldas(buf, hoja, escrituras) {
   const stylesDoc = stylesFile ? parse(await stylesFile.async('string')) : null
   const estilos = crearGestorEstilos(stylesDoc)
   let quitoFormula = false
+  let hayFormulas = false
 
   for (const w of escrituras) {
     const fila = filaDe(doc, sheetData, w.row)
@@ -161,7 +163,16 @@ export async function escribirCeldas(buf, hoja, escrituras) {
       cel.removeChild(h)
     }
     cel.removeAttribute('t')
-    if (w.kind === 'text') {
+    if (w.kind === 'formula') {
+      hayFormulas = true
+      const f = crear(doc, 'f')
+      f.textContent = w.f
+      cel.appendChild(f)
+      const v = crear(doc, 'v')
+      if (w.v == null || !Number.isFinite(Number(w.v))) cel.setAttribute('t', 'str')
+      else v.textContent = String(w.v)
+      cel.appendChild(v)
+    } else if (w.kind === 'text') {
       cel.setAttribute('t', 'inlineStr')
       const is = crear(doc, 'is'), t = crear(doc, 't')
       t.textContent = String(w.v)
@@ -176,6 +187,15 @@ export async function escribirCeldas(buf, hoja, escrituras) {
   }
 
   zip.file(ruta, serializar(doc))
+
+  // Con fórmulas nuevas, se pide a Excel que recalcule todo al abrir
+  if (hayFormulas) {
+    const wbDoc = parse(await zip.file('xl/workbook.xml').async('string'))
+    let calcPr = wbDoc.getElementsByTagNameNS(NS, 'calcPr')[0]
+    if (!calcPr) { calcPr = crear(wbDoc, 'calcPr'); wbDoc.documentElement.appendChild(calcPr) }
+    calcPr.setAttribute('fullCalcOnLoad', '1')
+    zip.file('xl/workbook.xml', serializar(wbDoc))
+  }
   if (estilos?.cambio) zip.file('xl/styles.xml', serializar(stylesDoc))
 
   // Si se pisó alguna fórmula, la cadena de cálculo queda vieja: se quita (Excel la regenera)

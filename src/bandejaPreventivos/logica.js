@@ -114,35 +114,51 @@ function descargar(hojas, nombre) {
   XLSX.writeFile(wb, nombre)
 }
 
+// ---------- lista para choferes y operadores ----------
+// Mismo formato que la lista que manda hoy la encargada: las órdenes del último IP30 que siguen abiertas
+// (no cerradas en SAP ni confirmadas como Concluido/Cancelado), por fecha plan.
+// Columnas: ORDEN · Fe/inic/extrema · Denominacion · UBICACIÓN TECNICA · PROX MANTTO
+export function listaEnvio(rows) {
+  return rows.filter((r) => r.en_ultimo_ip30 && abierta(r))
+    .sort((a, b) => String(a.fecha_plan || '').localeCompare(String(b.fecha_plan || '')) || a.orden - b.orden)
+}
+// Fecha como fecha de Excel (al mediodía para que la zona horaria no la corra de día)
+const fechaExcel = (iso) => {
+  if (!iso) return ''
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d, 12)
+}
 const filaLista = (r) => ({
-  Equipo: r.equipo,
-  Denominación: den(r),
-  Ubicación: r.ubicacion || '',
-  'Próx. mantenimiento': r.h != null ? Number(r.h) : '',
-  Unidad: r.unidad || '',
-  'Lectura actual': r.lectura != null ? Number(r.lectura) : '',
-  'Falta/Pasó': r.j != null ? Number(r.j) : '',
-  'Fecha lectura': ddmmyyyy(r.lectura_fecha),
-  Fuente: r.j_fuente || '',
-  Estado: ESTADO_TXT[r.estado_confirmado] || (r.estado_sugerido ? `(${ESTADO_TXT[r.estado_sugerido]})` : ''),
-  Orden: r.orden,
+  ORDEN: r.orden,
+  'Fe/inic/extrema': fechaExcel(r.fecha_plan),
+  Denominacion: r.texto || [r.equipo, den(r)].filter(Boolean).join(' '),
+  'UBICACIÓN TECNICA': r.ubicacion || '',
+  'PROX MANTTO': r.h != null ? Number(r.h) : '',
 })
-const ANCHOS_LISTA = [12, 30, 28, 12, 7, 12, 10, 12, 9, 14, 10]
+const ANCHOS_LISTA = [10, 14, 40, 34, 12]
+
+function descargarLista(filas, titulo, nombre) {
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.json_to_sheet(filas.map(filaLista), { dateNF: 'dd/mm/yyyy', header: ['ORDEN', 'Fe/inic/extrema', 'Denominacion', 'UBICACIÓN TECNICA', 'PROX MANTTO'] })
+  ws['!cols'] = ANCHOS_LISTA.map((w) => ({ wch: w }))
+  if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] }
+  XLSX.utils.book_append_sheet(wb, ws, titulo.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '))
+  XLSX.writeFile(wb, nombre, { cellDates: true })
+}
+
+export function exportarListaObra(rows, obra, fecha) {
+  const f = listaEnvio(rows).filter((r) => (r.ubicacion || '(sin ubicación)') === obra)
+  descargarLista(f, obra, `Mantenimientos ${obra} ${fecha}.xlsx`)
+}
+
+export function exportarListaGeneral(rows, fecha) {
+  descargarLista(listaEnvio(rows), 'ORDENES', `Mantenimientos ${fecha}.xlsx`)
+}
 
 // Próximos mantenimientos (ámbar y rojo) de órdenes abiertas
 export function proximos(rows) {
   return rows.filter((r) => abierta(r) && ['rojo', 'ambar'].includes(colorJ(r)))
     .sort((a, b) => Number(a.j) - Number(b.j))
-}
-
-export function exportarListaObra(rows, obra, fecha) {
-  const f = proximos(rows).filter((r) => (r.ubicacion || '(sin ubicación)') === obra)
-  descargar([[obra, f.map(filaLista), ANCHOS_LISTA]], `Proximos mantenimientos ${obra} ${fecha}.xlsx`)
-}
-
-export function exportarListaGeneral(rows, fecha) {
-  const f = proximos(rows).sort((a, b) => (a.ubicacion || '').localeCompare(b.ubicacion || '') || Number(a.j) - Number(b.j))
-  descargar([['Todas las obras', f.map(filaLista), ANCHOS_LISTA]], `Proximos mantenimientos ${fecha}.xlsx`)
 }
 
 // Reprogramadas: para cambiar la fecha de cada orden en SAP

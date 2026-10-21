@@ -22,6 +22,7 @@ import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
 import ModuloRepuestos from './ModuloRepuestos.jsx'
+import CompletarOrdenes from './CompletarOrdenes.jsx'
 import BandejaPreventivos from './BandejaPreventivos.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
 import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
@@ -75,7 +76,7 @@ function App() {
     if (modulo === 'planificador' && user && user.rol !== 'admin') setModulo('menu')
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
     if (modulo === 'repuestos' && user && user.ve_repuestos !== true) setModulo('menu')
-    if ((modulo === 'completar-ordenes' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
+    if ((modulo === 'completar-ordenes' || modulo === 'bandeja-preventivos' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
     if (modulo === 'uso-equipos' && user && !['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) setModulo('menu')
   }, [modulo, user])
 
@@ -765,10 +766,45 @@ function App() {
             </p>
           </div>
           )}
-          {/* Card Bandeja de preventivos (reemplaza a Completar órdenes IP30) — solo usuarios con usuarios.ve_completar_ordenes = true (ver supabase/bandeja_preventivos.sql) */}
+          {/* Card Completar órdenes IP30 — solo usuarios con usuarios.ve_completar_ordenes = true (ver supabase/completar_ordenes_ip30.sql) */}
           {user.ve_completar_ordenes === true && (
           <div
             onClick={() => setModulo('completar-ordenes')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(15, 118, 110, 0.3)'
+              e.currentTarget.style.borderColor = '#0f766e'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📋
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#0f766e' }}>
+              Completar órdenes IP30
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Ubicación, último contador, próximo mantenimiento y falta/pasó
+            </p>
+          </div>
+          )}
+          {/* Card Bandeja de preventivos — OCULTA desde 21/10/2026 (se volvió a Completar órdenes IP30). Código, datos y RPC siguen (ver supabase/bandeja_preventivos.sql) */}
+          {MODULOS_OCULTOS_VISIBLES && user.ve_completar_ordenes === true && (
+          <div
+            onClick={() => setModulo('bandeja-preventivos')}
             style={{
               background: 'white',
               padding: '2rem',
@@ -800,7 +836,7 @@ function App() {
             </p>
           </div>
           )}
-          {/* Card Desde el último mantenimiento — mismo permiso que la Bandeja de preventivos (ver supabase/desde_ultimo_service.sql) */}
+          {/* Card Desde el último mantenimiento — mismo permiso que Completar órdenes IP30 (ver supabase/desde_ultimo_service.sql) */}
           {user.ve_completar_ordenes === true && (
           <div
             onClick={() => setModulo('desde-service')}
@@ -1341,9 +1377,15 @@ function App() {
   }
 
   // ============================================
-  // BANDEJA DE PREVENTIVOS (reemplaza a Completar órdenes IP30; solo usuarios con ve_completar_ordenes = true; las RPC también lo validan)
+  // COMPLETAR ÓRDENES IP30 (solo usuarios con ve_completar_ordenes = true; las RPC también lo validan)
   // ============================================
   if (modulo === 'completar-ordenes') {
+    if (user.ve_completar_ordenes !== true) return null
+    return <CompletarOrdenes onVolver={volverAlMenu} />
+  }
+
+  // BANDEJA DE PREVENTIVOS — tarjeta oculta desde 21/10/2026 (ruta y código siguen; mismo permiso)
+  if (modulo === 'bandeja-preventivos') {
     if (user.ve_completar_ordenes !== true) return null
     return <BandejaPreventivos onVolver={volverAlMenu} />
   }

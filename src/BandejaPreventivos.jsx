@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 import {
   leerLibro, prepararHoja, filasIP30, CAMPOS_IP30, colorJ, RANGO_COLOR, abierta, ESTADO_TXT,
-  exportarListaObra, exportarListaGeneral, exportarReprogramadas, proximos,
+  exportarListaObra, exportarListaGeneral, exportarReprogramadas, listaEnvio,
 } from './bandejaPreventivos/logica'
 import RevisarOrdenModal from './bandejaPreventivos/RevisarOrdenModal.jsx'
 
@@ -219,7 +219,7 @@ export default function BandejaPreventivos({ onVolver }) {
   }, [pestana, sinOrden, pendContador])
 
   const obras = useMemo(() => [...new Set(filas.map((r) => r.ubicacion || '(sin ubicación)'))].sort((a, b) => a.localeCompare(b)), [filas])
-  const obrasConProximos = useMemo(() => [...new Set(proximos(filas).map((r) => r.ubicacion || '(sin ubicación)'))].sort((a, b) => a.localeCompare(b)), [filas])
+  const obrasConProximos = useMemo(() => [...new Set(listaEnvio(filas).map((r) => r.ubicacion || '(sin ubicación)'))].sort((a, b) => a.localeCompare(b)), [filas])
 
   const base = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -373,7 +373,7 @@ export default function BandejaPreventivos({ onVolver }) {
             {obrasConProximos.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
           <button style={s.boton} disabled={!obraLista} onClick={() => exportarListaObra(filas, obraLista, hoyArchivo())}>⬇ Lista de la obra</button>
-          <button style={s.boton} onClick={() => exportarListaGeneral(filas, hoyArchivo())}>⬇ Lista general ({proximos(filas).length})</button>
+          <button style={s.boton} onClick={() => exportarListaGeneral(filas, hoyArchivo())}>⬇ Lista general ({listaEnvio(filas).length})</button>
           <button style={s.boton} onClick={() => exportarReprogramadas(filas, hoyArchivo())}>⬇ Reprogramadas</button>
           <span style={{ flex: 1 }} />
           <button style={{ ...s.boton, fontSize: 12 }} onClick={simularCierres} title="Muestra qué mantenimientos crearía la sincronización con las órdenes cerradas en SAP (no escribe nada)">
