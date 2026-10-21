@@ -284,11 +284,14 @@ function HistorialInspecciones({ equipo, onVolver }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {itemsCategoria.map((item, index) => {
                       const bgColor = item.estado === 'ok' ? '#f0fdf4' :
-                                     item.estado === 'warning' ? '#fef3c7' : '#fee2e2'
+                                     item.estado === 'warning' ? '#fef3c7' :
+                                     item.estado === 'na' ? '#f3f4f6' : '#fee2e2'
                       const borderColor = item.estado === 'ok' ? '#10b981' :
-                                         item.estado === 'warning' ? '#f59e0b' : '#ef4444'
+                                         item.estado === 'warning' ? '#f59e0b' :
+                                         item.estado === 'na' ? '#9ca3af' : '#ef4444'
                       const emoji = item.estado === 'ok' ? '✅' :
-                                   item.estado === 'warning' ? '⚠️' : '❌'
+                                   item.estado === 'warning' ? '⚠️' :
+                                   item.estado === 'na' ? '➖' : '❌'
 
                       return (
                         <div

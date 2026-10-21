@@ -378,7 +378,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   )
 
   // ---- Ficha de mantenimiento: contador y fecha del último mantenimiento ----
-  // OK = obligatorios · Aviso = opcionales · Falla / sin responder = no se piden
+  // OK = obligatorios · Aviso = opcionales · Falla / N/A / sin responder = no se piden
   const fichaTemplate = checklistTemplates.find(t => esItemFicha(t.item_nombre))
   const fichaEstado = fichaTemplate ? checklist[fichaTemplate.id] : null
   const fichaPresente = fichaEstado === 'ok' || fichaEstado === 'warning'
@@ -845,7 +845,14 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                       <button onClick={() => updateChecklist(item.id, 'ok')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'ok' ? '#10b981' : '#e5e7eb', color: checklist[item.id] === 'ok' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✓ OK</button>
                       <button onClick={() => updateChecklist(item.id, 'warning')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'warning' ? '#f59e0b' : '#e5e7eb', color: checklist[item.id] === 'warning' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>⚠ Aviso</button>
                       <button onClick={() => updateChecklist(item.id, 'fail')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'fail' ? '#ef4444' : '#e5e7eb', color: checklist[item.id] === 'fail' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✗ Falla</button>
+                      {/* N/A solo para la ficha de mantenimiento: equipos sin mantenimiento preventivo (ver supabase/ficha_mantenimiento_na.sql) */}
+                      {esItemFicha(item.item_nombre) && (
+                        <button onClick={() => updateChecklist(item.id, 'na')} title="El equipo no lleva mantenimiento preventivo" style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'na' ? '#6b7280' : '#e5e7eb', color: checklist[item.id] === 'na' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>N/A</button>
+                      )}
                     </div>
+                    {esItemFicha(item.item_nombre) && checklist[item.id] === 'na' && (
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563', marginTop: '0.25rem' }}>N/A — el equipo no lleva mantenimiento preventivo</div>
+                    )}
                     {/* Campo de observación por ítem */}
                     {(checklist[item.id] === 'warning' || checklist[item.id] === 'fail') && (
                       <input

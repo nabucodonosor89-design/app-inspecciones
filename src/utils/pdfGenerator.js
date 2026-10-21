@@ -319,8 +319,8 @@ export async function generarPDFInspeccion(inspeccion, equipo, checklistItems, f
         // Buscar el item correspondiente en el envío
         const itemEnv = checklistEnvio.find(e => e.item_nombre === itemRec.item_nombre)
         
-        const estadoEnvio = itemEnv ? (itemEnv.estado === 'ok' ? 'OK' : itemEnv.estado === 'warning' ? 'Aviso' : 'Falla') : '-'
-        const estadoRecepcion = itemRec.estado === 'ok' ? 'OK' : itemRec.estado === 'warning' ? 'Aviso' : 'Falla'
+        const estadoEnvio = itemEnv ? (itemEnv.estado === 'ok' ? 'OK' : itemEnv.estado === 'warning' ? 'Aviso' : itemEnv.estado === 'na' ? 'N/A' : 'Falla') : '-'
+        const estadoRecepcion = itemRec.estado === 'ok' ? 'OK' : itemRec.estado === 'warning' ? 'Aviso' : itemRec.estado === 'na' ? 'N/A' : 'Falla'
         
         // Agregar observación si existe
         const observacionEnvio = itemEnv?.observacion || '-'
@@ -407,7 +407,7 @@ export async function generarPDFInspeccion(inspeccion, equipo, checklistItems, f
       // Tabla de items
       const tableData = items.map(item => {
         const estado = item.estado === 'ok' ? '✓ OK' : 
-                       item.estado === 'warning' ? '⚠ Aviso' : '✗ Falla'
+                       item.estado === 'warning' ? '⚠ Aviso' : item.estado === 'na' ? '– N/A' : '✗ Falla'
         const critico = item.es_critico ? 'SÍ' : 'No'
         
         return [

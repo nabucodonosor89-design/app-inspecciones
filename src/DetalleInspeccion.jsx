@@ -49,6 +49,7 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
       case 'ok': return '✅'
       case 'warning': return '⚠️'
       case 'fail': return '❌'
+      case 'na': return '➖'
       default: return '❓'
     }
   }
@@ -236,9 +237,9 @@ function DetalleInspeccion({ inspeccion, onVolver }) {
                       alignItems: 'flex-start',
                       gap: '0.75rem',
                       padding: '0.75rem',
-                      background: item.estado === 'fail' ? '#fee2e2' : item.estado === 'warning' ? '#fef3c7' : '#f0fdf4',
+                      background: item.estado === 'fail' ? '#fee2e2' : item.estado === 'warning' ? '#fef3c7' : item.estado === 'na' ? '#f3f4f6' : '#f0fdf4',
                       borderRadius: '8px',
-                      border: `2px solid ${item.estado === 'fail' ? '#ef4444' : item.estado === 'warning' ? '#f59e0b' : '#10b981'}`
+                      border: `2px solid ${item.estado === 'fail' ? '#ef4444' : item.estado === 'warning' ? '#f59e0b' : item.estado === 'na' ? '#9ca3af' : '#10b981'}`
                     }}
                   >
                     <div style={{ fontSize: '1.5rem', lineHeight: 1 }}>
