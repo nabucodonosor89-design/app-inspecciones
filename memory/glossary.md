@@ -152,3 +152,15 @@
 | **sin cargar aún** | Día posterior a la última fecha cargada de esa fuente (frescura). No es «sin registro»: los partes se suben una vez por semana |
 | **centro de la carga** | Código de `sap_cargas_combustible.obra` (OB34, CL01…). No es el código de obra de 4 dígitos; se muestra tal cual |
 | **viajes** | Imputaciones SAP clase 7100000002 (fletes, unidad UN) |
+
+## Imputaciones SAP anómalas y combustible vs certificación (22/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **SAP negativa** | Imputación con signo invertido sin otra igual que la anule. Una anulación normal viene en par (−5, +5, −5): esa no es anomalía |
+| **SAP imposible** | Más de 24 h o 1.500 km imputados a un equipo en un día |
+| **SAP > parte / SAP < parte** | Diferencia de más de 3 h (30 km) y más del doble entre SAP y el parte, en el día y en la semana (±3 días) |
+| **certificación neta** | Suma de `valor_pyg` de las imputaciones del equipo con su signo (anulaciones restan) |
+| **carga y no certifica** | Mes cerrado con ≥ 50 L cargados en SAP y certificación neta ≤ 0 |
+| **certifica sin combustible** | Mes cerrado con ≥ 1 M Gs certificado y 0 L. Casos típicos: eléctricos (plantas), alquileres a terceros donde el cliente carga (a descontar o a su cargo), equipos sin motor que se certifican por costo |
+| **terceros** | Imputación al interlocutor `TYE_1002` (servicio a terceros). Comparte código 1002 con Complejo Ypané |
+

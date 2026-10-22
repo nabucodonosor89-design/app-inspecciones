@@ -24,8 +24,25 @@ export const TIPOS_HALLAZGO = {
     label: 'Rastreo > parte', corto: 'Rastreo > parte', fg: C.ambar, bg: C.ambarBg,
     ayuda: 'El equipo trabajó más de lo declarado. Posibles horas sin certificar.',
   },
+  // Imputaciones SAP anómalas (22/10/2026, ver supabase/uso_sap_anomalias.sql)
+  sap_negativa: {
+    label: 'SAP negativa', corto: 'SAP −', fg: '#9f1239', bg: '#ffe4e6',
+    ayuda: 'Imputación negativa sin otra igual que la anule: la obra cargó al revés (ej. el horómetro como cantidad). Pedir que la anulen y la carguen bien.',
+  },
+  sap_imposible: {
+    label: 'SAP imposible', corto: 'SAP > 24 h', fg: '#9f1239', bg: '#ffe4e6',
+    ayuda: 'Más de 24 h o 1.500 km imputados en un día. Revisar con la obra la cantidad cargada.',
+  },
+  sap_sobre_parte: {
+    label: 'SAP > parte', corto: 'SAP > parte', fg: '#0e7490', bg: '#cffafe',
+    ayuda: 'SAP imputa más del doble que el parte (en el día y en la semana). Pedir el respaldo de lo imputado.',
+  },
+  sap_bajo_parte: {
+    label: 'SAP < parte', corto: 'SAP < parte', fg: '#0e7490', bg: '#cffafe',
+    ayuda: 'El parte dice más del doble de lo imputado (en el día y en la semana). Pedir a la obra que impute lo que falta.',
+  },
 }
-export const ORDEN_TIPOS = ['uso_sin_parte', 'parte_sobre_rastreo', 'rastreo_sobre_parte', 'parte_sin_sap', 'combustible_sin_parte']
+export const ORDEN_TIPOS = ['sap_negativa', 'sap_imposible', 'uso_sin_parte', 'parte_sobre_rastreo', 'rastreo_sobre_parte', 'sap_sobre_parte', 'parte_sin_sap', 'sap_bajo_parte', 'combustible_sin_parte']
 
 export const ESTADOS_CASO = {
   nuevo: { label: 'Nuevo', fg: C.rojo, bg: C.rojoBg },

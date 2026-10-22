@@ -15,7 +15,7 @@ import Gerencia from './usoEquipos/Gerencia'
 // ============================================================
 
 const COL_HALLAZGOS = 'id, equipo, denominacion, fecha, tipo, obra, obra_nombre, obra_origen, tipo_equipo, clase, unidad, rastreo_q, parte_q, sap_q, litros, periodo_desde, periodo_hasta, cantidad_sin_respaldo, costo_unitario, costo_por_clase, monto, detectado_at, caso_id, nuevo, monto_neto'
-const COL_BANDEJA = 'caso_id, obra, obra_nombre, estado, creado_at, ultima_gestion_at, escalado_at, abiertos, n_uso_sin_parte, n_combustible_sin_parte, n_parte_sin_sap, n_parte_sobre_rastreo, n_rastreo_sobre_parte, monto_abierto, fecha_mas_vieja, dias_mas_viejo, nuevos_desde_gestion, ultima_gestion_fecha, ultima_gestion_texto, ultima_gestion_tipo'
+const COL_BANDEJA = 'caso_id, obra, obra_nombre, estado, creado_at, ultima_gestion_at, escalado_at, abiertos, n_uso_sin_parte, n_combustible_sin_parte, n_parte_sin_sap, n_parte_sobre_rastreo, n_rastreo_sobre_parte, monto_abierto, fecha_mas_vieja, dias_mas_viejo, nuevos_desde_gestion, ultima_gestion_fecha, ultima_gestion_texto, ultima_gestion_tipo, n_sap_negativa, n_sap_imposible, n_sap_sobre_parte, n_sap_bajo_parte'
 const COL_OCIOSOS = 'equipo, denominacion, tipo_equipo, clase, obra, obra_nombre, obra_origen, ultimo_uso, desde, hasta, dias, dias_con_rastreo, confirmado'
 const COL_INDICADORES = 'obra, obra_nombre, abiertos, monto_abierto, resueltos, justificados, vencidos, nuevos_30d, dias_prom_resolucion, veces_escalada'
 const COL_FALTANTES = 'equipo, denominacion, tipo, clase, unidad, unidad_origen, costo_unitario, centro, sin_unidad, sin_costo, sin_obra, sin_actividad_anio, gps_dudoso_dias_30, gps_sin_senal_dias_30'
@@ -200,7 +200,7 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
 
         {cargando && !d.frescura && !d.bandeja.length ? <div style={s.vacio}>⏳ Cargando…</div>
           : tab === 'gerencia' && esGerencia ? (
-            <Gerencia escalados={escalados} ociosos={ociososF} indicadores={indicadoresF} faltantes={faltantesF}
+            <Gerencia escalados={escalados} ociosos={ociososF} indicadores={indicadoresF} faltantes={faltantesF} hallazgos={d.hallazgos}
               onAbrirObra={abrirObra} onCambio={cargar} />
           ) : casoSel ? (
             <DetalleObra key={casoSel.caso_id} caso={casoSel} esGerencia={esGerencia}
