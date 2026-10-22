@@ -143,3 +143,12 @@
 | **kit de mantenimiento** | Materiales que se consumen en al menos `umbral_kit` (50 %) de los mantenimientos con consumo de la familia (mínimo `min_mantenimientos` = 3). Cantidad por mantenimiento = mediana por orden |
 | **cobertura** | Meses que alcanza el stock de Ypané (centro 1002, último corte) al ritmo del consumo de los últimos 12 meses (todas las órdenes y equipos). Riesgo < plazo de reposición; atención < plazo + margen; sin consumo = 0 en 12 meses |
 | **mantenimiento trabado** | Orden TCPV de los últimos 12 meses con material reservado, nada consumido y más de `dias_trabado` (30) días. Si SAP la cerró (CTEC) es "cerrada sin consumo"; si es más nueva, "en curso" |
+
+## Trabajo de equipos (22/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **trabajo de equipos** | Consulta neutra: cuánto trabajó un equipo por día y a qué obras se cargó, según SAP, parte, GPS y combustible. Informa, no alarma |
+| **fuente** | `sap` (imputación), `parte` (parte diario válido), `gps` (rastreo, h motor y km), `combustible` (carga SAP en litros) |
+| **sin cargar aún** | Día posterior a la última fecha cargada de esa fuente (frescura). No es «sin registro»: los partes se suben una vez por semana |
+| **centro de la carga** | Código de `sap_cargas_combustible.obra` (OB34, CL01…). No es el código de obra de 4 dígitos; se muestra tal cual |
+| **viajes** | Imputaciones SAP clase 7100000002 (fletes, unidad UN) |

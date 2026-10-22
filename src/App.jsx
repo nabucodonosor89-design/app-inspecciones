@@ -26,6 +26,7 @@ import CompletarOrdenes from './CompletarOrdenes.jsx'
 import BandejaPreventivos from './BandejaPreventivos.jsx'
 import DesdeUltimoService from './DesdeUltimoService.jsx'
 import ModuloUsoEquipos from './ModuloUsoEquipos.jsx'
+import ModuloTrabajoEquipos from './ModuloTrabajoEquipos.jsx'
 import { PERFIL_COLUMNAS } from './lib/perfil.js'
 import Planificador from './planificador/Planificador.jsx'
 import MiListaSemana from './planificador/MiListaSemana.jsx'
@@ -39,7 +40,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   // Planificador de inspecciones: true si el usuario está asignado a una zona con vigencia esta semana
   const [tieneListaInsp, setTieneListaInsp] = useState(false)
-  const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos', 'repuestos'
+  const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos', 'repuestos', 'trabajo_equipos'
 
   // Estados para Inspecciones
   const [vistaInspecciones, setVistaInspecciones] = useState('equipos') // 'equipos', 'nueva', 'historial', 'detalle'
@@ -941,6 +942,39 @@ function App() {
               </p>
             </div>
           )}
+          {/* Card Trabajo de equipos — cualquier usuario activo (las RPC trabajo_* validan usuario activo) */}
+          <div
+            onClick={() => setModulo('trabajo_equipos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(15, 118, 110, 0.3)'
+              e.currentTarget.style.borderColor = '#0f766e'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              🚜
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#0f766e' }}>
+              Trabajo de equipos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Horas, km y obras por equipo y día
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -1427,6 +1461,13 @@ function App() {
   if (modulo === 'historial') {
     // Abierto a todos los roles; el acceso a datos lo valida puede_ver_historial() (usuario activo)
     return <HistorialEquipo onVolver={volverAlMenu} />
+  }
+
+  // ============================================
+  // TRABAJO DE EQUIPOS (cualquier usuario activo; las RPC lo validan)
+  // ============================================
+  if (modulo === 'trabajo_equipos') {
+    return <ModuloTrabajoEquipos onVolver={volverAlMenu} />
   }
 
   // Fallback (no debería llegar aquí)
