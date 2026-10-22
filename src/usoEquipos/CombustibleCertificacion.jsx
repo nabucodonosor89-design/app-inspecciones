@@ -28,14 +28,16 @@ const denom = (r) => (r.denominacion || '').replace(r.equipo, '').trim()
 const pad = (n) => String(n).padStart(2, '0')
 const finMes = (a, m) => new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10)
 
-// Ticks "lindos" para un rango
-function ticks(min, max, n = 5) {
-  const span = max - min || 1
-  const paso0 = span / n
-  const mag = 10 ** Math.floor(Math.log10(paso0))
-  const paso = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((p) => span / p <= n + 1) || mag * 10
-  const out = []
-  for (let v = Math.ceil(min / paso) * paso; v <= max + 1e-9; v += paso) out.push(Math.round(v / paso) * paso)
+// Escala logarítmica que admite 0 y negativos (symlog): f(v) = signo · log10(1 + |v|).
+// Lineal cerca de 0, logarítmica lejos: un equipo de 300 M y uno de 2 M quedan legibles a la vez.
+const slog = (v) => Math.sign(v) * Math.log10(1 + Math.abs(v))
+// Marcas en potencias de 10 (y sus negativas) dentro del rango
+function marcasLog(min, max) {
+  const out = [0]
+  for (let p = 1; p <= 1e6; p *= 10) {
+    if (p <= max * 1.0001) out.push(p)
+    if (-p >= min * 1.0001) out.unshift(-p)
+  }
   return out
 }
 
@@ -46,10 +48,11 @@ function Dispersion({ puntos, onElegir }) {
   const W = escritorio ? 800 : 420, H = escritorio ? 420 : 380, M = { l: 56, r: 12, t: 16, b: 44 }
   if (!puntos.length) return <div style={s.vacio}>Sin datos en el período</div>
   const xs = puntos.map((p) => p.gs / 1e6), ys = puntos.map((p) => p.lit)
-  const x0 = Math.min(0, ...xs), x1 = Math.max(1, ...xs), y1 = Math.max(10, ...ys)
-  const sx = (v) => M.l + ((v - x0) / (x1 - x0)) * (W - M.l - M.r)
-  const sy = (v) => H - M.b - (v / y1) * (H - M.t - M.b)
-  const tx = ticks(x0, x1), ty = ticks(0, y1)
+  const xMin = Math.min(0, ...xs), xMax = Math.max(1, ...xs), yMax = Math.max(10, ...ys)
+  const x0 = slog(xMin) - 0.15, x1 = slog(xMax) + 0.15, y1 = slog(yMax) + 0.1
+  const sx = (v) => M.l + ((slog(v) - x0) / (x1 - x0)) * (W - M.l - M.r)
+  const sy = (v) => H - M.b - (slog(v) / y1) * (H - M.t - M.b)
+  const tx = marcasLog(xMin, xMax), ty = marcasLog(0, yMax)
   // Primero los normales, encima los revisados y arriba de todo las alarmas pendientes
   const orden = [...puntos].sort((a, b) => (a.estado === 'pendiente') - (b.estado === 'pendiente') || (a.estado === 'revisada') - (b.estado === 'revisada'))
   return (
@@ -61,8 +64,8 @@ function Dispersion({ puntos, onElegir }) {
         <line x1={sx(0)} x2={sx(0)} y1={M.t} y2={H - M.b} stroke={C.gris} strokeWidth={1.5} />
         {tx.map((v) => <text key={'tx' + v} x={sx(v)} y={H - M.b + 18} fontSize={12} textAnchor="middle" fill={C.gris}>{num(v)}</text>)}
         {ty.map((v) => <text key={'ty' + v} x={M.l - 8} y={sy(v) + 4} fontSize={12} textAnchor="end" fill={C.gris}>{num(v)}</text>)}
-        <text x={(M.l + W - M.r) / 2} y={H - 6} fontSize={12} textAnchor="middle" fill={C.gris}>Certificación neta (M Gs)</text>
-        <text x={14} y={(M.t + H - M.b) / 2} fontSize={12} textAnchor="middle" fill={C.gris} transform={`rotate(-90 14 ${(M.t + H - M.b) / 2})`}>Combustible SAP (L)</text>
+        <text x={(M.l + W - M.r) / 2} y={H - 6} fontSize={12} textAnchor="middle" fill={C.gris}>Certificación neta (M Gs, escala log.)</text>
+        <text x={14} y={(M.t + H - M.b) / 2} fontSize={12} textAnchor="middle" fill={C.gris} transform={`rotate(-90 14 ${(M.t + H - M.b) / 2})`}>Combustible SAP (L, escala log.)</text>
         {orden.map((p) => {
           const cx = sx(p.gs / 1e6), cy = sy(p.lit)
           const pend = p.estado === 'pendiente', rev = p.estado === 'revisada'
@@ -242,7 +245,7 @@ function Detalle({ equipo, filas, anio, mes, hallazgos, onCerrar, onCambio }) {
   )
 }
 
-export default function CombustibleCertificacion({ hallazgos = [] }) {
+export default function CombustibleCertificacion({ hallazgos = [], filtro = null }) {
   const anioActual = Number(hoyPY().slice(0, 4))
   const [anio, setAnio] = useState(anioActual)
   const [mes, setMes] = useState(0) // 0 = todo el año
@@ -251,6 +254,16 @@ export default function CombustibleCertificacion({ hallazgos = [] }) {
   const [sel, setSel] = useState(null)
   const [verRevisadas, setVerRevisadas] = useState(false)
   const clave = `${anio}|${version}`
+  const [tipos, setTipos] = useState({})
+
+  // Tipo de equipo (V/P/M/B/S) para el filtro de tipos del módulo
+  useEffect(() => {
+    let vivo = true
+    supabase.rpc('uso_cc_tipos').then(({ data }) => {
+      if (vivo && data) setTipos(Object.fromEntries(data.map((r) => [r.equipo, r.tipo])))
+    })
+    return () => { vivo = false }
+  }, [])
 
   useEffect(() => {
     let vivo = true
@@ -261,7 +274,8 @@ export default function CombustibleCertificacion({ hallazgos = [] }) {
   }, [anio, clave])
 
   const cargando = res.clave !== clave && res.clave?.split('|')[0] !== String(anio)
-  const filas = useMemo(() => res.filas.filter((r) => !mes || r.mes === mes), [res.filas, mes])
+  const filas = useMemo(() => res.filas.filter((r) => (!mes || r.mes === mes)
+    && (!filtro || filtro(tipos[r.equipo] || 'S', r.clase, r.equipo, r.denominacion))), [res.filas, mes, filtro, tipos])
 
   // Un punto por equipo (suma de los meses del filtro)
   const puntos = useMemo(() => {

@@ -102,6 +102,11 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
     (!fObra || obra === fObra) && (!fTipos.length || fTipos.includes(tipo || 'S')) &&
     (!fClase || clase === fClase) && coincide(busqueda.trim(), ...texto), [fObra, fTipos, fClase, busqueda])
 
+  // Combustible vs certificación: mismos filtros de tipo, clase y búsqueda (no tiene obra: un equipo pasa por varias en el mes)
+  const okEquipoSinObra = useCallback((tipo, clase, ...texto) =>
+    (!fTipos.length || fTipos.includes(tipo || 'S')) && (!fClase || clase === fClase) && coincide(busqueda.trim(), ...texto),
+  [fTipos, fClase, busqueda])
+
   const hallazgosF = useMemo(() => d.hallazgos.filter((h) =>
     (!fHallazgo || h.tipo === fHallazgo) && okEquipo(h.obra, h.tipo_equipo, h.clase, h.equipo, h.denominacion)), [d.hallazgos, fHallazgo, okEquipo])
 
@@ -200,7 +205,7 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
 
         {cargando && !d.frescura && !d.bandeja.length ? <div style={s.vacio}>⏳ Cargando…</div>
           : tab === 'gerencia' && esGerencia ? (
-            <Gerencia escalados={escalados} ociosos={ociososF} indicadores={indicadoresF} faltantes={faltantesF} hallazgos={d.hallazgos}
+            <Gerencia escalados={escalados} ociosos={ociososF} indicadores={indicadoresF} faltantes={faltantesF} hallazgos={d.hallazgos} filtroEquipo={okEquipoSinObra}
               onAbrirObra={abrirObra} onCambio={cargar} />
           ) : casoSel ? (
             <DetalleObra key={casoSel.caso_id} caso={casoSel} esGerencia={esGerencia}

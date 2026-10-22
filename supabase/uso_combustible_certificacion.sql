@@ -139,3 +139,22 @@ grant execute on function public.uso_cc_datos(int) to authenticated;
 grant execute on function public.uso_cc_revisar(text, text, text, int, int, text) to authenticated;
 grant execute on function public.uso_cc_anular(bigint) to authenticated;
 revoke all on table public.uso_cc_revisiones from anon, authenticated;
+
+-- Tipo de equipo (V/P/M/B) para el filtro de tipos del módulo (uso_equipos_info → equipos → sap_equipos)
+create or replace function public.uso_cc_tipos()
+returns table (equipo text, tipo text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not es_gerencia_uso() then raise exception 'Solo gerencia de Uso de equipos' using errcode = '42501'; end if;
+  return query
+  select distinct on (x.e) x.e, x.t from (
+    select u.equipo e, u.tipo t, 1 o from uso_equipos_info u
+    union all
+    select numero_identificacion, case when tipo_equipo in ('V','P','M','B') then tipo_equipo end, 2 from equipos
+    union all
+    select trim(s.equipo), case when s.tipo_equipo in ('V','P','M','B') then s.tipo_equipo end, 3 from sap_equipos s
+  ) x where x.e is not null and x.t is not null
+  order by x.e, x.o;
+end $$;
+revoke all on function public.uso_cc_tipos() from public, anon;
+grant execute on function public.uso_cc_tipos() to authenticated;

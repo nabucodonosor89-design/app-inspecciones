@@ -8,7 +8,7 @@ import CombustibleCertificacion from './CombustibleCertificacion'
  * Pestaña Gerencia: escalados, ociosos, indicadores por obra y datos faltantes.
  * Sin botón Recalcular: el refresco corre solo todos los días a las 14:30 (pg_cron).
  */
-export default function Gerencia({ escalados, ociosos, indicadores, faltantes, hallazgos, onAbrirObra, onCambio }) {
+export default function Gerencia({ escalados, ociosos, indicadores, faltantes, hallazgos, filtroEquipo, onAbrirObra, onCambio }) {
   const [sheet, setSheet] = useState(null) // { modo, caso }
   const confirmados = ociosos.filter((o) => o.confirmado)
   const probables = ociosos.filter((o) => !o.confirmado)
@@ -28,7 +28,7 @@ export default function Gerencia({ escalados, ociosos, indicadores, faltantes, h
       <div style={{ ...s.meta, marginBottom: 12 }}>Los datos se recalculan solos todos los días a las 14:30, después de la carga de SAP.</div>
 
       {/* Combustible vs certificación (22/10/2026) */}
-      <CombustibleCertificacion hallazgos={hallazgos} />
+      <CombustibleCertificacion hallazgos={hallazgos} filtro={filtroEquipo} />
 
       {/* Escalados */}
       <div style={s.card}>
