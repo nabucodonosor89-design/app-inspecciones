@@ -1,0 +1,480 @@
+{
+  "name": "Agente logística (Telegram)",
+  "_n8n_id": "5sD9qJBNIpYnPj7H",
+  "_nota": "Export de referencia (23/10/2026). Las credenciales Telegram 'REEMPLAZAR' son del bot nuevo (BotFather). El trigger queda desactivado hasta asignarla.",
+  "nodes": [
+    {
+      "name": "Mensaje al bot de logística",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        200
+      ],
+      "disabled": true,
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "REEMPLAZAR",
+          "name": "Telegram – Agente logística (bot nuevo)"
+        }
+      }
+    },
+    {
+      "name": "Validar usuario",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/rpc/bot_usuario_logistica",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.message.chat.id }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7gfOvuf7B0XMR2JQ",
+          "name": "Supabase account 2"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "name": "¿Autorizado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Agente de logística",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        700,
+        120
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Hoy es {{ $now.setZone(\"America/Asuncion\").setLocale(\"es\").toFormat(\"cccc dd/LL/yyyy\") }} ({{ $now.setZone(\"America/Asuncion\").toISODate() }}). Mañana: {{ $now.setZone(\"America/Asuncion\").plus({days: 1}).toISODate() }}. Esta semana: {{ $now.setZone(\"America/Asuncion\").startOf(\"week\").toISODate() }} a {{ $now.setZone(\"America/Asuncion\").endOf(\"week\").toISODate() }}. Semana que viene: {{ $now.setZone(\"America/Asuncion\").startOf(\"week\").plus({weeks: 1}).toISODate() }} a {{ $now.setZone(\"America/Asuncion\").endOf(\"week\").plus({weeks: 1}).toISODate() }}.\nPregunta: {{ $(\"Mensaje al bot de logística\").item.json.message.text || \"(mensaje sin texto: este bot solo lee texto)\" }}",
+        "options": {
+          "systemMessage": "Sos el asistente de logística del Departamento de Transporte y Equipos de T&C SA (Paraguay). Respondés por Telegram consultas sobre fletes y camiones de logística. SOLO CONSULTÁS: no podés crear, asignar, entregar, cerrar ni modificar nada.\n\nHERRAMIENTAS (usá solo estas dos)\n1) pendientes: fletes pendientes. Devuelve una fila por encargo con seccion (atrasado | sin_asignar | por_confirmar), descripcion, origen, destino, cantidad, unidad, cantidad_confirmada, cantidad_sin_confirmar, fecha_requerida, dias_atraso y proximos_camiones (camiones planificados; \"⚠ en taller\" si ese camión está en taller).\n2) agenda: una fila por camión y por día entre p_desde y p_hasta (máximo 14 días), opcional un solo camión (p_equipo). Columnas: fecha, equipo, chofer_habitual, asignaciones (lista con encargo, origen, destino, estado, chofer, pendiente_desde), n_asignaciones, en_taller_hoy, estado_taller, dias_taller, libre, conflicto, conflicto_detalle.\n\nCÓMO ELEGIR\n- \"¿Qué fletes pendientes hay?\" → pendientes.\n- \"¿Qué camiones libres hay hoy?\" → agenda con desde = hasta = hoy, sin p_equipo. Listá los libre = true.\n- \"¿Qué actividad tiene hoy el VP-CT012?\" → agenda de hoy con p_equipo.\n- \"¿Qué hay planeado para la semana que viene / esta semana?\" → agenda con el lunes y el domingo que te paso abajo.\n- Preguntas de seguimiento (\"¿y mañana?\") se resuelven con la conversación previa.\n- Fechas siempre en formato AAAA-MM-DD. Usá las fechas calculadas que vienen en cada mensaje; no las calcules vos.\n\nREGLAS\n- Equipos siempre por ID técnico (ej. VP-CT012), tal como vienen.\n- Una asignación con pendiente_desde es un viaje que no se marcó entregado: decí \"pendiente desde lun 12/10\".\n- Un camión en taller (en_taller_hoy = true) hoy NO está libre. En días futuros puede figurar libre: aclaralo con \"(en taller hoy)\".\n- Conflictos primero: si alguna fila tiene conflicto = true, empezá la respuesta con \"⚠ <equipo> tiene <conflicto_detalle> pero está en taller (<estado_taller>, <dias_taller> días)\". Una vez por camión, en cualquier pregunta. En pendientes, avisá igual si proximos_camiones dice \"⚠ en taller\".\n- Informá solo lo que devuelven las herramientas. No inventes ni estimes. Si una herramienta devuelve un error (campo message o code), decí el mensaje tal cual (ej. \"No hay un camión de logística activo con el ID VP-CT999\").\n- Si te piden hacer algo (asignar, entregar, cerrar, cancelar, mover): respondé que este bot solo consulta y que eso se hace en la app.\n- Si la pregunta no es de logística: decí que este bot solo responde sobre fletes y camiones de logística.\n\nFORMATO (Telegram, se lee en el celular)\n- Español de Paraguay, informal, directo y corto. Líneas breves, listas con \"• \". Sin tablas, sin Markdown, sin asteriscos ni etiquetas.\n- Fechas como \"jue 09/10\". Números en formato es-PY: \"296,8 tn\", \"1.250 un\".\n- Para una semana, agrupá por día y mostrá solo los camiones con actividad; al final, cuántos quedan libres por día.",
+          "maxIterations": 6,
+          "returnIntermediateSteps": true
+        }
+      }
+    },
+    {
+      "name": "Claude Haiku",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        560,
+        440
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-haiku-5-5",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {
+          "maxTokensToSample": 1500
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "oKZOXhwb6EnYQUCf",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "name": "Memoria corta (6 mensajes)",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        700,
+        440
+      ],
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=logistica-{{ $(\"Mensaje al bot de logística\").item.json.message.chat.id }}",
+        "contextWindowLength": 3
+      }
+    },
+    {
+      "name": "pendientes",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        840,
+        440
+      ],
+      "parameters": {
+        "toolDescription": "Fletes pendientes de logística: atrasados, sin asignar y por confirmar. No lleva parámetros.",
+        "method": "POST",
+        "url": "https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/rpc/bot_log_pendientes",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $(\"Mensaje al bot de logística\").item.json.message.chat.id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7gfOvuf7B0XMR2JQ",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "name": "agenda",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        980,
+        440
+      ],
+      "parameters": {
+        "toolDescription": "Agenda de los camiones de logística: una fila por camión y día entre p_desde y p_hasta (máx. 14 días), con asignaciones, si está libre, en taller y conflictos. p_equipo opcional para un solo camión.",
+        "method": "POST",
+        "url": "https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/rpc/bot_log_agenda",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "p_chat_id",
+              "value": "={{ $(\"Mensaje al bot de logística\").item.json.message.chat.id }}"
+            },
+            {
+              "name": "p_desde",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('p_desde', 'Fecha inicial AAAA-MM-DD') }}"
+            },
+            {
+              "name": "p_hasta",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('p_hasta', 'Fecha final AAAA-MM-DD (igual a p_desde para un solo día; máximo 13 días después)') }}"
+            },
+            {
+              "name": "p_equipo",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('p_equipo', 'ID técnico de UN camión (ej. VP-CT012). Vacío para todos los camiones') }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7gfOvuf7B0XMR2JQ",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "name": "Preparar respuesta y registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst msg = $('Mensaje al bot de logística').first().json.message;\nconst usuario = $('Validar usuario').first().json;\nconst esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst texto = String(r.output || 'No pude generar una respuesta.').trim();\n// Partir en bloques de hasta 4000 caracteres, cortando en saltos de línea\nconst partes = [];\nlet resto = texto;\nwhile (resto.length > 4000) {\n  let corte = resto.lastIndexOf('\\n', 4000);\n  if (corte < 1000) corte = 4000;\n  partes.push(resto.slice(0, corte));\n  resto = resto.slice(corte).replace(/^\\n+/, '');\n}\npartes.push(resto);\n// Herramientas usadas\nconst herramientas = [...new Set((r.intermediateSteps || []).map(s => s && s.action && s.action.tool).filter(Boolean))];\n// Tokens: se leen de las corridas del modelo (si n8n no las expone, quedan en null)\nlet tin = null, tout = null;\ntry {\n  for (let i = 0; i < 20; i++) {\n    let items;\n    try { items = $('Claude Haiku').all(0, i); } catch (e) { break; }\n    if (!items || !items.length) break;\n    for (const it of items) {\n      const u = it.json.tokenUsage || it.json.tokenUsageEstimate || {};\n      if (u.promptTokens != null) tin = (tin || 0) + u.promptTokens;\n      if (u.completionTokens != null) tout = (tout || 0) + u.completionTokens;\n    }\n  }\n} catch (e) {}\nconst registro = {\n  bot: 'logistica',\n  usuario_id: usuario.id || null,\n  chat_id: msg.chat.id,\n  pregunta: msg.text || null,\n  herramientas,\n  tokens_entrada: tin,\n  tokens_salida: tout,\n  error: null\n};\nreturn partes.map(p => ({ json: { chat_id: String(msg.chat.id), texto: esc(p), registro } }));"
+      }
+    },
+    {
+      "name": "Responder por Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1340,
+        40
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "REEMPLAZAR",
+          "name": "Telegram – Agente logística (bot nuevo)"
+        }
+      }
+    },
+    {
+      "name": "Registrar consulta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/bot_consultas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.registro) }}",
+        "options": {}
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7gfOvuf7B0XMR2JQ",
+          "name": "Supabase account 2"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Registrar no autorizado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://typeuonpnhwqsryqeuef.supabase.co/rest/v1/bot_consultas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ bot: \"logistica\", chat_id: $(\"Mensaje al bot de logística\").item.json.message.chat.id, pregunta: $(\"Mensaje al bot de logística\").item.json.message.text || null, error: \"no_autorizado\" }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7gfOvuf7B0XMR2JQ",
+          "name": "Supabase account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Si el flujo falla",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        640
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Avisar error a Andrés",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        640
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "1086753096",
+        "text": "=⚠️ Falló el flujo \"Agente logística (Telegram)\"\nNodo: {{ $json.execution.lastNodeExecuted || \"?\" }}\nError: {{ ($json.execution.error && $json.execution.error.message || \"sin detalle\").slice(0, 500).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") }}\nEjecución: {{ $json.execution.id }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "Pem1OZWgxOF72fQr",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Mensaje al bot de logística": {
+      "main": [
+        [
+          {
+            "node": "Validar usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar usuario": {
+      "main": [
+        [
+          {
+            "node": "¿Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Agente de logística",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar no autorizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de logística": {
+      "main": [
+        [
+          {
+            "node": "Preparar respuesta y registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de logística",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria corta (6 mensajes)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente de logística",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pendientes": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de logística",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agenda": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de logística",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar respuesta y registro": {
+      "main": [
+        [
+          {
+            "node": "Responder por Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Registrar consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Si el flujo falla": {
+      "main": [
+        [
+          {
+            "node": "Avisar error a Andrés",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

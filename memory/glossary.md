@@ -164,3 +164,11 @@
 | **certifica sin combustible** | Mes cerrado con ≥ 1 M Gs certificado y 0 L. Casos típicos: eléctricos (plantas), alquileres a terceros donde el cliente carga (a descontar o a su cargo), equipos sin motor que se certifican por costo |
 | **terceros** | Imputación al interlocutor `TYE_1002` (servicio a terceros). Comparte código 1002 con Complejo Ypané |
 
+## Agente de logística (23/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **pendiente** (flete) | Encargo abierto en Atrasados, Sin asignar o Por confirmar (entregas sin confirmar). Los «en curso» no son pendientes |
+| **asignación arrastrada** | Asignación planificada de un día anterior que no se marcó entregada: ocupa el camión cada día desde fecha + 1 hasta hoy (nunca hacia el futuro). Se informa «pendiente desde lun 12/10» |
+| **en taller** | El camión tiene un mantenimiento abierto en la app (`Taller Espera` = en espera, `Taller Entrada` = en reparación), de cualquier tipo. Días en taller = hoy − (ingreso a taller o, si falta, inicio de la avería) |
+| **libre** | Hoy: sin asignaciones (incluidas las arrastradas) y no en taller. Días futuros: sin asignaciones; si hoy está en taller se aclara «en taller hoy» |
+| **conflicto** | Camión en taller hoy con alguna asignación planificada (futura o arrastrada). Se informa siempre primero: «⚠ VP-CT012 tiene Repuestos → Obra 1 pero está en taller» |
