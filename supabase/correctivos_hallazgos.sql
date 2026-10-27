@@ -89,6 +89,21 @@ select i.id, i.equipo_id
 on conflict (inspeccion_id) do nothing;
 
 -- 5. Lectura: estado calculado ----------------------------------
+-- Aviso efectivo (27/10/2026): el del mantenimiento vinculado a la inspección
+-- (mantenimientos.inspeccion_id, el más reciente con aviso) y, si no hay, el cargado
+-- en el hallazgo («Solo aviso»). Mantenimientos no se modifica: solo se lee.
+create or replace function public.hall_mantenimiento(p_inspeccion uuid)
+returns table (id uuid, estado text, fecha_ingreso_taller date, email_enviado boolean, aviso_norm text)
+language sql stable security definer set search_path = public as $$
+  select m.id, m.estado, m.fecha_ingreso_taller, m.email_enviado,
+         case when btrim(m.numero_aviso) ~ '^[0-9]{1,18}$' then nullif(ltrim(btrim(m.numero_aviso), '0'), '') end
+    from mantenimientos m
+   where m.inspeccion_id = p_inspeccion
+   order by (nullif(btrim(m.numero_aviso), '') is not null) desc, m.created_at desc
+   limit 1
+$$;
+revoke all on function public.hall_mantenimiento(uuid) from public, anon, authenticated;
+
 drop function if exists public.hallazgos_listar();
 create function public.hallazgos_listar()
 returns table (
@@ -97,7 +112,9 @@ returns table (
   tipo_inspeccion text, semaforo text, horometro_odometro numeric, observaciones_generales text,
   numero_aviso text, aviso_cargado_por text, aviso_cargado_en timestamptz,
   cierre_manual boolean, motivo_cierre text, cerrado_por text, cerrado_en timestamptz,
-  estado text, alerta boolean, items jsonb, ordenes jsonb
+  estado text, alerta boolean, items jsonb, ordenes jsonb,
+  aviso_origen text, mantenimiento_id uuid, mantenimiento_estado text,
+  mantenimiento_ingreso date, mantenimiento_email boolean
 ) language plpgsql stable security definer set search_path = public as $$
 begin
   if hall_usuario() is null then
@@ -105,7 +122,10 @@ begin
   end if;
   return query
   with base as (
-    select h.*, i.fecha_hora as f_insp, i.ubicacion as ubic, i.tipo_inspeccion as tipo,
+    select h.*, m.id as m_id, m.estado as m_estado, m.fecha_ingreso_taller as m_ingreso, m.email_enviado as m_email,
+           coalesce(m.aviso_norm, h.numero_aviso) as av,
+           case when m.aviso_norm is not null then 'mantenimiento' when h.numero_aviso is not null then 'hallazgo' end as av_origen,
+           i.fecha_hora as f_insp, i.ubicacion as ubic, i.tipo_inspeccion as tipo,
            i.semaforo as sem, i.horometro_odometro as horo, i.observaciones_generales as obs,
            e.numero_identificacion as eq, e.denominacion as den, ui.nombre_completo as insp,
            ua.nombre_completo as ua_nom, uc.nombre_completo as uc_nom,
@@ -117,9 +137,11 @@ begin
                                       'status_sistema', o.status_sistema, 'status_usuario', o.status_usuario, 'texto', o.texto,
                                       'cerrada', (' ' || coalesce(o.status_sistema, '') || ' ') ~ ' (CTEC|CERR) ')
                                       order by o.orden), '[]'::jsonb)
-              from sap_ordenes o where h.numero_aviso is not null and o.aviso = h.numero_aviso::bigint) as ords
+              from sap_ordenes o where coalesce(m.aviso_norm, h.numero_aviso) is not null
+                                   and o.aviso = coalesce(m.aviso_norm, h.numero_aviso)::bigint) as ords
       from seguimiento_hallazgos h
       join inspecciones i on i.id = h.inspeccion_id
+      left join lateral hall_mantenimiento(h.inspeccion_id) m on true
       join equipos e on e.id = h.equipo_id
       left join usuarios ui on ui.id = i.inspector_id
       left join usuarios ua on ua.id = h.aviso_cargado_por
@@ -128,20 +150,21 @@ begin
     select b.*,
            case
              when b.cierre_manual then 'cerrado_sin_aviso'
-             when b.numero_aviso is null then 'sin_aviso'
+             when b.av is null then 'sin_aviso'
              when jsonb_array_length(b.ords) = 0 then 'aviso_sin_orden'
              when not jsonb_path_exists(b.ords, '$[*] ? (@.cerrada == false)') then 'resuelto'
              else 'en_curso'
            end as est
       from base b
-     where jsonb_array_length(b.its) > 0 or b.numero_aviso is not null
+     where jsonb_array_length(b.its) > 0 or b.av is not null
   )
   select x.id, x.inspeccion_id, x.equipo_id, x.eq, x.den, x.ubic, x.f_insp, x.insp, x.d,
          x.tipo, x.sem, x.horo, x.obs,
-         x.numero_aviso, x.ua_nom, x.aviso_cargado_en, x.cierre_manual, x.motivo_cierre, x.uc_nom, x.cerrado_en,
+         x.av, x.ua_nom, x.aviso_cargado_en, x.cierre_manual, x.motivo_cierre, x.uc_nom, x.cerrado_en,
          x.est,
          (x.est = 'sin_aviso' and x.d > 2) or (x.est = 'aviso_sin_orden' and x.d > 7),
-         x.its, x.ords
+         x.its, x.ords,
+         x.av_origen, x.m_id, x.m_estado, x.m_ingreso, x.m_email
     from est x
    order by (x.est = 'sin_aviso') desc, x.f_insp asc;
 end $$;
@@ -172,6 +195,10 @@ declare v_u uuid := hall_usuario();
 begin
   if v_u is null then raise exception 'Sin permiso de Correctivos' using errcode = '42501'; end if;
   if nullif(btrim(coalesce(p_motivo, '')), '') is null then raise exception 'El motivo es obligatorio'; end if;
+  if exists (select 1 from seguimiento_hallazgos h left join lateral hall_mantenimiento(h.inspeccion_id) m on true
+              where h.id = p_id and (h.numero_aviso is not null or m.aviso_norm is not null)) then
+    raise exception 'El hallazgo tiene aviso: no se puede cerrar sin aviso';
+  end if;
   update seguimiento_hallazgos
      set cierre_manual = true, motivo_cierre = btrim(p_motivo), cerrado_por = v_u, cerrado_en = now()
    where id = p_id;

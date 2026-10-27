@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import { C, s, num, ddmm, coincide } from './constantes'
 import DetalleInspeccion from '../DetalleInspeccion'
+import NuevoMantenimiento from '../NuevoMantenimiento'
 
 // ============================================================
 // CORRECTIVOS — pestaña "Hallazgos"
@@ -10,6 +11,9 @@ import DetalleInspeccion from '../DetalleInspeccion'
 // orden(es) SAP del aviso lleguen a cierre técnico (CTEC/CERR).
 // Datos y acciones solo por RPC: hallazgos_listar, cargar_aviso_hallazgo,
 // cerrar_hallazgo_sin_aviso, reabrir_hallazgo (ver supabase/correctivos_hallazgos.sql).
+// Aviso: «Registrar mantenimiento» abre Nuevo Mantenimiento precargado (mismo alta y
+// mismo correo al taller que el módulo Mantenimiento); «Solo aviso» guarda el aviso en el
+// hallazgo (se repara en obra). Si hay mantenimiento vinculado a la inspección, manda su aviso.
 // ============================================================
 
 const ESTADOS = {
@@ -60,7 +64,7 @@ function CerrarModal({ fila, onCancelar, onListo }) {
   )
 }
 
-function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar }) {
+function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento }) {
   const [editando, setEditando] = useState(false)
   const [aviso, setAviso] = useState(f.numero_aviso || '')
   const [guardando, setGuardando] = useState(false)
@@ -109,11 +113,18 @@ function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar }) {
             <button style={btnAzul} onClick={guardarAviso} disabled={guardando}>{guardando ? '…' : 'Guardar'}</button>
             <button style={btn} onClick={() => { setEditando(false); setAviso(f.numero_aviso || '') }}>Cancelar</button>
           </div>
-        ) : f.numero_aviso ? (
+        ) : f.aviso_origen === 'mantenimiento' ? (
           <div>
             Aviso <strong>{f.numero_aviso}</strong>
+            <span style={s.meta}> · 🔧 mantenimiento {f.mantenimiento_estado || ''}{f.mantenimiento_ingreso ? `, ingreso ${ddmm(f.mantenimiento_ingreso)}` : ''}{f.mantenimiento_email ? ' · 📧 correo enviado al taller' : ''}</span>
+          </div>
+        ) : f.numero_aviso ? (
+          <div>
+            Aviso <strong>{f.numero_aviso}</strong> <span style={s.chip('#f3f4f6', C.gris)}>solo aviso</span>
             <span style={s.meta}> · {f.aviso_cargado_por || '—'} {f.aviso_cargado_en ? `el ${ddmm(f.aviso_cargado_en)}` : ''}</span>
           </div>
+        ) : f.mantenimiento_id ? (
+          <div style={s.meta}>🔧 Mantenimiento vinculado sin N° de aviso ({f.mantenimiento_estado || '—'}): cargalo en el módulo Mantenimiento.</div>
         ) : null}
         {f.cierre_manual && (
           <div style={{ ...s.meta, marginTop: 4 }}>Cerrado por {f.cerrado_por || '—'} el {ddmm(f.cerrado_en)}: <em>{f.motivo_cierre}</em></div>
@@ -134,8 +145,11 @@ function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar }) {
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
         <button style={btn} onClick={() => onVerInspeccion(f)}>📷 Ver inspección</button>
-        {!f.cierre_manual && !editando && (
-          <button style={btn} onClick={() => setEditando(true)}>{f.numero_aviso ? 'Editar aviso' : 'Cargar aviso'}</button>
+        {!f.cierre_manual && !editando && !f.mantenimiento_id && (
+          <button style={f.numero_aviso ? btn : btnAzul} onClick={() => onMantenimiento(f)}>🔧 Registrar mantenimiento</button>
+        )}
+        {!f.cierre_manual && !editando && f.aviso_origen !== 'mantenimiento' && (
+          <button style={btn} onClick={() => setEditando(true)}>{f.numero_aviso ? 'Editar aviso' : 'Solo aviso'}</button>
         )}
         {!f.cierre_manual && !f.numero_aviso && <button style={btn} onClick={() => onCerrar(f)}>Cerrar sin aviso</button>}
         {f.cierre_manual && <button style={btn} onClick={reabrir}>Reabrir</button>}
@@ -151,6 +165,7 @@ export default function Hallazgos({ recarga }) {
   const [busqueda, setBusqueda] = useState('')
   const [cerrando, setCerrando] = useState(null)
   const [detalle, setDetalle] = useState(null)
+  const [nuevoMtto, setNuevoMtto] = useState(null)
 
   const cargar = useCallback(async () => {
     const { data, error: e } = await supabase.rpc('hallazgos_listar')
@@ -186,6 +201,22 @@ export default function Hallazgos({ recarga }) {
 
   const toggle = (e) => setEstados((p) => (p.includes(e) ? p.filter((x) => x !== e) : [...p, e]))
 
+  if (nuevoMtto) {
+    const f = nuevoMtto
+    const fallas = (f.items || []).map((it) => `${it.item_nombre}${it.observacion ? ': ' + it.observacion : ''}`).join('. ')
+    return (
+      <NuevoMantenimiento
+        prefill={{
+          equipo_id: f.equipo_id,
+          inspeccion_id: f.inspeccion_id,
+          numero_aviso: f.numero_aviso || '',
+          descripcion: `Inspección del ${ddmm(f.fecha_hora)} (${f.inspector || 'inspector'}): ${fallas}`,
+        }}
+        onVolver={() => { setNuevoMtto(null); cargar() }}
+      />
+    )
+  }
+
   if (detalle) {
     return (
       <div>
@@ -215,6 +246,7 @@ export default function Hallazgos({ recarga }) {
         <div style={{ ...s.meta, fontSize: 12, marginTop: 6 }}>
           Inspecciones periódicas con ítems críticos en falla. En rojo: sin aviso hace más de 2 días o aviso sin orden hace más de 7 días (días desde la inspección).
           Resuelto = todas las órdenes del aviso en CTEC o CERR.
+          «Registrar mantenimiento» = mismo alta que el módulo Mantenimiento (tablero de taller y correo si entra a Ypané); «Solo aviso» = se repara en obra.
         </div>
       </div>
 
@@ -230,7 +262,7 @@ export default function Hallazgos({ recarga }) {
             {g.filas.length > 1 && <span style={s.chip(C.ambarBg, C.ambar)}>{g.filas.length} inspecciones</span>}
           </div>
           {g.filas.map((f) => (
-            <Tarjeta key={f.id + (f.numero_aviso || '') + f.cierre_manual} f={f} onRecargar={cargar} onVerInspeccion={verInspeccion} onCerrar={setCerrando} />
+            <Tarjeta key={f.id + (f.numero_aviso || '') + f.cierre_manual} f={f} onRecargar={cargar} onVerInspeccion={verInspeccion} onCerrar={setCerrando} onMantenimiento={setNuevoMtto} />
           ))}
         </div>
       ))}

@@ -24,7 +24,8 @@ function etiquetaInspeccion(insp) {
   ].filter(Boolean).join(' — ')
 }
 
-function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
+// prefill (opcional, solo alta): { equipo_id, inspeccion_id, descripcion, numero_aviso } — lo usa Correctivos → Hallazgos
+function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario, prefill = null }) {
   const [equipos, setEquipos] = useState([])
   const [inspeccionesDisponibles, setInspeccionesDisponibles] = useState([])
   const [guardando, setGuardando] = useState(false)
@@ -55,6 +56,11 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
 
     if (mantenimientoEditar) {
       cargarDatosEdicion()
+    } else if (prefill) {
+      setEquipoSeleccionado(prefill.equipo_id || '')
+      setTipoMantenimiento('Correctivo')
+      setDescripcion(prefill.descripcion || '')
+      setNumeroAviso(prefill.numero_aviso || '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -106,7 +112,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
         .order('fecha_hora', { ascending: false })
 
       // En edición, incluir siempre la inspección ya vinculada aunque sea más vieja
-      const inspVinculada = mantenimientoEditar?.inspeccion_id
+      const inspVinculada = mantenimientoEditar?.inspeccion_id || prefill?.inspeccion_id
       query = inspVinculada
         ? query.or(`fecha_hora.gte.${desde},id.eq.${inspVinculada}`)
         : query.gte('fecha_hora', desde)
@@ -118,7 +124,9 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario }) {
 
       // Solo en mantenimiento nuevo: preseleccionar la Entrada a Taller más reciente, si existe
       // En edición, cargarDatosEdicion ya establece la inspección correcta
-      if (!mantenimientoEditar) {
+      if (!mantenimientoEditar && prefill?.inspeccion_id) {
+        setInspeccionSeleccionada(prefill.inspeccion_id)
+      } else if (!mantenimientoEditar) {
         const taller = (data || []).find(i => i.tipo_inspeccion?.toLowerCase() === 'taller')
         setInspeccionSeleccionada(taller ? taller.id : '')
       }
