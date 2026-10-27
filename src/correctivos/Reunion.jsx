@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
-import { C, s, num, ddmm, hoyPY, LIMITE } from './constantes'
+import { C, s, num, ddmm, hoyPY, LIMITE, coincide } from './constantes'
 
 // ============================================================
 // CORRECTIVOS — pestaña "Reunión" (reunión semanal de equipos parados)
@@ -218,6 +218,7 @@ export default function Reunion({ recarga }) {
   const [puede, setPuede] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [obra, setObra] = useState('')
+  const [equipo, setEquipo] = useState('') // filtro libre: ID técnico o denominación
   const [abierto, setAbierto] = useState(null)
   const [verSinDatos, setVerSinDatos] = useState(false)
 
@@ -265,7 +266,9 @@ export default function Reunion({ recarga }) {
 
   const obras = useMemo(() => [...new Set(filas.map((f) => f.ubicacion))].sort((a, b) => a.localeCompare(b)), [filas])
   const obraDeEquipo = useMemo(() => new Map(filas.map((f) => [f.equipo, f.ubicacion])), [filas])
-  const visibles = useMemo(() => (obra ? filas.filter((f) => f.ubicacion === obra) : filas), [filas, obra])
+  const q = equipo.trim()
+  const visibles = useMemo(() => filas.filter((f) => (!obra || f.ubicacion === obra) && coincide(q, f.equipo, f.denominacion)), [filas, obra, q])
+  const equiposVisibles = useMemo(() => new Set(visibles.map((f) => f.equipo)), [visibles])
   const parados = visibles.filter((f) => f.estado_actividad === 'parado')
   const sinDatos = visibles.filter((f) => f.estado_actividad === 'sin_datos')
   const candidatas = visibles.filter((f) => f.tiene_candidata_cierre)
@@ -274,6 +277,7 @@ export default function Reunion({ recarga }) {
   const pendientes = tareas
     .filter((t) => t.estado === 'pendiente')
     .filter((t) => !obra || obraDeEquipo.get(t.equipo) === obra)
+    .filter((t) => !q || equiposVisibles.has(t.equipo) || coincide(q, t.equipo))
 
   // Indicadores
   const promedio = (lista) => (lista.length ? Math.round(lista.reduce((a, f) => a + (f.dias_parado || 0), 0) / lista.length) : null)
@@ -286,6 +290,10 @@ export default function Reunion({ recarga }) {
     .sort((a, b) => b.lista.length - a.lista.length || a.nombre.localeCompare(b.nombre))
   const porArea = AREAS.map((a) => ({ ...a, n: parados.filter((f) => f.area_freno === a.id).length }))
 
+  // Si el filtro de equipo deja un solo equipo, se abre su detalle
+  const unico = q && visibles.length === 1 ? visibles[0].equipo : null
+  useEffect(() => { if (unico) setAbierto(unico) }, [unico])
+
   if (cargando && !filas.length) return <div style={s.vacio}>⏳ Cargando…</div>
 
   const tarjeta = (eq) => (
@@ -296,13 +304,17 @@ export default function Reunion({ recarga }) {
 
   return (
     <div style={st.base}>
-      {/* Filtro por obra */}
+      {/* Filtros: obra + equipo */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         <label htmlFor="reunion-obra" style={{ fontWeight: 600 }}>Obra</label>
         <select id="reunion-obra" style={{ ...s.input, width: 'auto', minWidth: 240, flex: '0 1 360px' }} value={obra} onChange={(e) => setObra(e.target.value)}>
           <option value="">Todas las obras</option>
           {obras.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
+        <label htmlFor="reunion-equipo" style={{ fontWeight: 600 }}>Equipo</label>
+        <input id="reunion-equipo" style={{ ...s.input, width: 'auto', minWidth: 180, flex: '0 1 260px' }} placeholder="Ej: VL-CN081 o camión"
+          value={equipo} onChange={(e) => setEquipo(e.target.value)} />
+        {equipo && <button style={st.btnChico} onClick={() => setEquipo('')}>✕ Limpiar</button>}
         {!puede && <span style={s.meta}>Solo lectura</span>}
       </div>
 

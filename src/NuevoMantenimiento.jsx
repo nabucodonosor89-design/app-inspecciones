@@ -39,7 +39,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario, pre
   const [descripcion, setDescripcion] = useState('')
   const [prioridad, setPrioridad] = useState('3- Medio')
   const [fechaInicioAveria, setFechaInicioAveria] = useState('')
-  const [fechaIngresoTaller, setFechaIngresoTaller] = useState(new Date().toISOString().split('T')[0])
+  const [fechaIngresoTaller, setFechaIngresoTaller] = useState('') // opcional (27/10/2026): al registrar la avería no se sabe
   const [fechaLiberacion, setFechaLiberacion] = useState('')
   const [pedido, setPedido] = useState(false)
   const [ingresaTallerYpane, setIngresaTallerYpane] = useState(true)
@@ -145,7 +145,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario, pre
     setDescripcion(mantenimientoEditar.descripcion_averia)
     setPrioridad(mantenimientoEditar.prioridad)
     setFechaInicioAveria(mantenimientoEditar.fecha_inicio_averia || '')
-    setFechaIngresoTaller(mantenimientoEditar.fecha_ingreso_taller)
+    setFechaIngresoTaller(mantenimientoEditar.fecha_ingreso_taller || '')
     setFechaLiberacion(mantenimientoEditar.fecha_liberacion || '')
     setPedido(mantenimientoEditar.pedido)
     setIngresaTallerYpane(mantenimientoEditar.ingresa_taller_ypane)
@@ -260,7 +260,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario, pre
         descripcion_averia: descripcion.trim(),
         prioridad,
         fecha_inicio_averia: fechaInicioAveria || null,
-        fecha_ingreso_taller: fechaIngresoTaller,
+        fecha_ingreso_taller: fechaIngresoTaller || null,
         fecha_liberacion: fechaLiberacion || null,
         pedido,
         ingresa_taller_ypane: ingresaTallerYpane,
@@ -677,7 +677,7 @@ function NuevoMantenimiento({ onVolver, mantenimientoEditar = null, usuario, pre
 
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-              Fecha Ingreso al Taller *
+              Fecha Ingreso al Taller
             </label>
             <input
               type="date"

@@ -74,7 +74,10 @@ function DashboardMantenimientos({ onVolver }) {
   }
 
   function calcularDiasEnTaller(mantenimiento) {
-    const ingreso = new Date(mantenimiento.fecha_ingreso_taller)
+    // Sin fecha de ingreso (opcional desde 27/10/2026): desde el inicio de la avería; sin ninguna, 0
+    const ref = mantenimiento.fecha_ingreso_taller || mantenimiento.fecha_inicio_averia
+    if (!ref) return 0
+    const ingreso = new Date(ref)
     const salida = mantenimiento.fecha_liberacion 
       ? new Date(mantenimiento.fecha_liberacion)
       : new Date()
