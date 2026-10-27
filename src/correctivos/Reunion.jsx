@@ -17,6 +17,7 @@ const FRENOS = {
   liberar: { label: 'Liberar orden', area: 'Taller', fg: C.azul, bg: C.azulBg },
   definir_repuestos: { label: 'Definir repuestos', area: 'Taller', fg: C.azul, bg: C.azulBg },
   ejecutar: { label: 'Ejecutar reparación', area: 'Taller', fg: C.azul, bg: C.azulBg },
+  generar_orden: { label: 'Generar orden', area: 'Taller', fg: C.azul, bg: C.azulBg }, // aviso de la app sin orden SAP
 }
 
 const AREAS = [
@@ -64,14 +65,16 @@ function DetalleEquipo({ eq, tareas, puede, onTareaCreada, onCerrar }) {
 
   return (
     <div style={{ padding: '4px 4px 14px 28px', borderTop: `1px dashed ${C.borde}` }}>
-      <div style={{ ...s.subtitulo, marginTop: 10 }}>Órdenes abiertas</div>
+      <div style={{ ...s.subtitulo, marginTop: 10 }}>Órdenes y avisos abiertos</div>
       <div style={s.scroll}>
         <table style={s.tabla}>
-          <thead><tr>{['Orden', 'Texto', 'Status', 'Entrada', 'Qué la frena'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['Orden / aviso', 'Texto', 'Status', 'Entrada', 'Qué la frena'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
           <tbody>
             {(eq.ordenes || []).map((o) => (
-              <tr key={o.orden}>
-                <td style={s.td}>{o.orden}</td>
+              <tr key={o.orden ?? `aviso-${o.aviso}`}>
+                <td style={s.td}>
+                  {o.orden ?? <>aviso {o.aviso || '—'} <span style={s.chip(C.ambarBg, C.ambar)}>app · sin orden</span></>}
+                </td>
                 <td style={s.td}>{o.texto || '—'}</td>
                 <td style={s.td}>{o.status_usuario || '—'}</td>
                 <td style={s.td}>{ddmm(o.fecha_entrada)}</td>
@@ -158,7 +161,7 @@ function NuevaTarea({ eq, onCreada }) {
         onChange={(e) => setFecha(e.target.value)} aria-label="Fecha objetivo" />
       <select style={{ ...s.input, flex: '1 1 150px', width: 'auto' }} value={orden} onChange={(e) => setOrden(e.target.value)} aria-label="Orden relacionada">
         <option value="">Sin orden</option>
-        {(eq.ordenes || []).map((o) => <option key={o.orden} value={o.orden}>{o.orden}</option>)}
+        {(eq.ordenes || []).filter((o) => o.orden).map((o) => <option key={o.orden} value={o.orden}>{o.orden}</option>)}
       </select>
       <button type="submit" disabled={guardando} style={{ ...s.boton, background: C.azul, color: '#fff', fontWeight: 600, border: 'none' }}>
         {guardando ? 'Guardando…' : '+ Agregar'}
@@ -201,7 +204,13 @@ function TarjetaEquipo({ eq, abierto, onToggle, tareasEq, puede, onTareaCreada, 
         )}
         {eq.estado_actividad === 'sin_datos' && <span style={s.chip(C.ambarBg, C.ambar)}>sin datos de actividad</span>}
         <FrenoChip freno={eq.freno} />
-        <span style={s.meta}>{eq.cant_ordenes} {eq.cant_ordenes === 1 ? 'orden' : 'órdenes'}</span>
+        {eq.motivo_parado === 'app' || eq.motivo_parado === 'app_y_sap'
+          ? <span style={s.chip(C.ambarBg, C.ambar)} title="Tiene aviso correctivo abierto en la app (Taller Espera / Entrada)">aviso en taller</span>
+          : null}
+        <span style={s.meta}>
+          {eq.cant_ordenes} {eq.cant_ordenes === 1 ? 'orden' : 'órdenes'}
+          {eq.cant_avisos_app > 0 ? ` · ${eq.cant_avisos_app} ${eq.cant_avisos_app === 1 ? 'aviso' : 'avisos'} sin orden` : ''}
+        </span>
         {pendientes > 0 && <span style={s.chip('#ede9fe', '#6d28d9')}>{pendientes} {pendientes === 1 ? 'tarea' : 'tareas'}</span>}
       </div>
       {abierto && <DetalleEquipo eq={eq} tareas={tareasEq} puede={puede} onTareaCreada={onTareaCreada} onCerrar={onCerrar} />}
@@ -238,7 +247,7 @@ export default function Reunion({ recarga }) {
     try {
       const [p, g] = await Promise.all([
         supabase.from('v_correctivos_parados')
-          .select('equipo, denominacion, ubicacion, centro, estado_actividad, fuente_actividad, ult_hora, ult_carga, parado_desde, dias_parado, corte_obra, freno, area_freno, cant_ordenes, ordenes, tiene_candidata_cierre')
+          .select('equipo, denominacion, ubicacion, centro, estado_actividad, fuente_actividad, ult_hora, ult_carga, parado_desde, dias_parado, corte_obra, freno, area_freno, cant_ordenes, ordenes, tiene_candidata_cierre, motivo_parado, cant_avisos_app')
           .limit(LIMITE),
         supabase.rpc('correctivos_puede_gestionar'),
         cargarTareas(),
@@ -322,7 +331,7 @@ export default function Reunion({ recarga }) {
       <div style={st.kpiGrid}>
         <div style={st.kpi}>
           <div style={{ ...st.kpiValor, color: C.rojo }}>{num(parados.length)}</div>
-          <div style={st.kpiLabel}>equipos parados con orden correctiva abierta</div>
+          <div style={st.kpiLabel}>equipos parados con orden o aviso correctivo abierto</div>
           {sinDatos.length > 0 && <div style={{ ...s.meta, marginTop: 4 }}>+ {sinDatos.length} sin datos de actividad</div>}
         </div>
         <div style={st.kpi}>
