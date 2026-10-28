@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { C, s, num, ddmmhhmm, MOTIVOS, UMBRAL_OUTLIER } from './constantes'
 import MttrOutliers from './MttrOutliers'
 import DetalleKpi from './DetalleKpi'
+import { toast } from '../utils/ui'
+import { useEscritorio } from './useEscritorio'
 
 function Kpi({ label, valor, tono, sub, id, sel, onSel }) {
   const colores = { rojo: [C.rojoBg, C.rojo], ambar: [C.ambarBg, C.ambar], verde: [C.verdeBg, C.verde] }
@@ -34,12 +36,56 @@ function Colapsable({ titulo, children, inicial = false }) {
   )
 }
 
+// Copia números (avisos u órdenes) uno por línea, sin ceros a la izquierda ni repetidos,
+// para pegar en la selección múltiple de SAP ("Cargar desde portapapeles").
+async function copiarNumeros(valores, singular, plural) {
+  const nums = [...new Set(valores
+    .map((v) => (v == null ? '' : String(v).trim().replace(/^0+(?=\d)/, '')))
+    .filter((v) => v && v !== '—'))]
+  if (!nums.length) return
+  const texto = nums.join('\r\n')
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = texto
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (!ok) throw new Error('execCommand')
+    }
+    toast(`${nums.length} ${nums.length === 1 ? singular : plural}`, 'exito')
+  } catch {
+    toast('No se pudo copiar al portapapeles', 'error')
+  }
+}
+
+function BotonCopiar({ valores, singular, plural, titulo }) {
+  const escritorio = useEscritorio()
+  const vacio = !valores.some((v) => v != null && String(v).trim() && v !== '—')
+  return (
+    <button type="button" disabled={vacio} title={titulo}
+      onClick={(e) => { e.stopPropagation(); copiarNumeros(valores, singular, plural) }}
+      style={{ marginLeft: 6, minHeight: escritorio ? 28 : 44, minWidth: escritorio ? 28 : 44, padding: '0 8px',
+        border: `1px solid ${C.borde}`, borderRadius: 6, background: '#fff', color: vacio ? C.gris : C.azul,
+        fontSize: 12, fontWeight: 600, cursor: vacio ? 'default' : 'pointer', opacity: vacio ? 0.5 : 1 }}>
+      📋 Copiar
+    </button>
+  )
+}
+
 function Duplicados({ filas }) {
   const [abierto, setAbierto] = useState(null)
   const grupos = Object.values(filas.reduce((acc, f) => {
     (acc[f.equipo] ||= { equipo: f.equipo, denominacion: f.denominacion, filas: [] }).filas.push(f)
     return acc
-  }, {})).sort((a, b) => b.filas.length - a.filas.length || a.equipo.localeCompare(b.equipo))
+  }, {}))
+    .map((g) => ({ ...g, filas: [...g.filas].sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0)) }))
+    .sort((a, b) => b.filas.length - a.filas.length || a.equipo.localeCompare(b.equipo))
 
   if (!grupos.length) return <div style={s.vacio}>Ningún equipo con más de una orden abierta</div>
   return grupos.map((g) => (
@@ -53,9 +99,18 @@ function Duplicados({ filas }) {
       {abierto === g.equipo && (
         <div style={{ ...s.scroll, paddingBottom: 8 }}>
           <table style={s.tabla}>
-            <thead><tr>{['Origen', 'Aviso', 'Orden', 'Ubicación / taller', 'Días', 'Status'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+            <thead><tr>
+              <th style={s.th}>Origen</th>
+              <th style={s.th}>Aviso
+                <BotonCopiar valores={g.filas.map((f) => f.aviso)} singular="aviso copiado" plural="avisos copiados" titulo="Copiar todos los avisos (uno por línea, para SAP)" />
+              </th>
+              <th style={s.th}>Orden
+                <BotonCopiar valores={g.filas.map((f) => f.orden)} singular="orden copiada" plural="órdenes copiadas" titulo="Copiar todas las órdenes (uno por línea, para SAP)" />
+              </th>
+              {['Ubicación / taller', 'Días', 'Status'].map((h) => <th key={h} style={s.th}>{h}</th>)}
+            </tr></thead>
             <tbody>
-              {g.filas.sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0)).map((f, i) => (
+              {g.filas.map((f, i) => (
                 <tr key={i}>
                   <td style={s.td}>{f.origen}</td>
                   <td style={s.td}>{f.aviso || '—'}</td>
