@@ -40,6 +40,14 @@ function EquiposList({ onInspeccionarEquipo }) {
 
       if (inspeccionesError) throw inspeccionesError
 
+      // Días entre inspecciones por tipo (insp_frecuencia_dias: S = 60, resto = frecuencia_dias). Si falla, 30.
+      const tipos = [...new Set(equiposData.map(e => e.tipo_equipo).filter(Boolean))]
+      const frecuencias = {}
+      await Promise.all(tipos.map(async (t) => {
+        const { data } = await supabase.rpc('insp_frecuencia_dias', { p_tipo: t })
+        frecuencias[t] = Number(data) > 0 ? Number(data) : 30
+      }))
+
       // Mapear la última inspección a cada equipo
       const equiposConInspeccion = equiposData.map(equipo => {
         const inspeccionesEquipo = inspeccionesData.filter(i => i.equipo_id === equipo.id)
@@ -48,6 +56,7 @@ function EquiposList({ onInspeccionarEquipo }) {
         return {
           ...equipo,
           ultima_inspeccion: ultimaInspeccion,
+          frecuencia_dias: frecuencias[equipo.tipo_equipo] || 30,
           dias_sin_inspeccion: ultimaInspeccion 
             ? Math.floor((new Date() - new Date(ultimaInspeccion)) / (1000 * 60 * 60 * 24))
             : null
@@ -77,6 +86,17 @@ function EquiposList({ onInspeccionarEquipo }) {
     return <HistorialInspecciones equipo={equipoSeleccionado} onVolver={() => setEquipoSeleccionado(null)} />
   }
 
+  // Estado de inspección según la frecuencia del tipo: urgente > frecuencia, próximo = últimos 10 días
+  // (con 30: urgente > 30, próximo 20–30, al día < 20 — igual que antes)
+  const nivelInspeccion = (e) => {
+    const d = e.dias_sin_inspeccion
+    const f = e.frecuencia_dias || 30
+    if (d === null) return 'sin'
+    if (d > f) return 'urgente'
+    if (d >= f - 10) return 'proximo'
+    return 'aldia'
+  }
+
   // Filtrar equipos
   const equiposFiltrados = equipos.filter(equipo => {
     const matchTipo = filtroTipo === 'Todos' || equipo.tipo_equipo === filtroTipo
@@ -88,11 +108,11 @@ function EquiposList({ onInspeccionarEquipo }) {
     // Filtro de inspección
     let matchInspeccion = true
     if (filtroInspeccion === 'Urgente') {
-      matchInspeccion = equipo.dias_sin_inspeccion === null || equipo.dias_sin_inspeccion > 30
+      matchInspeccion = ['sin', 'urgente'].includes(nivelInspeccion(equipo))
     } else if (filtroInspeccion === 'Próximo') {
-      matchInspeccion = equipo.dias_sin_inspeccion !== null && equipo.dias_sin_inspeccion >= 20 && equipo.dias_sin_inspeccion <= 30
+      matchInspeccion = nivelInspeccion(equipo) === 'proximo'
     } else if (filtroInspeccion === 'Al día') {
-      matchInspeccion = equipo.dias_sin_inspeccion !== null && equipo.dias_sin_inspeccion < 20
+      matchInspeccion = nivelInspeccion(equipo) === 'aldia'
     } else if (filtroInspeccion === 'Sin inspecciones') {
       matchInspeccion = equipo.dias_sin_inspeccion === null
     }
@@ -148,10 +168,10 @@ function EquiposList({ onInspeccionarEquipo }) {
   const ubicacionesUnicas = ['Todos', ...new Set(equipos.map(e => e.ubicacion_actual).filter(Boolean))]
 
 
-  const getEstadoInspeccion = (dias) => {
+  const getEstadoInspeccion = (dias, frecuencia = 30) => {
     if (dias === null) return { emoji: '⚪', texto: 'Sin inspecciones', color: '#9ca3af', bgColor: '#f3f4f6' }
-    if (dias > 30) return { emoji: '🔴', texto: `${dias} días - URGENTE`, color: '#ef4444', bgColor: '#fee2e2' }
-    if (dias >= 20) return { emoji: '🟡', texto: `${dias} días - Próximo`, color: '#f59e0b', bgColor: '#fef3c7' }
+    if (dias > frecuencia) return { emoji: '🔴', texto: `${dias} días - URGENTE`, color: '#ef4444', bgColor: '#fee2e2' }
+    if (dias >= frecuencia - 10) return { emoji: '🟡', texto: `${dias} días - Próximo`, color: '#f59e0b', bgColor: '#fef3c7' }
     return { emoji: '🟢', texto: `${dias} días - Al día`, color: '#10b981', bgColor: '#d1fae5' }
   }
 
@@ -160,15 +180,16 @@ function EquiposList({ onInspeccionarEquipo }) {
       'V': 'Vehículos',
       'P': 'Equipos Pesados',
       'B': 'Embarcaciones',
-      'M': 'Equipos Menores'
+      'M': 'Equipos Menores',
+      'S': 'Equipos Estáticos'
     }
     return nombres[tipo] || tipo
   }
 
   // Calcular estadísticas
-  const equiposUrgentes = equipos.filter(e => e.dias_sin_inspeccion === null || e.dias_sin_inspeccion > 30).length
-  const equiposProximos = equipos.filter(e => e.dias_sin_inspeccion !== null && e.dias_sin_inspeccion >= 20 && e.dias_sin_inspeccion <= 30).length
-  const equiposAlDia = equipos.filter(e => e.dias_sin_inspeccion !== null && e.dias_sin_inspeccion < 20).length
+  const equiposUrgentes = equipos.filter(e => ['sin', 'urgente'].includes(nivelInspeccion(e))).length
+  const equiposProximos = equipos.filter(e => nivelInspeccion(e) === 'proximo').length
+  const equiposAlDia = equipos.filter(e => nivelInspeccion(e) === 'aldia').length
 
   // Estadísticas de estado operativo
   const equiposOperativos = equipos.filter(e => e.estado_operativo === 'operativo' || !e.estado_operativo).length
@@ -356,6 +377,7 @@ function EquiposList({ onInspeccionarEquipo }) {
               <option value="P">Equipos Pesados</option>
               <option value="B">Embarcaciones</option>
               <option value="M">Equipos Menores</option>
+              <option value="S">Equipos Estáticos</option>
             </select>
           </div>
 
@@ -441,9 +463,9 @@ function EquiposList({ onInspeccionarEquipo }) {
               }}
             >
               <option>Todos</option>
-              <option value="Urgente">🔴 Urgente (30+ días)</option>
-              <option value="Próximo">🟡 Próximo (20-30 días)</option>
-              <option value="Al día">🟢 Al día (&lt;20 días)</option>
+              <option value="Urgente">🔴 Urgente (vencida: +30 días; estáticos +60)</option>
+              <option value="Próximo">🟡 Próximo (últimos 10 días)</option>
+              <option value="Al día">🟢 Al día</option>
               <option value="Sin inspecciones">⚪ Sin inspecciones</option>
             </select>
           </div>
@@ -495,7 +517,7 @@ function EquiposList({ onInspeccionarEquipo }) {
 
           <div style={{ display: 'grid', gap: '1rem' }}>
             {equiposGrupo.map(equipo => {
-              const estadoInspeccion = getEstadoInspeccion(equipo.dias_sin_inspeccion)
+              const estadoInspeccion = getEstadoInspeccion(equipo.dias_sin_inspeccion, equipo.frecuencia_dias)
               const estadoOp = getEstadoOperativoInfo(equipo.estado_operativo || 'operativo')
               
               return (

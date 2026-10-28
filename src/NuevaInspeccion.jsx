@@ -6,6 +6,11 @@ import { toast } from './utils/ui'
 
 // Ítem del checklist "Ficha de mantenimiento - Presente y actualizada" (existe en todos los tipos de equipo)
 const esItemFicha = (nombre) => /^\s*ficha de mantenimiento/i.test(nombre || '')
+// Ítems que admiten N/A por su texto, ej. "Calefacción - Funciona (N/A si no tiene)" (checklist tipo S)
+const admiteNA = (nombre) => esItemFicha(nombre) || /\(N\/A si /i.test(nombre || '')
+// Equipos estáticos (contenedores ST-CN y tanques ST-TN): sin horómetro/odómetro ni ficha de mantenimiento
+// (ver supabase/inspeccion_estaticos.sql)
+const esEstatico = (equipo) => equipo?.tipo_equipo === 'S'
 const hoyISO = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -50,7 +55,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     cargarOperadores()
     // Si hay equipo preseleccionado, cargar su checklist
     if (equipoPreseleccionado) {
-      getChecklistTemplate(equipoPreseleccionado.tipo_equipo)
+      getChecklistTemplate(equipoPreseleccionado)
     }
   }, [])
 
@@ -104,15 +109,20 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     setObras(data || [])
   }
 
-  async function getChecklistTemplate(tipoEquipo) {
+  // Ítems del tipo del equipo que aplican a su clase: clases null = todas; si no, clase_vehiculo en la lista
+  async function getChecklistTemplate(equipo) {
     const { data } = await supabase
       .from('checklist_templates')
       .select('*')
-      .eq('tipo_equipo', tipoEquipo)
+      .eq('tipo_equipo', equipo?.tipo_equipo)
       .order('orden')
-    setChecklistTemplates(data || [])
+    // Tipo S: además, la ficha de mantenimiento no se pregunta
+    const items = (data || [])
+      .filter(t => !t.clases || t.clases.length === 0 || t.clases.includes(equipo?.clase_vehiculo))
+      .filter(t => !(esEstatico(equipo) && esItemFicha(t.item_nombre)))
+    setChecklistTemplates(items)
     const checklistInicial = {}
-    data?.forEach(item => {
+    items.forEach(item => {
       checklistInicial[item.id] = null
     })
     setChecklist(checklistInicial)
@@ -169,7 +179,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
   async function seleccionarEquipo(equipo) {
     setEquipoSeleccionado(equipo)
-    await getChecklistTemplate(equipo.tipo_equipo)
+    await getChecklistTemplate(equipo)
     
     // Pre-seleccionar operador si el equipo ya tiene uno asignado
     if (equipo.operador_asignado_id) {
@@ -259,7 +269,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
           equipo_id: equipoSeleccionado.id,
           inspector_id: user.id,
           tipo_inspeccion: tipoInspeccion,
-          horometro_odometro: horometro,
+          horometro_odometro: estatico || horometro === '' ? null : horometro,
           ubicacion: ubicacion,
           observaciones_generales: observaciones,
           semaforo: semaforoCalculado,
@@ -379,7 +389,8 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
   // ---- Ficha de mantenimiento: contador y fecha del último mantenimiento ----
   // OK = obligatorios · Aviso = opcionales · Falla / N/A / sin responder = no se piden
-  const fichaTemplate = checklistTemplates.find(t => esItemFicha(t.item_nombre))
+  const estatico = esEstatico(equipoSeleccionado)
+  const fichaTemplate = estatico ? null : checklistTemplates.find(t => esItemFicha(t.item_nombre))
   const fichaEstado = fichaTemplate ? checklist[fichaTemplate.id] : null
   const fichaPresente = fichaEstado === 'ok' || fichaEstado === 'warning'
 
@@ -397,7 +408,8 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   }
 
   const puedeGuardar = () => {
-    if (!tipoInspeccion || !horometro || !ubicacion) return false
+    if (checklistTemplates.length === 0) return false
+    if (!tipoInspeccion || (!estatico && !horometro) || !ubicacion) return false
     if (errorFicha()) return false
     if (tipoInspeccion === 'envio') {
       if (!motivoEnvio) return false
@@ -522,10 +534,13 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
             </div>
           )}
 
+          {/* Equipos estáticos (tipo S): no tienen horómetro ni odómetro */}
+          {!estatico && (
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Horómetro/Odómetro *</label>
             <input type="number" value={horometro} onChange={(e) => setHorometro(e.target.value)} style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem' }} placeholder="Ej: 12500" />
           </div>
+          )}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1f2937' }}>Ubicación/Obra *</label>
             <select 
@@ -830,6 +845,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
 
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>Checklist de Inspección</h3>
+          {checklistTemplates.length === 0 && (
+            <div style={{ padding: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e', fontWeight: '600' }}>
+              Este tipo de equipo no tiene checklist configurado
+            </div>
+          )}
           {categorias.map(categoria => {
             const items = checklistTemplates.filter(t => t.categoria === categoria)
             return (
@@ -845,9 +865,10 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                       <button onClick={() => updateChecklist(item.id, 'ok')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'ok' ? '#10b981' : '#e5e7eb', color: checklist[item.id] === 'ok' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✓ OK</button>
                       <button onClick={() => updateChecklist(item.id, 'warning')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'warning' ? '#f59e0b' : '#e5e7eb', color: checklist[item.id] === 'warning' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>⚠ Aviso</button>
                       <button onClick={() => updateChecklist(item.id, 'fail')} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'fail' ? '#ef4444' : '#e5e7eb', color: checklist[item.id] === 'fail' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>✗ Falla</button>
-                      {/* N/A solo para la ficha de mantenimiento: equipos sin mantenimiento preventivo (ver supabase/ficha_mantenimiento_na.sql) */}
-                      {esItemFicha(item.item_nombre) && (
-                        <button onClick={() => updateChecklist(item.id, 'na')} title="El equipo no lleva mantenimiento preventivo" style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'na' ? '#6b7280' : '#e5e7eb', color: checklist[item.id] === 'na' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>N/A</button>
+                      {/* N/A: ficha de mantenimiento (equipos sin mantenimiento preventivo, ver supabase/ficha_mantenimiento_na.sql)
+                          y los ítems "(N/A si ...)" del checklist de estáticos (ver supabase/inspeccion_estaticos.sql) */}
+                      {admiteNA(item.item_nombre) && (
+                        <button onClick={() => updateChecklist(item.id, 'na')} title={esItemFicha(item.item_nombre) ? 'El equipo no lleva mantenimiento preventivo' : 'No aplica a este equipo'} style={{ flex: 1, padding: '0.75rem', background: checklist[item.id] === 'na' ? '#6b7280' : '#e5e7eb', color: checklist[item.id] === 'na' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', minHeight: '44px' }}>N/A</button>
                       )}
                     </div>
                     {esItemFicha(item.item_nombre) && checklist[item.id] === 'na' && (
