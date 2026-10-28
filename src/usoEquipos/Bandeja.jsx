@@ -1,20 +1,24 @@
-import { C, s, num, ddmm, gsCorto, TIPOS_HALLAZGO, ORDEN_TIPOS, ESTADOS_CASO, GESTION_LABEL } from './constantes'
+import { C, s, num, ddmm, TIPOS_HALLAZGO, ORDEN_TIPOS, ESTADOS_CASO, GESTION_LABEL } from './constantes'
+import Montos from './Montos'
 
 /**
- * Tarjetas por obra con caso activo, ordenadas por monto abierto.
- * obras: [{ caso (fila de v_uso_bandeja), porTipo, abiertos, monto, fechaMasVieja, diasMasViejo, nuevos }]
+ * Tarjetas por obra con caso activo, ordenadas por magnitud de los montos abiertos.
+ * obras: [{ caso (fila de v_uso_bandeja), porTipo, abiertos, m: montos por bloque, fechaMasVieja, diasMasViejo, nuevos }]
  */
 export default function Bandeja({ obras, filtrando, onAbrir }) {
   if (!obras.length) {
     return <div style={s.vacio}>{filtrando ? 'Ninguna obra con hallazgos para estos filtros.' : '✅ Sin hallazgos abiertos.'}</div>
   }
-  const total = obras.reduce((a, o) => a + o.monto, 0)
+  const total = { sap_falta: 0, sap_de_mas: 0, rastreo: 0 }
+  obras.forEach((o) => Object.keys(total).forEach((b) => { total[b] += o.m[b] || 0 }))
   const totalN = obras.reduce((a, o) => a + o.abiertos, 0)
   return (
     <div>
-      <div style={{ ...s.meta, marginBottom: 8 }}>
-        {num(obras.length)} obras · {num(totalN)} hallazgos abiertos · {gsCorto(total)} sin respaldo
-        {filtrando && ' (según filtros)'}
+      <div style={{ ...s.card, marginBottom: 12 }}>
+        <Montos m={total} variante="grande" />
+        <div style={{ ...s.meta, marginTop: 6 }}>
+          {num(obras.length)} obras · {num(totalN)} hallazgos abiertos{filtrando && ' (según filtros)'}
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {obras.map((o) => <Tarjeta key={o.caso.caso_id} o={o} onAbrir={onAbrir} />)}
@@ -38,7 +42,7 @@ function Tarjeta({ o, onAbrir }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 22, fontWeight: 800 }}>{gsCorto(o.monto)}</span>
+        <span style={{ fontSize: 17 }}><Montos m={o.m} /></span>
         <span style={s.meta}>{num(o.abiertos)} hallazgos</span>
       </div>
 

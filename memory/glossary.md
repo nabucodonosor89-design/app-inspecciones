@@ -164,6 +164,14 @@
 | **certifica sin combustible** | Mes cerrado con ≥ 1 M Gs certificado y 0 L. Casos típicos: eléctricos (plantas), alquileres a terceros donde el cliente carga (a descontar o a su cargo), equipos sin motor que se certifican por costo |
 | **terceros** | Imputación al interlocutor `TYE_1002` (servicio a terceros). Comparte código 1002 con Complejo Ypané |
 
+## Montos por bloque en Uso de equipos (28/10/2026)
+| Término | Significado |
+|---------|-------------|
+| **bloque** | Dirección de la diferencia de un hallazgo. Los tres bloques se muestran siempre por separado, nunca neteados |
+| **falta imputar** | Bloque `sap_falta`: hay parte (trabajo real) y SAP imputa menos o nada. Acción: pedir a la obra que impute. Monto positivo |
+| **imputado de más** | Bloque `sap_de_mas`: SAP imputa más que el parte (duplicados, cantidades imposibles). Acción: pedir a la obra que anule. Monto negativo |
+| **indicio de rastreo** | Bloque `rastreo`: diferencias entre rastreo y parte. No es un monto a regularizar en SAP, es un riesgo a revisar |
+
 ## Agente de logística (23/10/2026)
 | Término | Significado |
 |---------|-------------|

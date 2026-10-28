@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import {
-  C, s, num, ddmm, ddmmhhmm, gs, gsCorto, cant, litros,
-  TIPOS_HALLAZGO, ORDEN_TIPOS, ESTADOS_CASO, GESTION_LABEL, ORIGEN_OBRA,
+  C, s, num, ddmm, ddmmhhmm, gs, cant, litros,
+  TIPOS_HALLAZGO, ORDEN_TIPOS, ESTADOS_CASO, GESTION_LABEL, ORIGEN_OBRA, BLOQUES, montosPorBloque, magnitud,
 } from './constantes'
 import GestionSheet from './GestionSheet'
+import Montos from './Montos'
 
 /**
  * Detalle de una obra: hallazgos abiertos agrupados por equipo, acciones y bitácora del caso.
@@ -36,21 +37,21 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
     return () => { vivo = false }
   }, [casoId, versionBit])
 
-  // Agrupar por equipo; equipos ordenados por monto (sin monto al final, por antigüedad)
+  // Agrupar por equipo; equipos ordenados por magnitud de montos (sin monto al final, por antigüedad)
   const equipos = useMemo(() => {
     const m = new Map()
     hallazgos.forEach((h) => {
-      if (!m.has(h.equipo)) m.set(h.equipo, { equipo: h.equipo, denominacion: h.denominacion, tipo_equipo: h.tipo_equipo, clase: h.clase, unidad: h.unidad, filas: [], monto: 0, conMonto: false, masViejo: h.fecha, porTipo: {}, dias: new Set() })
+      if (!m.has(h.equipo)) m.set(h.equipo, { equipo: h.equipo, denominacion: h.denominacion, tipo_equipo: h.tipo_equipo, clase: h.clase, unidad: h.unidad, filas: [], m: { sap_falta: 0, sap_de_mas: 0, rastreo: 0 }, conMonto: false, masViejo: h.fecha, porTipo: {}, dias: new Set() })
       const e = m.get(h.equipo)
       e.filas.push(h)
-      if (h.monto != null) { e.monto += Number(h.monto_neto) || 0; e.conMonto = true }
+      if (h.monto != null) { if (h.bloque in e.m) e.m[h.bloque] += Number(h.monto_neto_signado) || 0; e.conMonto = true }
       e.dias.add(h.tipo === 'combustible_sin_parte' ? h.id : h.fecha)
       if (h.fecha < e.masViejo) e.masViejo = h.fecha
       e.porTipo[h.tipo] = (e.porTipo[h.tipo] || 0) + 1
     })
     const lista = [...m.values()]
     lista.forEach((e) => e.filas.sort((a, b) => (Number(b.monto) || 0) - (Number(a.monto) || 0) || a.fecha.localeCompare(b.fecha)))
-    return lista.sort((a, b) => (b.conMonto - a.conMonto) || (b.monto - a.monto) || a.masViejo.localeCompare(b.masViejo))
+    return lista.sort((a, b) => (b.conMonto - a.conMonto) || (magnitud(b.m) - magnitud(a.m)) || a.masViejo.localeCompare(b.masViejo))
   }, [hallazgos])
 
   // La selección solo conserva hallazgos visibles
@@ -59,7 +60,7 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
 
   const tiposPresentes = ORDEN_TIPOS.filter((t) => hallazgos.some((h) => h.tipo === t))
   const porUbicacion = hallazgos.filter((h) => h.obra_origen === 4).length
-  const monto = hallazgos.reduce((a, h) => a + (Number(h.monto_neto) || 0), 0)  // un día con dos hallazgos cuenta una vez
+  const montos = montosPorBloque(hallazgos)  // un día con dos hallazgos del mismo bloque cuenta una vez
   const est = ESTADOS_CASO[caso.estado] || ESTADOS_CASO.nuevo
 
   const toggleEquipo = (e) => setSel((p) => {
@@ -91,8 +92,8 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
           </div>
           <span style={s.chip(est.bg, est.fg)}>{est.label}</span>
         </div>
+        <div style={{ margin: '10px 0' }}><Montos m={montos} variante="grande" /></div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '10px 0' }}>
-          <div><div style={{ fontSize: 22, fontWeight: 800 }}>{gsCorto(monto)}</div><div style={s.meta}>sin respaldo</div></div>
           <div><div style={{ fontSize: 22, fontWeight: 800 }}>{num(hallazgos.length)}</div><div style={s.meta}>hallazgos</div></div>
           <div><div style={{ fontSize: 22, fontWeight: 800 }}>{num(equipos.length)}</div><div style={s.meta}>equipos</div></div>
         </div>
@@ -145,7 +146,7 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700 }}>{e.conMonto ? gsCorto(e.monto) : '—'}</div>
+                <div>{e.conMonto ? <Montos m={e.m} /> : '—'}</div>
                 <div style={s.meta}>{abierto ? '▲' : '▼'} {e.dias.size} día(s)</div>
               </div>
             </div>
@@ -175,8 +176,9 @@ export default function DetalleObra({ caso, hallazgos, esGerencia, onVolver, onC
   )
 }
 
-// Una fila por día: si el mismo día tiene dos hallazgos (ej. Sin SAP + Parte > rastreo) se muestran juntos
-// y el monto se cuenta una sola vez (el mayor). Las cargas de combustible van en su propia fila.
+// Una fila por día: si el mismo día tiene dos hallazgos (ej. Sin SAP + Parte > rastreo) se muestran juntos.
+// El monto se muestra con signo y uno por bloque (los del mismo bloque cuentan una vez: el mayor).
+// Las cargas de combustible van en su propia fila.
 function TablaDias({ filas, sel, setSel }) {
   const grupos = []
   const porClave = new Map()
@@ -239,8 +241,10 @@ function TablaDias({ filas, sel, setSel }) {
                 <td style={s.td}>{litros(h.litros)}</td>
                 <td style={{ ...s.td, fontWeight: 600 }}>{comb ? '—' : cant(h.cantidad_sin_respaldo, h.unidad)}</td>
                 <td style={{ ...s.td, whiteSpace: 'nowrap' }}
-                  title={[h.costo_unitario ? `${gs(h.costo_unitario)} por ${h.unidad}` : '', g.items.length > 1 ? 'Dos hallazgos el mismo día: el monto se cuenta una sola vez' : ''].filter(Boolean).join(' · ') || undefined}>
-                  {h.monto != null ? gs(h.monto) : '—'}
+                  title={[h.costo_unitario ? `${gs(h.costo_unitario)} por ${h.unidad}` : '', g.items.length > 1 ? 'Varios hallazgos el mismo día: se cuenta un monto por bloque' : ''].filter(Boolean).join(' · ') || undefined}>
+                  {h.monto == null ? '—' : g.items.filter((x) => x === h || (x.monto != null && Number(x.monto_neto) !== 0)).map((x) => (
+                    <div key={x.id} style={{ color: BLOQUES[x.bloque]?.fg, fontWeight: x.bloque === 'sap_de_mas' ? 700 : undefined }}>{gs(x.monto_signado)}</div>
+                  ))}
                   {h.costo_por_clase && <span title="Costo promedio de la clase (el equipo no tiene costo propio)"> ≈</span>}
                 </td>
               </tr>

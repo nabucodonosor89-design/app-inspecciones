@@ -71,13 +71,33 @@ export const GESTION_LABEL = {
   nota_gerencia: 'Nota de gerencia', auto: 'Automático',
 }
 
+// Bloques de monto (28/10/2026, ver supabase/uso_monto_bloques.sql). No se netean entre sí:
+// lo imputado de más no compensa lo que falta imputar.
+export const BLOQUES = {
+  sap_falta: { label: 'Falta imputar en SAP', corto: 'Falta imputar', fg: C.azul, ayuda: 'Partes sin imputar o imputados de menos. Pedir a la obra que impute.' },
+  sap_de_mas: { label: 'Imputado de más en SAP', corto: 'Imputado de más', fg: '#9f1239', ayuda: 'SAP imputa más que el parte (duplicados, cantidades imposibles). Pedir a la obra que anule.' },
+  rastreo: { label: 'Rastreo vs parte (indicio)', corto: 'Rastreo (indicio)', fg: C.gris, ayuda: 'Diferencias entre rastreo y parte diario. No es un monto a regularizar en SAP.' },
+}
+export const ORDEN_BLOQUES = ['sap_falta', 'sap_de_mas', 'rastreo']
+
+// Suma montos netos con signo por bloque: { sap_falta, sap_de_mas (negativo), rastreo }
+export function montosPorBloque(hallazgos) {
+  const m = { sap_falta: 0, sap_de_mas: 0, rastreo: 0 }
+  hallazgos.forEach((h) => { if (h.bloque in m) m[h.bloque] += Number(h.monto_neto_signado) || 0 })
+  return m
+}
+// Magnitud total (para ordenar por importancia sin que lo de más reste)
+export const magnitud = (m) => Math.abs(m.sap_falta || 0) + Math.abs(m.sap_de_mas || 0) + Math.abs(m.rastreo || 0)
+
 // Montos
-export const gs = (n) => (n == null ? '—' : 'Gs. ' + Math.round(Number(n)).toLocaleString('es-PY'))
+export const gs = (n) => (n == null ? '—' : (Number(n) < 0 ? '−' : '') + 'Gs. ' + Math.abs(Math.round(Number(n))).toLocaleString('es-PY'))
 export function gsCorto(n) {
   if (n == null) return '—'
   const v = Number(n)
-  if (v < 1e6) return v > 0 ? '< Gs. 1 M' : 'Gs. 0'
-  return '~Gs. ' + Math.round(v / 1e6).toLocaleString('es-PY') + ' M'
+  const sig = v < 0 ? '−' : ''
+  const a = Math.abs(v)
+  if (a < 1e6) return a > 0 ? sig + '< Gs. 1 M' : 'Gs. 0'
+  return '~Gs. ' + sig + Math.round(a / 1e6).toLocaleString('es-PY') + ' M'
 }
 
 // Cantidades en la unidad del equipo

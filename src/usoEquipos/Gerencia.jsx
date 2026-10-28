@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { C, s, num, ddmm, gsCorto, gs, TIPOS_HALLAZGO, ORDEN_TIPOS } from './constantes'
+import { C, s, num, ddmm, gsCorto, gs, TIPOS_HALLAZGO, ORDEN_TIPOS, BLOQUES } from './constantes'
+import Montos from './Montos'
 import TablaResponsive from '../correctivos/TablaResponsive'
 import GestionSheet from './GestionSheet'
 import CombustibleCertificacion from './CombustibleCertificacion'
@@ -38,7 +39,7 @@ export default function Gerencia({ escalados, ociosos, indicadores, faltantes, h
             <div style={{ flex: 1, minWidth: 200, cursor: 'pointer' }} onClick={() => onAbrirObra(o.caso.obra)}>
               <div style={{ fontWeight: 700 }}>{o.caso.obra_nombre || o.caso.obra} <span style={s.meta}>{o.caso.obra}</span></div>
               <div style={s.meta}>
-                Escalado {ddmm(o.caso.escalado_at)} · {num(o.abiertos)} hallazgos · {gsCorto(o.monto)}
+                Escalado {ddmm(o.caso.escalado_at)} · {num(o.abiertos)} hallazgos · <Montos m={o.m} />
                 {o.caso.ultima_gestion_texto && <> · “{o.caso.ultima_gestion_texto}”</>}
               </div>
             </div>
@@ -66,7 +67,9 @@ export default function Gerencia({ escalados, ociosos, indicadores, faltantes, h
         <TablaResponsive filas={indicadores} getKey={(r) => r.obra} vacio="Sin datos" columnas={[
           { key: 'obra', label: 'Obra', tarjeta: 'titulo', render: (r) => <><b>{r.obra_nombre || r.obra}</b> <span style={s.meta}>{r.obra}</span></> },
           { key: 'abiertos', label: 'Abiertos', render: (r) => num(r.abiertos) },
-          { key: 'monto_abierto', label: 'Monto abierto', render: (r) => <span title={gs(r.monto_abierto)}>{gsCorto(r.monto_abierto)}</span> },
+          { key: 'monto_sap_falta', label: 'Falta imputar', render: (r) => <span title={gs(r.m.sap_falta)} style={{ color: BLOQUES.sap_falta.fg }}>{gsCorto(r.m.sap_falta)}</span> },
+          { key: 'monto_sap_de_mas', label: 'Imputado de más', render: (r) => <span title={gs(r.m.sap_de_mas)} style={{ color: BLOQUES.sap_de_mas.fg }}>{gsCorto(r.m.sap_de_mas)}</span> },
+          { key: 'monto_rastreo', label: 'Rastreo (indicio)', render: (r) => <span title={`${BLOQUES.rastreo.ayuda} · ${gs(r.m.rastreo)}`} style={{ color: BLOQUES.rastreo.fg }}>{gsCorto(r.m.rastreo)}</span> },
           { key: 'resueltos', label: 'Resueltos', render: (r) => num(r.resueltos) },
           { key: 'justificados', label: 'Justificados', render: (r) => num(r.justificados) },
           { key: 'vencidos', label: 'Vencidos', render: (r) => num(r.vencidos) },

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
-import { C, s, num, coincide, diasDesde, TIPOS_HALLAZGO, ORDEN_TIPOS, TIPOS_EQUIPO, LOTE, LIMITE } from './usoEquipos/constantes'
+import { C, s, num, coincide, diasDesde, TIPOS_HALLAZGO, ORDEN_TIPOS, TIPOS_EQUIPO, LOTE, LIMITE, BLOQUES, ORDEN_BLOQUES, magnitud } from './usoEquipos/constantes'
 import { useEscritorio } from './correctivos/useEscritorio'
 import SelloFrescura from './usoEquipos/SelloFrescura'
 import Bandeja from './usoEquipos/Bandeja'
@@ -14,10 +14,10 @@ import Gerencia from './usoEquipos/Gerencia'
 // Datos: vistas v_uso_* (ver supabase/uso_equipos_setup.sql). Escrituras solo por RPC.
 // ============================================================
 
-const COL_HALLAZGOS = 'id, equipo, denominacion, fecha, tipo, obra, obra_nombre, obra_origen, tipo_equipo, clase, unidad, rastreo_q, parte_q, sap_q, litros, periodo_desde, periodo_hasta, cantidad_sin_respaldo, costo_unitario, costo_por_clase, monto, detectado_at, caso_id, nuevo, monto_neto'
-const COL_BANDEJA = 'caso_id, obra, obra_nombre, estado, creado_at, ultima_gestion_at, escalado_at, abiertos, n_uso_sin_parte, n_combustible_sin_parte, n_parte_sin_sap, n_parte_sobre_rastreo, n_rastreo_sobre_parte, monto_abierto, fecha_mas_vieja, dias_mas_viejo, nuevos_desde_gestion, ultima_gestion_fecha, ultima_gestion_texto, ultima_gestion_tipo, n_sap_negativa, n_sap_imposible, n_sap_sobre_parte, n_sap_bajo_parte'
+const COL_HALLAZGOS = 'id, equipo, denominacion, fecha, tipo, obra, obra_nombre, obra_origen, tipo_equipo, clase, unidad, rastreo_q, parte_q, sap_q, litros, periodo_desde, periodo_hasta, cantidad_sin_respaldo, costo_unitario, costo_por_clase, monto, detectado_at, caso_id, nuevo, monto_neto, bloque, monto_signado, monto_neto_signado'
+const COL_BANDEJA = 'caso_id, obra, obra_nombre, estado, creado_at, ultima_gestion_at, escalado_at, abiertos, n_uso_sin_parte, n_combustible_sin_parte, n_parte_sin_sap, n_parte_sobre_rastreo, n_rastreo_sobre_parte, monto_abierto, fecha_mas_vieja, dias_mas_viejo, nuevos_desde_gestion, ultima_gestion_fecha, ultima_gestion_texto, ultima_gestion_tipo, n_sap_negativa, n_sap_imposible, n_sap_sobre_parte, n_sap_bajo_parte, monto_sap_falta, monto_sap_de_mas, monto_rastreo'
 const COL_OCIOSOS = 'equipo, denominacion, tipo_equipo, clase, obra, obra_nombre, obra_origen, ultimo_uso, desde, hasta, dias, dias_con_rastreo, confirmado'
-const COL_INDICADORES = 'obra, obra_nombre, abiertos, monto_abierto, resueltos, justificados, vencidos, nuevos_30d, dias_prom_resolucion, veces_escalada'
+const COL_INDICADORES = 'obra, obra_nombre, abiertos, monto_abierto, resueltos, justificados, vencidos, nuevos_30d, dias_prom_resolucion, veces_escalada, monto_sap_falta, monto_sap_de_mas, monto_rastreo'
 const COL_FALTANTES = 'equipo, denominacion, tipo, clase, unidad, unidad_origen, costo_unitario, centro, sin_unidad, sin_costo, sin_obra, sin_actividad_anio, gps_dudoso_dias_30, gps_sin_senal_dias_30'
 
 // Trae todas las filas en páginas de LOTE (PostgREST corta en 1000), hasta LIMITE
@@ -44,6 +44,7 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
   const [fTipos, setFTipos] = useState([])
   const [fClase, setFClase] = useState('')
   const [fHallazgo, setFHallazgo] = useState('')
+  const [fBloque, setFBloque] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const cargar = useCallback(async () => {
@@ -97,7 +98,7 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
     return [...set].sort()
   }, [d.hallazgos, d.ociosos])
 
-  const filtrando = !!(fObra || fTipos.length || fClase || fHallazgo || busqueda.trim())
+  const filtrando = !!(fObra || fTipos.length || fClase || fHallazgo || fBloque || busqueda.trim())
   const okEquipo = useCallback((obra, tipo, clase, ...texto) =>
     (!fObra || obra === fObra) && (!fTipos.length || fTipos.includes(tipo || 'S')) &&
     (!fClase || clase === fClase) && coincide(busqueda.trim(), ...texto), [fObra, fTipos, fClase, busqueda])
@@ -108,17 +109,19 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
   [fTipos, fClase, busqueda])
 
   const hallazgosF = useMemo(() => d.hallazgos.filter((h) =>
-    (!fHallazgo || h.tipo === fHallazgo) && okEquipo(h.obra, h.tipo_equipo, h.clase, h.equipo, h.denominacion)), [d.hallazgos, fHallazgo, okEquipo])
+    (!fHallazgo || h.tipo === fHallazgo) && (!fBloque || h.bloque === fBloque) &&
+    okEquipo(h.obra, h.tipo_equipo, h.clase, h.equipo, h.denominacion)), [d.hallazgos, fHallazgo, fBloque, okEquipo])
 
-  // Tarjetas por obra: con filtros se recalculan desde los hallazgos visibles
+  // Tarjetas por obra: con filtros se recalculan desde los hallazgos visibles.
+  // m = montos por bloque (sin netear); se ordena por magnitud total.
   const tarjetas = useMemo(() => {
     const agg = new Map()
     hallazgosF.forEach((h) => {
-      if (!agg.has(h.obra)) agg.set(h.obra, { porTipo: {}, abiertos: 0, monto: 0, fechaMasVieja: h.fecha, nuevos: 0 })
+      if (!agg.has(h.obra)) agg.set(h.obra, { porTipo: {}, abiertos: 0, m: { sap_falta: 0, sap_de_mas: 0, rastreo: 0 }, fechaMasVieja: h.fecha, nuevos: 0 })
       const a = agg.get(h.obra)
       a.porTipo[h.tipo] = (a.porTipo[h.tipo] || 0) + 1
       a.abiertos += 1
-      a.monto += Number(h.monto_neto) || 0
+      if (h.bloque in a.m) a.m[h.bloque] += Number(h.monto_neto_signado) || 0
       if (h.fecha < a.fechaMasVieja) a.fechaMasVieja = h.fecha
       if (h.nuevo) a.nuevos += 1
     })
@@ -130,13 +133,14 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
           return { caso: c, ...a, diasMasViejo: diasDesde(a.fechaMasVieja) }
         }
         return {
-          caso: c, abiertos: c.abiertos, monto: Number(c.monto_abierto) || 0, fechaMasVieja: c.fecha_mas_vieja,
+          caso: c, abiertos: c.abiertos, fechaMasVieja: c.fecha_mas_vieja,
+          m: { sap_falta: Number(c.monto_sap_falta) || 0, sap_de_mas: Number(c.monto_sap_de_mas) || 0, rastreo: Number(c.monto_rastreo) || 0 },
           diasMasViejo: c.dias_mas_viejo, nuevos: c.nuevos_desde_gestion,
           porTipo: Object.fromEntries(ORDEN_TIPOS.map((t) => [t, c[`n_${t}`]])),
         }
       })
       .filter(Boolean)
-      .sort((x, y) => y.monto - x.monto || String(x.fechaMasVieja).localeCompare(String(y.fechaMasVieja)))
+      .sort((x, y) => magnitud(y.m) - magnitud(x.m) || String(x.fechaMasVieja).localeCompare(String(y.fechaMasVieja)))
   }, [d.bandeja, d.tope, hallazgosF, filtrando])
 
   const ociososF = useMemo(() => d.ociosos.filter((o) => okEquipo(o.obra, o.tipo_equipo, o.clase, o.equipo, o.denominacion))
@@ -144,12 +148,13 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
   const faltantesF = useMemo(() => d.faltantes.filter((r) => (!fTipos.length || fTipos.includes(r.tipo || 'S')) &&
     (!fClase || r.clase === fClase) && coincide(busqueda.trim(), r.equipo, r.denominacion)), [d.faltantes, fTipos, fClase, busqueda])
   const indicadoresF = useMemo(() => d.indicadores.filter((r) => !fObra || r.obra === fObra)
-    .sort((a, b) => Number(b.monto_abierto) - Number(a.monto_abierto)), [d.indicadores, fObra])
+    .map((r) => ({ ...r, m: { sap_falta: Number(r.monto_sap_falta) || 0, sap_de_mas: Number(r.monto_sap_de_mas) || 0, rastreo: Number(r.monto_rastreo) || 0 } }))
+    .sort((a, b) => magnitud(b.m) - magnitud(a.m)), [d.indicadores, fObra])
   const escalados = useMemo(() => tarjetas.filter((t) => t.caso.estado === 'escalado'), [tarjetas])
 
   const casoSel = obraSel ? d.bandeja.find((b) => b.obra === obraSel) : null
   const toggleTipo = (t) => setFTipos((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))
-  const limpiar = () => { setFObra(''); setFTipos([]); setFClase(''); setFHallazgo(''); setBusqueda('') }
+  const limpiar = () => { setFObra(''); setFTipos([]); setFClase(''); setFHallazgo(''); setFBloque(''); setBusqueda('') }
   const abrirObra = (obra) => { setObraSel(obra); setTab('bandeja'); window.scrollTo(0, 0) }
 
   const sel = { ...s.input, width: 'auto', flex: '1 1 160px', minWidth: 0 }
@@ -188,6 +193,10 @@ export default function ModuloUsoEquipos({ acceso, onVolver }) {
             <select style={sel} value={fHallazgo} onChange={(e) => setFHallazgo(e.target.value)} aria-label="Tipo de hallazgo">
               <option value="">Todos los hallazgos</option>
               {ORDEN_TIPOS.map((t) => <option key={t} value={t}>{TIPOS_HALLAZGO[t].label}</option>)}
+            </select>
+            <select style={sel} value={fBloque} onChange={(e) => setFBloque(e.target.value)} aria-label="Bloque de monto">
+              <option value="">Todos los bloques</option>
+              {ORDEN_BLOQUES.map((b) => <option key={b} value={b}>{BLOQUES[b].label}</option>)}
             </select>
           </div>
           <div style={s.chips}>
