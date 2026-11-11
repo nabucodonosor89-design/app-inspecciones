@@ -34,6 +34,9 @@ const s = {
   sub: { fontSize: 11, color: C.gris, marginTop: 2 },
 }
 const PAGINA = 1000
+// Equipos sin mantenimiento preventivo. Solución temporal: a futuro reemplazar por un campo en la tabla de equipos.
+const EXCLUIDOS_MTTO = ['VP-SC001', 'MC-MO008', 'MC-MO009'] // IDs técnicos
+const estaExcluido = (r) => EXCLUIDOS_MTTO.includes(String(r.equipo || '').trim().toUpperCase())
 
 const fechaCorta = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—')
 const num = (v, dec = 0) => (v == null ? '—' : Number(v).toLocaleString('es-PY', { maximumFractionDigits: dec }))
@@ -199,7 +202,7 @@ export default function DesdeUltimoService({ onVolver }) {
       }
       const f = await supabase.rpc('service_frescura')
       if (f.error) throw f.error
-      setFilas(todas)
+      setFilas(todas.filter((r) => !estaExcluido(r)))
       setFrescura((f.data || [])[0] || null)
     } catch (e) {
       console.error(e)
