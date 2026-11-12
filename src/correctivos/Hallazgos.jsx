@@ -14,6 +14,10 @@ import NuevoMantenimiento from '../NuevoMantenimiento'
 // Aviso: «Registrar mantenimiento» abre Nuevo Mantenimiento precargado (mismo alta y
 // mismo correo al taller que el módulo Mantenimiento); «Solo aviso» guarda el aviso en el
 // hallazgo (se repara en obra). Si hay mantenimiento vinculado a la inspección, manda su aviso.
+// «Vincular mantenimiento» (12/11/2026): asocia un correctivo ABIERTO ya registrado del mismo
+// equipo (RPC hallazgo_mantenimientos_abiertos / vincular_mantenimiento_hallazgo /
+// desvincular_mantenimiento_hallazgo, ver supabase/correctivos_hallazgos_vincular.sql).
+// Prioridad del aviso: mantenimiento desde la inspección → vinculado → aviso a mano.
 // ============================================================
 
 const ESTADOS = {
@@ -64,7 +68,60 @@ function CerrarModal({ fila, onCancelar, onListo }) {
   )
 }
 
-function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento }) {
+function VincularModal({ fila, onCancelar, onListo }) {
+  const [lista, setLista] = useState(null)
+  const [error, setError] = useState(null)
+  const [guardando, setGuardando] = useState(null)
+
+  useEffect(() => {
+    supabase.rpc('hallazgo_mantenimientos_abiertos', { p_id: fila.id }).then(({ data, error: e }) => {
+      if (e) setError(e.message)
+      else setLista(data || [])
+    })
+  }, [fila.id])
+
+  const vincular = async (m) => {
+    setGuardando(m.id)
+    const { error: e } = await supabase.rpc('vincular_mantenimiento_hallazgo', { p_id: fila.id, p_mantenimiento: m.id })
+    setGuardando(null)
+    if (e) { toast('❌ ' + e.message, 'error'); return }
+    toast(`Vinculado al aviso ${m.numero_aviso}`)
+    onListo()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onCancelar}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 16, width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 18 }}>Vincular mantenimiento</h3>
+        <div style={{ ...s.meta, marginBottom: 10 }}>{fila.equipo} · correctivos abiertos (Taller Espera / Entrada)</div>
+        {error && <div style={s.aviso}>No se pudieron cargar los mantenimientos: {error}</div>}
+        {!error && lista === null && <div style={s.vacio}>⏳ Cargando…</div>}
+        {lista && lista.length === 0 && (
+          <div style={s.vacio}>{fila.equipo} no tiene correctivos abiertos. Si la falla es nueva, usá «Registrar mantenimiento».</div>
+        )}
+        {(lista || []).map((m) => (
+          <button key={m.id} disabled={!!guardando} onClick={() => vincular(m)}
+            style={{ display: 'block', width: '100%', textAlign: 'left', border: `1px solid ${C.borde}`, background: '#fff', borderRadius: 10, padding: 12, marginTop: 8, cursor: 'pointer', fontSize: 14 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <strong>Aviso {m.numero_aviso}</strong>
+              <span style={s.chip(C.azulBg, C.azul)}>{m.estado}</span>
+              <span style={s.meta}>
+                {m.fecha_ingreso_taller ? `ingreso ${ddmm(m.fecha_ingreso_taller)}` : `registrado ${ddmm(m.creado)}`}
+              </span>
+              {guardando === m.id && <span style={s.meta}>Vinculando…</span>}
+            </div>
+            {m.descripcion_averia && <div style={{ color: C.gris, marginTop: 4 }}>{m.descripcion_averia}</div>}
+          </button>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button style={btn} onClick={onCancelar} disabled={!!guardando}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento, onVincular }) {
   const [editando, setEditando] = useState(false)
   const [aviso, setAviso] = useState(f.numero_aviso || '')
   const [guardando, setGuardando] = useState(false)
@@ -78,6 +135,13 @@ function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento }) 
     if (error) { toast('❌ ' + error.message, 'error'); return }
     toast(v ? `Aviso ${v} cargado` : 'Aviso quitado')
     setEditando(false)
+    onRecargar()
+  }
+
+  const desvincular = async () => {
+    const { error } = await supabase.rpc('desvincular_mantenimiento_hallazgo', { p_id: f.id })
+    if (error) { toast('❌ ' + error.message, 'error'); return }
+    toast('Mantenimiento desvinculado')
     onRecargar()
   }
 
@@ -113,9 +177,10 @@ function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento }) 
             <button style={btnAzul} onClick={guardarAviso} disabled={guardando}>{guardando ? '…' : 'Guardar'}</button>
             <button style={btn} onClick={() => { setEditando(false); setAviso(f.numero_aviso || '') }}>Cancelar</button>
           </div>
-        ) : f.aviso_origen === 'mantenimiento' ? (
+        ) : f.aviso_origen === 'mantenimiento' || f.aviso_origen === 'vinculado' ? (
           <div>
             Aviso <strong>{f.numero_aviso}</strong>
+            {f.aviso_origen === 'vinculado' && <> <span style={s.chip('#f3f4f6', C.gris)}>🔗 vinculado</span></>}
             <span style={s.meta}> · 🔧 mantenimiento {f.mantenimiento_estado || ''}{f.mantenimiento_ingreso ? `, ingreso ${ddmm(f.mantenimiento_ingreso)}` : ''}{f.mantenimiento_email ? ' · 📧 correo enviado al taller' : ''}</span>
           </div>
         ) : f.numero_aviso ? (
@@ -148,9 +213,13 @@ function Tarjeta({ f, onRecargar, onVerInspeccion, onCerrar, onMantenimiento }) 
         {!f.cierre_manual && !editando && !f.mantenimiento_id && (
           <button style={f.numero_aviso ? btn : btnAzul} onClick={() => onMantenimiento(f)}>🔧 Registrar mantenimiento</button>
         )}
-        {!f.cierre_manual && !editando && f.aviso_origen !== 'mantenimiento' && (
+        {!f.cierre_manual && !editando && !f.mantenimiento_id && (
+          <button style={btn} onClick={() => onVincular(f)}>🔗 Vincular mantenimiento</button>
+        )}
+        {!f.cierre_manual && !editando && f.aviso_origen !== 'mantenimiento' && f.aviso_origen !== 'vinculado' && (
           <button style={btn} onClick={() => setEditando(true)}>{f.numero_aviso ? 'Editar aviso' : 'Solo aviso'}</button>
         )}
+        {f.aviso_origen === 'vinculado' && <button style={btn} onClick={desvincular}>Desvincular</button>}
         {!f.cierre_manual && !f.numero_aviso && <button style={btn} onClick={() => onCerrar(f)}>Cerrar sin aviso</button>}
         {f.cierre_manual && <button style={btn} onClick={reabrir}>Reabrir</button>}
       </div>
@@ -166,6 +235,7 @@ export default function Hallazgos({ recarga }) {
   const [cerrando, setCerrando] = useState(null)
   const [detalle, setDetalle] = useState(null)
   const [nuevoMtto, setNuevoMtto] = useState(null)
+  const [vinculando, setVinculando] = useState(null)
 
   const cargar = useCallback(async () => {
     const { data, error: e } = await supabase.rpc('hallazgos_listar')
@@ -246,7 +316,7 @@ export default function Hallazgos({ recarga }) {
         <div style={{ ...s.meta, fontSize: 12, marginTop: 6 }}>
           Inspecciones periódicas con ítems críticos en falla. En rojo: sin aviso hace más de 2 días o aviso sin orden hace más de 7 días (días desde la inspección).
           Resuelto = todas las órdenes del aviso en CTEC o CERR.
-          «Registrar mantenimiento» = mismo alta que el módulo Mantenimiento (tablero de taller y correo si entra a Ypané); «Solo aviso» = se repara en obra.
+          «Registrar mantenimiento» = mismo alta que el módulo Mantenimiento (tablero de taller y correo si entra a Ypané); «Vincular mantenimiento» = la falla ya tenía un correctivo abierto registrado; «Solo aviso» = se repara en obra.
         </div>
       </div>
 
@@ -262,11 +332,12 @@ export default function Hallazgos({ recarga }) {
             {g.filas.length > 1 && <span style={s.chip(C.ambarBg, C.ambar)}>{g.filas.length} inspecciones</span>}
           </div>
           {g.filas.map((f) => (
-            <Tarjeta key={f.id + (f.numero_aviso || '') + f.cierre_manual} f={f} onRecargar={cargar} onVerInspeccion={verInspeccion} onCerrar={setCerrando} onMantenimiento={setNuevoMtto} />
+            <Tarjeta key={f.id + (f.numero_aviso || '') + f.cierre_manual} f={f} onRecargar={cargar} onVerInspeccion={verInspeccion} onCerrar={setCerrando} onMantenimiento={setNuevoMtto} onVincular={setVinculando} />
           ))}
         </div>
       ))}
 
+      {vinculando && <VincularModal fila={vinculando} onCancelar={() => setVinculando(null)} onListo={() => { setVinculando(null); cargar() }} />}
       {cerrando && <CerrarModal fila={cerrando} onCancelar={() => setCerrando(null)} onListo={() => { setCerrando(null); cargar() }} />}
     </div>
   )
