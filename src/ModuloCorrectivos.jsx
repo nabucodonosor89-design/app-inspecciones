@@ -9,6 +9,7 @@ import TablaEmpresa from './correctivos/TablaEmpresa'
 import TablaMateriales from './correctivos/TablaMateriales'
 import Reunion from './correctivos/Reunion'
 import Hallazgos from './correctivos/Hallazgos'
+import Seguimiento from './correctivos/Seguimiento'
 import { useEscritorio } from './correctivos/useEscritorio'
 
 // ============================================================
@@ -43,6 +44,7 @@ export default function ModuloCorrectivos({ onVolver }) {
   const [datos, setDatos] = useState(VACIO)
   const [cargando, setCargando] = useState(true)
   const [tab, setTab] = useState('resumen')
+  const sinFiltrosTipo = ['reunion', 'hallazgos', 'seguimiento'].includes(tab)
   const [tipos, setTipos] = useState([]) // vacío = todos
   const [busqueda, setBusqueda] = useState('')
   const [cargadoEn, setCargadoEn] = useState(0)
@@ -122,11 +124,11 @@ export default function ModuloCorrectivos({ onVolver }) {
         {/* Fija solo en escritorio: en celular ocuparía media pantalla */}
         <div style={{ ...s.barra, position: escritorio ? 'sticky' : 'static' }}>
           <div style={s.tabs}>
-            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales'], ['reunion', 'Reunión'], ['hallazgos', 'Hallazgos']].map(([id, label]) => (
+            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales'], ['seguimiento', 'Seguimiento'], ['reunion', 'Reunión'], ['hallazgos', 'Hallazgos']].map(([id, label]) => (
               <button key={id} style={s.tab(tab === id)} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
-          {tab !== 'reunion' && tab !== 'hallazgos' && (<>
+          {!sinFiltrosTipo && (<>
           <div style={s.chips}>
             <button style={s.chipBtn(!tipos.length)} onClick={() => setTipos([])}>Todos · {num(k?.sap_abiertas)}</button>
             {TIPOS.map((t) => (
@@ -140,11 +142,11 @@ export default function ModuloCorrectivos({ onVolver }) {
           </>)}
         </div>
 
-        {tab !== 'reunion' && tab !== 'hallazgos' && limiteAlcanzado.length > 0 && (
+        {!sinFiltrosTipo && limiteAlcanzado.length > 0 && (
           <div style={s.aviso}>⚠ Mostrando las primeras {num(LIMITE)} filas en: {limiteAlcanzado.join(', ')}. Los totales de los indicadores siguen siendo completos.</div>
         )}
 
-        {tab === 'reunion' ? <Reunion recarga={cargadoEn} /> : tab === 'hallazgos' ? <Hallazgos recarga={cargadoEn} /> : cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
+        {tab === 'seguimiento' ? <Seguimiento modo="completo" recarga={cargadoEn} /> : tab === 'reunion' ? <Reunion recarga={cargadoEn} /> : tab === 'hallazgos' ? <Hallazgos recarga={cargadoEn} /> : cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
           <>
             {tab === 'resumen' && (
               <Resumen k={k} ypane={f.ypane} inconsistencias={f.inconsistencias} duplicados={f.duplicados}

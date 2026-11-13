@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import { C, s, num, ddmm, hoyPY, LIMITE, coincide } from './constantes'
+import HiloSheet, { ChipSituacion, ChipsAlertas } from './HiloSheet'
 
 // ============================================================
 // CORRECTIVOS — pestaña "Reunión" (reunión semanal de equipos parados)
@@ -49,7 +50,7 @@ function FrenoChip({ freno }) {
 // ------------------------------------------------------------
 // Detalle desplegable de un equipo
 // ------------------------------------------------------------
-function DetalleEquipo({ eq, tareas, puede, onTareaCreada, onCerrar }) {
+function DetalleEquipo({ eq, tareas, puede, onTareaCreada, onCerrar, segDe, onAbrirSeg }) {
   const [reservas, setReservas] = useState(null)
   const [error, setError] = useState(null)
 
@@ -68,7 +69,7 @@ function DetalleEquipo({ eq, tareas, puede, onTareaCreada, onCerrar }) {
       <div style={{ ...s.subtitulo, marginTop: 10 }}>Órdenes y avisos abiertos</div>
       <div style={s.scroll}>
         <table style={s.tabla}>
-          <thead><tr>{['Orden / aviso', 'Texto', 'Status', 'Entrada', 'Qué la frena'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+          <thead><tr>{['Orden / aviso', 'Texto', 'Status', 'Entrada', 'Qué la frena', 'Seguimiento'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
           <tbody>
             {(eq.ordenes || []).map((o) => (
               <tr key={o.orden ?? `aviso-${o.aviso}`}>
@@ -79,6 +80,20 @@ function DetalleEquipo({ eq, tareas, puede, onTareaCreada, onCerrar }) {
                 <td style={s.td}>{o.status_usuario || '—'}</td>
                 <td style={s.td}>{ddmm(o.fecha_entrada)}</td>
                 <td style={s.td}><FrenoChip freno={o.freno} /></td>
+                <td style={s.td}>
+                  {(() => {
+                    const h = segDe(o)
+                    if (!h) return <span style={s.meta}>—</span>
+                    return (
+                      <button onClick={() => onAbrirSeg(h)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>
+                        {h.ult_situacion ? <ChipSituacion id={h.ult_situacion} /> : <span style={s.chip('#f3f4f6', C.gris)}>sin novedades</span>}
+                        {' '}<ChipsAlertas alertas={h.alertas} />
+                        {h.ult_texto && <div style={{ ...s.meta, marginTop: 2, maxWidth: 320 }}>{h.ult_texto}</div>}
+                        <div style={{ color: C.azul, fontSize: 13, fontWeight: 600 }}>Ver / cargar novedad →</div>
+                      </button>
+                    )
+                  })()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -191,7 +206,7 @@ function TareaFila({ t, puede, onCerrar, mostrarEquipo = true }) {
   )
 }
 
-function TarjetaEquipo({ eq, abierto, onToggle, tareasEq, puede, onTareaCreada, onCerrar }) {
+function TarjetaEquipo({ eq, abierto, onToggle, tareasEq, puede, onTareaCreada, onCerrar, segDe, onAbrirSeg }) {
   const pendientes = tareasEq.filter((t) => t.estado === 'pendiente').length
   return (
     <div style={{ borderBottom: `1px solid ${C.borde}` }}>
@@ -213,7 +228,7 @@ function TarjetaEquipo({ eq, abierto, onToggle, tareasEq, puede, onTareaCreada, 
         </span>
         {pendientes > 0 && <span style={s.chip('#ede9fe', '#6d28d9')}>{pendientes} {pendientes === 1 ? 'tarea' : 'tareas'}</span>}
       </div>
-      {abierto && <DetalleEquipo eq={eq} tareas={tareasEq} puede={puede} onTareaCreada={onTareaCreada} onCerrar={onCerrar} />}
+      {abierto && <DetalleEquipo eq={eq} tareas={tareasEq} puede={puede} onTareaCreada={onTareaCreada} onCerrar={onCerrar} segDe={segDe} onAbrirSeg={onAbrirSeg} />}
     </div>
   )
 }
@@ -230,6 +245,21 @@ export default function Reunion({ recarga }) {
   const [equipo, setEquipo] = useState('') // filtro libre: ID técnico o denominación
   const [abierto, setAbierto] = useState(null)
   const [verSinDatos, setVerSinDatos] = useState(false)
+  // Seguimiento por orden/aviso (corr_seg_*): última novedad en el detalle de cada equipo
+  const [seg, setSeg] = useState([])
+  const [segPermisos, setSegPermisos] = useState(null)
+  const [segResp, setSegResp] = useState([])
+  const [segAbierto, setSegAbierto] = useState(null)
+
+  const cargarSeg = useCallback(async () => {
+    const [l, p, r] = await Promise.all([
+      supabase.rpc('corr_seg_listar').limit(LIMITE),
+      supabase.rpc('corr_seg_permisos'),
+      supabase.rpc('corr_seg_responsables'),
+    ])
+    if (l.error) return toast('❌ seguimiento: ' + l.error.message, 'error')
+    setSeg(l.data || []); setSegPermisos(p.data || null); setSegResp(r.data || [])
+  }, [])
 
   const cargarTareas = useCallback(async () => {
     const desde = new Date(Date.now() - 30 * 86400000).toISOString()
@@ -251,6 +281,7 @@ export default function Reunion({ recarga }) {
           .limit(LIMITE),
         supabase.rpc('correctivos_puede_gestionar'),
         cargarTareas(),
+        cargarSeg(),
       ])
       if (p.error) throw new Error('parados: ' + p.error.message)
       setFilas(p.data || [])
@@ -261,9 +292,14 @@ export default function Reunion({ recarga }) {
     } finally {
       setCargando(false)
     }
-  }, [cargarTareas])
+  }, [cargarTareas, cargarSeg])
 
   useEffect(() => { cargar() }, [cargar, recarga])
+
+  const segPorOrden = useMemo(() => new Map(seg.filter((h) => h.orden).map((h) => [String(h.orden), h])), [seg])
+  const segPorAviso = useMemo(() => new Map(seg.filter((h) => h.aviso).map((h) => [String(h.aviso), h])), [seg])
+  const segDe = useCallback((o) => (o.orden && segPorOrden.get(String(o.orden))) || (o.aviso && segPorAviso.get(String(o.aviso))) || null, [segPorOrden, segPorAviso])
+  const hiloAbierto = segAbierto ? seg.find((h) => h.id === segAbierto) : null
 
   const cerrarTarea = async (t) => {
     const { error } = await supabase.from('correctivos_tareas').update({ estado: 'hecha' }).eq('id', t.id)
@@ -308,7 +344,8 @@ export default function Reunion({ recarga }) {
   const tarjeta = (eq) => (
     <TarjetaEquipo key={eq.equipo} eq={eq} abierto={abierto === eq.equipo}
       onToggle={() => setAbierto(abierto === eq.equipo ? null : eq.equipo)}
-      tareasEq={tareasPorEquipo[eq.equipo] || []} puede={puede} onTareaCreada={recargarTareas} onCerrar={cerrarTarea} />
+      tareasEq={tareasPorEquipo[eq.equipo] || []} puede={puede} onTareaCreada={recargarTareas} onCerrar={cerrarTarea}
+      segDe={segDe} onAbrirSeg={(h) => setSegAbierto(h.id)} />
   )
 
   return (
@@ -423,6 +460,10 @@ export default function Reunion({ recarga }) {
           </div>
         )}
       </div>
+      {hiloAbierto && (
+        <HiloSheet hilo={hiloAbierto} permisos={segPermisos} responsables={segResp}
+          onCerrar={() => setSegAbierto(null)} onCambio={cargarSeg} />
+      )}
     </div>
   )
 }

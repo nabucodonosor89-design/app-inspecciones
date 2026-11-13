@@ -21,6 +21,7 @@ import AsistenteTecnico from './AsistenteTecnico.jsx'
 import ModuloLogistica from './ModuloLogistica.jsx'
 import HistorialEquipo from './HistorialEquipo.jsx'
 import ModuloCorrectivos from './ModuloCorrectivos.jsx'
+import ModuloSeguimientoObra from './ModuloSeguimientoObra.jsx'
 import ModuloRepuestos from './ModuloRepuestos.jsx'
 import CompletarOrdenes from './CompletarOrdenes.jsx'
 import BandejaPreventivos from './BandejaPreventivos.jsx'
@@ -41,6 +42,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   // Planificador de inspecciones: true si el usuario está asignado a una zona con vigencia esta semana
   const [tieneListaInsp, setTieneListaInsp] = useState(false)
+  // Seguimiento de correctivos: true si es residente vigente de una zona (corr_seg_permisos)
+  const [esResidenteCorr, setEsResidenteCorr] = useState(false)
   const [modulo, setModulo] = useState('menu') // 'planificador', 'mi-lista', 'menu', 'inspecciones', 'equipos', 'operadores', 'pedidos-equipos', 'pedidos-compra', 'mantenimientos', 'dashboard-ejecutivo', 'caja-chica', 'asistente-tecnico', 'logistica', 'historial', 'correctivos', 'completar-ordenes', 'desde-service', 'uso-equipos', 'repuestos', 'trabajo_equipos', 'liquidacion_ordenes'
 
   // Estados para Inspecciones
@@ -73,14 +76,25 @@ function App() {
     return () => { vivo = false }
   }, [user])
 
+  // ¿Ve la tarjeta "Seguimiento correctivos"? (residentes de obra; la RPC filtra por el usuario logueado)
+  useEffect(() => {
+    if (!user) return
+    let vivo = true
+    supabase.rpc('corr_seg_permisos').then(({ data, error }) => {
+      if (vivo) setEsResidenteCorr(!error && data?.residente === true)
+    })
+    return () => { vivo = false }
+  }, [user])
+
   // Correctivos solo con permiso ve_correctivos: si se llega sin él, volver al menú
   useEffect(() => {
     if (modulo === 'planificador' && user && user.rol !== 'admin') setModulo('menu')
     if (modulo === 'correctivos' && user && user.ve_correctivos !== true) setModulo('menu')
+    if (modulo === 'seguimiento-correctivos' && user && !esResidenteCorr) setModulo('menu')
     if (modulo === 'repuestos' && user && user.ve_repuestos !== true) setModulo('menu')
     if ((modulo === 'completar-ordenes' || modulo === 'bandeja-preventivos' || modulo === 'desde-service') && user && user.ve_completar_ordenes !== true) setModulo('menu')
     if (modulo === 'uso-equipos' && user && !['gestion', 'gerencia'].includes(user.uso_equipos_acceso)) setModulo('menu')
-  }, [modulo, user])
+  }, [modulo, user, esResidenteCorr])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -730,6 +744,41 @@ function App() {
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
               Estado del mantenimiento correctivo · App + SAP
+            </p>
+          </div>
+          )}
+          {/* Card Seguimiento correctivos — residentes de obra sin ve_correctivos (ver supabase/correctivos_seguimiento.sql) */}
+          {esResidenteCorr && user.ve_correctivos !== true && (
+          <div
+            onClick={() => setModulo('seguimiento-correctivos')}
+            style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '16px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-8px)'
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(29, 78, 216, 0.3)'
+              e.currentTarget.style.borderColor = '#1d4ed8'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              e.currentTarget.style.borderColor = 'transparent'
+            }}
+          >
+            <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+              📝
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#1d4ed8' }}>
+              Seguimiento correctivos
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', fontSize: '0.95rem' }}>
+              Novedades de las órdenes y avisos de tu obra
             </p>
           </div>
           )}
@@ -1429,6 +1478,11 @@ function App() {
   // ============================================
   // MÓDULO CORRECTIVOS (solo lectura, solo usuarios con ve_correctivos = true)
   // ============================================
+  if (modulo === 'seguimiento-correctivos') {
+    if (!esResidenteCorr) return null
+    return <ModuloSeguimientoObra onVolver={volverAlMenu} />
+  }
+
   if (modulo === 'correctivos') {
     // Sin permiso (estado viejo o navegación forzada): no renderizar; el efecto de arriba vuelve al menú
     if (user.ve_correctivos !== true) return null
