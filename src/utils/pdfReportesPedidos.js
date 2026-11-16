@@ -290,13 +290,29 @@ async function generarPDFSolicitante(
 
     const codigoObra = obraObj?.codigo_obra || "N/A";
 
-    const estadoOT = pedido?.mantenimiento?.estado;
+    // Solo OT abiertas del equipo asignado (las arma ListaPedidosEquipos).
+    // No se usa la OT vinculada al pedido: puede ser de otro equipo o estar cerrada.
+    const otsAbiertas = Array.isArray(pedido?.ots_abiertas)
+      ? pedido.ots_abiertas
+      : [];
     const comentarios = pedido?.comentarios;
 
+    const estadoOT =
+      otsAbiertas.length === 1
+        ? `Estado OT: ${safeText(otsAbiertas[0].estado)}`
+        : otsAbiertas.length > 1
+        ? "Estado OT: " +
+          otsAbiertas
+            .map((ot) => `${safeText(ot.numero_aviso) || "s/aviso"} ${safeText(ot.estado)}`)
+            .join(", ")
+        : null;
+
+    const otTexto =
+      otsAbiertas.map((ot) => safeText(ot.numero_aviso) || "s/aviso").join("\n") ||
+      "-";
+
     const comentariosFinal = safeText(
-      [estadoOT ? `Estado OT: ${estadoOT}` : null, comentarios]
-        .filter(Boolean)
-        .join(" | ")
+      [estadoOT, comentarios].filter(Boolean).join(" | ")
     );
 
     filas.push([
@@ -304,7 +320,7 @@ async function generarPDFSolicitante(
       safeText(pedido?.numero_pedido || ""),
       safeText(pedido?.tipo_equipo_solicitado || ""),
       safeText(pedido?.equipo_asignado?.numero_identificacion || "Sin asignar"),
-      safeText(pedido?.mantenimiento?.numero_aviso || "-"),
+      otTexto,
       comentariosFinal,
     ]);
   }
@@ -340,8 +356,8 @@ async function generarPDFSolicitante(
       1: { cellWidth: 20 }, // Pedido
       2: { cellWidth: 38 }, // Equipo Solicitado
       3: { cellWidth: 32 }, // Equipo Asignado
-      4: { cellWidth: 15 }, // OT
-      5: { cellWidth: 40 }, // Comentarios
+      4: { cellWidth: 20 }, // OT
+      5: { cellWidth: 60 }, // Comentarios
     },
     margin: { top: 10, left: M, right: M },
   });

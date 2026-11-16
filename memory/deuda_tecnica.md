@@ -79,3 +79,23 @@ export default defineConfig({
 - [ ] Ejecutar `supabase/recordatorio_setup.sql` en SQL Editor
 - [ ] Activar extensión pg_cron en Supabase Dashboard → Database → Extensions
 - [ ] (Opcional) Verificar dominio de email en Resend
+
+## Actualización 16/11/2026
+
+Detalle en `AUDITORIA_TECNICA.md` → sección 6.
+
+| # | Sev. | Problema | Archivo | Solución |
+|---|------|---------|---------|---------|
+| 17 | 🔴 | Tope de 1.000 filas: Mantenimientos pierde 42 (3 abiertos) e Inspecciones deja 26 equipos activos como "sin inspección" | `ListaMantenimientos.jsx`, `DashboardMantenimientos.jsx`, `EquiposList.jsx`, `HistorialInspeccionesCompleto.jsx` | Mantenimientos: cargar solo abiertos y completados por búsqueda (decisión de Andrés: no hace falta verlos). EquiposList: usar `equipos.fecha_ultima_inspeccion`. Historial: paginar en servidor |
+| 18 | 🟠 | Un solo bundle (1,5 MB), sin carga por módulo | `App.jsx` | `React.lazy` por módulo + `import()` dinámico de xlsx/jspdf |
+| 19 | 🟠 | Listas grandes sin paginar ni `useMemo` | Mantenimientos, `EquiposList.jsx`, `ListaPedidosEquipos.jsx` | Paginar / memoizar filtros |
+| 20 | 🟡 | Helpers duplicados (`num` ×8, `ddmm` ×4, `hoyPY` ×3, `hoyISO` ×3, `fechaCorta` ×3, `diasEntre` ×3) | varios | `src/utils/formato.js` y `estados.js` |
+| 21 | 🟡 | Pantallas gemelas (EquiposList/ListaEquipos, dos historiales) y 19 consultas a `equipos` | varios | Unificar carga |
+| 22 | 🟡 | Consultas en serie | `NuevaInspeccion.jsx` y otras | `Promise.all` |
+| 23 | 🟢 | Código muerto: `utils/ExportarPedidosExdel.js`, dependencia `file-server` | — | Borrar |
+
+**Orden:** 17 → 18 → 20 → 19.
+
+**De junio:** siguen pendientes 1 (Cloudinary), 3 (`select('*')`, quedan 18), 9 (`console.log`, quedan 38), 12 (App.jsx ahora 1.571 líneas).
+
+**Hecho 16/11/2026:** #17 en Mantenimientos (lista: solo abiertos + búsqueda de completados en servidor; dashboard: paginado y pestaña Análisis oculta). De #17 falta `EquiposList`, Historial de inspecciones y Dashboard Ejecutivo.

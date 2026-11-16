@@ -130,7 +130,29 @@ function ListaPedidosEquipos({ onNuevo, usuario, recargarKey }) {
         return
       }
 
-      await generarReportesSemanalesPDF(pedidosNoEntregados, obras)
+      // OT abiertas (Taller Espera / Entrada) de los equipos asignados, sin depender
+      // de la OT vinculada a mano en el pedido: el reporte explica por qué no se entregó.
+      const equipoIds = [...new Set(pedidosNoEntregados.map(p => p.equipo_asignado_id).filter(Boolean))]
+      const otsPorEquipo = new Map()
+      if (equipoIds.length > 0) {
+        const { data: otsAbiertas, error: errorOts } = await supabase
+          .from('mantenimientos')
+          .select('equipo_id, numero_aviso, estado, created_at')
+          .in('equipo_id', equipoIds)
+          .in('estado', ['Taller Espera', 'Taller Entrada'])
+          .order('created_at', { ascending: true })
+        if (errorOts) throw errorOts
+        for (const ot of otsAbiertas || []) {
+          if (!otsPorEquipo.has(ot.equipo_id)) otsPorEquipo.set(ot.equipo_id, [])
+          otsPorEquipo.get(ot.equipo_id).push(ot)
+        }
+      }
+      const pedidosParaReporte = pedidosNoEntregados.map(p => ({
+        ...p,
+        ots_abiertas: otsPorEquipo.get(p.equipo_asignado_id) || []
+      }))
+
+      await generarReportesSemanalesPDF(pedidosParaReporte, obras)
       
       toast(`✅ Reportes generados exitosamente!\n\n${solicitantes.length} PDF(s) descargados en ZIP.`)
 

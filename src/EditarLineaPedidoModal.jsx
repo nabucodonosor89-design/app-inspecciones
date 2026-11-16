@@ -80,6 +80,12 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
   }, [equipos, busquedaEquipo])
 
   function seleccionarEquipo(eq) {
+    // Al cambiar de equipo, la OT vinculada pasa a ser la abierta más reciente
+    // del equipo nuevo (o ninguna). Nunca queda la OT del equipo anterior.
+    if (eq.id !== equipoAsignadoId) {
+      const abierta = mantenimientos.find(m => m.equipo_id === eq.id)
+      setMantenimientoId(abierta ? abierta.id : '')
+    }
     setEquipoAsignadoId(eq.id)
     setBusquedaEquipo(eq.numero_identificacion)
     setMostrarListaEquipos(false)
@@ -90,6 +96,7 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
     const equipoActual = equipos.find(e => e.id === equipoAsignadoId)
     if (equipoActual && busquedaEquipo !== equipoActual.numero_identificacion) {
       setEquipoAsignadoId('')
+      setMantenimientoId('')
     }
   }
 
@@ -135,6 +142,19 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
         }
       }
 
+      // La OT vinculada tiene que ser del equipo asignado. Si se cambió el equipo,
+      // solo vale una OT abierta del equipo nuevo.
+      let mantenimientoFinal = mantenimientoId || null
+      if (!equipoAsignadoId) {
+        mantenimientoFinal = null
+      } else if (
+        mantenimientoFinal &&
+        equipoAsignadoId !== linea.equipo_asignado_id &&
+        !mantenimientos.some(m => m.id === mantenimientoFinal && m.equipo_id === equipoAsignadoId)
+      ) {
+        mantenimientoFinal = null
+      }
+
       const { error } = await supabase
         .from('pedidos_equipos_lineas')
         .update({
@@ -143,7 +163,7 @@ function EditarLineaPedidoModal({ linea, onCerrar, onActualizado }) {
           estado_entrega: estadoEntrega,
           fecha_estimada_entrega: fechaEstimada || null,
           fecha_entrega_real: fechaReal || null,
-          mantenimiento_id: mantenimientoId || null,
+          mantenimiento_id: mantenimientoFinal,
           comentarios: comentarios.trim() || null
         })
         .eq('id', linea.id)

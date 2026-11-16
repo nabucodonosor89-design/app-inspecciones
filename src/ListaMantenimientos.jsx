@@ -1,9 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
+// Los completados (Taller Salida) no se cargan al abrir: se buscan en el servidor por equipo u orden.
+const ESTADOS_ABIERTOS = ['Taller Espera', 'Taller Entrada']
+const MIN_BUSQUEDA_COMPLETADOS = 3
+const TOPE_COMPLETADOS = 30
+const selectMantenimientos = (equipoObligatorio) => `
+  *,
+  equipos:equipo_id${equipoObligatorio ? '!inner' : ''} (
+    numero_identificacion,
+    denominacion
+  ),
+  inspecciones:inspeccion_id (
+    fecha_hora
+  )
+`
+
 function ListaMantenimientos({ onNuevo, onEditar }) {
+  // mantenimientos = solo los abiertos (Taller Espera / Entrada)
   const [mantenimientos, setMantenimientos] = useState([])
+  const [completados, setCompletados] = useState([])
+  const [totalSalida, setTotalSalida] = useState(0)
+  const [buscandoCompletados, setBuscandoCompletados] = useState(false)
+  const [hayMasCompletados, setHayMasCompletados] = useState(false)
+  const busquedaSeq = useRef(0)
   const [loading, setLoading] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState('Todos')
   const [filtroEstado, setFiltroEstado] = useState('En Taller') // CAMBIADO: por defecto mostrar en taller
@@ -15,41 +36,110 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
     cargarMantenimientos()
   }, [])
 
+  // Completados: se buscan en el servidor cuando hay al menos 3 caracteres (equipo, orden o aviso)
+  useEffect(() => {
+    const termino = busqueda.trim().replace(/[%,()\\*]/g, '')
+    const seq = ++busquedaSeq.current
+    if (termino.length < MIN_BUSQUEDA_COMPLETADOS) {
+      setCompletados([])
+      setHayMasCompletados(false)
+      setBuscandoCompletados(false)
+      return
+    }
+    setBuscandoCompletados(true)
+    const t = setTimeout(() => buscarCompletados(termino, seq), 350)
+    return () => clearTimeout(t)
+  }, [busqueda])
+
   async function cargarMantenimientos() {
     try {
       setLoading(true)
-      
-      // Primero verificar si la tabla existe
-      const { data, error } = await supabase
-        .from('mantenimientos')
-        .select(`
-          *,
-          equipos:equipo_id (
-            numero_identificacion,
-            denominacion
-          ),
-          inspecciones:inspeccion_id (
-            fecha_hora
-          )
-        `)
-        .order('created_at', { ascending: false })
-      
-      if (error) {
-        console.error('Error detallado:', error)
-        throw error
+
+      const [abiertosRes, salidaRes] = await Promise.all([
+        supabase
+          .from('mantenimientos')
+          .select(selectMantenimientos(false))
+          .in('estado', ESTADOS_ABIERTOS)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('mantenimientos')
+          .select('id', { count: 'exact', head: true })
+          .eq('estado', 'Taller Salida')
+      ])
+
+      if (abiertosRes.error) {
+        console.error('Error detallado:', abiertosRes.error)
+        throw abiertosRes.error
       }
-      
-      setMantenimientos(data || [])
+      if (salidaRes.error) throw salidaRes.error
+
+      setMantenimientos(abiertosRes.data || [])
+      setTotalSalida(salidaRes.count || 0)
     } catch (error) {
       console.error('Error completo:', error)
-      toast('Error al cargar mantenimientos: ' + error.message + '\n\n¿Ya ejecutaste el SQL para crear la tabla mantenimientos?')
+      toast('Error al cargar mantenimientos: ' + error.message)
     } finally {
       setLoading(false)
     }
   }
 
+  async function buscarCompletados(termino, seq) {
+    try {
+      // ¿La búsqueda identifica un solo equipo? Entonces se trae todo su historial, sin tope.
+      const { data: eqs, error: errorEq } = await supabase
+        .from('equipos')
+        .select('id')
+        .ilike('numero_identificacion', `%${termino}%`)
+        .limit(2)
+      if (errorEq) throw errorEq
+      const equipoUnico = (eqs || []).length === 1 ? eqs[0].id : null
+
+      let porEquipo = supabase
+        .from('mantenimientos')
+        .select(selectMantenimientos(true))
+        .eq('estado', 'Taller Salida')
+        .order('created_at', { ascending: false })
+      porEquipo = equipoUnico
+        ? porEquipo.eq('equipo_id', equipoUnico)
+        : porEquipo.ilike('equipos.numero_identificacion', `%${termino}%`).limit(TOPE_COMPLETADOS + 1)
+
+      const porOrden = supabase
+        .from('mantenimientos')
+        .select(selectMantenimientos(false))
+        .eq('estado', 'Taller Salida')
+        .or(`numero_orden.ilike.%${termino}%,numero_aviso.ilike.%${termino}%`)
+        .order('created_at', { ascending: false })
+        .limit(TOPE_COMPLETADOS + 1)
+
+      const [resEquipo, resOrden] = await Promise.all([porEquipo, porOrden])
+      if (resEquipo.error) throw resEquipo.error
+      if (resOrden.error) throw resOrden.error
+      if (seq !== busquedaSeq.current) return // llegó una búsqueda más nueva
+
+      const porId = new Map()
+      for (const m of [...(resEquipo.data || []), ...(resOrden.data || [])]) porId.set(m.id, m)
+      const todos = [...porId.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+
+      if (equipoUnico) {
+        setCompletados(todos)
+        setHayMasCompletados(false)
+      } else {
+        setCompletados(todos.slice(0, TOPE_COMPLETADOS))
+        setHayMasCompletados(todos.length > TOPE_COMPLETADOS)
+      }
+    } catch (error) {
+      if (seq !== busquedaSeq.current) return
+      console.error('Error buscando completados:', error)
+      toast('Error al buscar completados: ' + error.message)
+      setCompletados([])
+      setHayMasCompletados(false)
+    } finally {
+      if (seq === busquedaSeq.current) setBuscandoCompletados(false)
+    }
+  }
+
   // Filtrar mantenimientos
-  const mantenimientosFiltrados = mantenimientos.filter(mant => {
+  const mantenimientosFiltrados = [...mantenimientos, ...completados].filter(mant => {
     const matchTipo = filtroTipo === 'Todos' || mant.tipo_mantenimiento === filtroTipo
     
     // ACTUALIZADO: Agregar lógica para "En Taller"
@@ -106,7 +196,14 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
   // Estadísticas
   const totalEspera = mantenimientos.filter(m => m.estado === 'Taller Espera').length
   const totalEntrada = mantenimientos.filter(m => m.estado === 'Taller Entrada').length
-  const totalSalida = mantenimientos.filter(m => m.estado === 'Taller Salida').length
+  // totalSalida viene contado del servidor (los completados no se cargan)
+
+  // Listas por columna (se calculan una sola vez por render)
+  const listaEspera = mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera')
+  const listaEntrada = mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada')
+  const listaSalida = mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida')
+  const buscaCompletados = busqueda.trim().length >= MIN_BUSQUEDA_COMPLETADOS
+  const columnaSalidaVisible = filtroEstado === 'Todos' || filtroEstado === 'Taller Salida'
   const totalDebidos = mantenimientos.filter(m => m.pedido && m.estado !== 'Taller Salida').length
 
   return (
@@ -318,8 +415,27 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
         </div>
 
         <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-          Mostrando {mantenimientosFiltrados.length} de {mantenimientos.length} mantenimientos
+          Mostrando {mantenimientosFiltrados.length} de {mantenimientos.length + totalSalida} mantenimientos
+          {' · '}los completados se muestran solo al buscar por equipo u orden
         </div>
+        {!columnaSalidaVisible && listaSalida.length > 0 && (
+          <button
+            onClick={() => setFiltroEstado('Todos')}
+            style={{
+              marginTop: '0.75rem',
+              padding: '0.5rem 0.9rem',
+              background: '#d1fae5',
+              color: '#065f46',
+              border: '2px solid #10b981',
+              borderRadius: '6px',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            ✅ {listaSalida.length} completado{listaSalida.length === 1 ? '' : 's'} coincide{listaSalida.length === 1 ? '' : 'n'} con la búsqueda — ver
+          </button>
+        )}
       </div>
 
       {/* Vista Kanban - Columnas dinámicas */}
@@ -456,13 +572,13 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#92400e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>⏳ EN ESPERA</span>
                   <span style={{ background: '#f59e0b', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
-                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length}
+                    {listaEspera.length}
                   </span>
                 </h3>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').map(renderTarjeta)}
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Espera').length === 0 && (
+                {listaEspera.map(renderTarjeta)}
+                {listaEspera.length === 0 && (
                   <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
                     No hay mantenimientos en espera
                   </div>
@@ -484,13 +600,13 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>🔧 EN REPARACIÓN</span>
                   <span style={{ background: '#3b82f6', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
-                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length}
+                    {listaEntrada.length}
                   </span>
                 </h3>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').map(renderTarjeta)}
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Entrada').length === 0 && (
+                {listaEntrada.map(renderTarjeta)}
+                {listaEntrada.length === 0 && (
                   <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
                     No hay mantenimientos en reparación
                   </div>
@@ -512,15 +628,24 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#065f46', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>✅ COMPLETADOS</span>
                   <span style={{ background: '#10b981', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.875rem' }}>
-                    {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').length}
+                    {listaSalida.length}
                   </span>
                 </h3>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').map(renderTarjeta)}
-                {mantenimientosFiltrados.filter(m => m.estado === 'Taller Salida').length === 0 && (
+                {listaSalida.map(renderTarjeta)}
+                {hayMasCompletados && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', color: '#92400e', fontSize: '0.8rem' }}>
+                    Se muestran los {TOPE_COMPLETADOS} más recientes. Completá el código del equipo para ver todo su historial.
+                  </div>
+                )}
+                {listaSalida.length === 0 && (
                   <div style={{ background: '#f9fafb', padding: '2rem', borderRadius: '8px', textAlign: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>
-                    No hay mantenimientos completados
+                    {!buscaCompletados
+                      ? 'Escribí al menos 3 caracteres del equipo o la orden para buscar completados'
+                      : buscandoCompletados
+                        ? 'Buscando completados…'
+                        : 'No hay completados que coincidan con la búsqueda'}
                   </div>
                 )}
               </div>
@@ -530,7 +655,7 @@ function ListaMantenimientos({ onNuevo, onEditar }) {
         )
       })()}
 
-      {mantenimientosFiltrados.length === 0 && (
+      {mantenimientosFiltrados.length === 0 && !buscandoCompletados && (
         <div style={{
           background: 'white',
           padding: '3rem',

@@ -2,10 +2,15 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 
+// Pestaña Análisis oculta desde 16/11/2026 (no se usa). El código sigue; poner en true para volver a mostrarla.
+const ANALISIS_VISIBLE = false
+// Supabase devuelve como máximo 1.000 filas por consulta: se trae de a páginas.
+const PAGINA = 1000
+
 function DashboardMantenimientos({ onVolver }) {
   const [loading, setLoading] = useState(true)
   const [mantenimientos, setMantenimientos] = useState([])
-  const [equipos, setEquipos] = useState([])
+  const [totalEquipos, setTotalEquipos] = useState(0)
   const [vista, setVista] = useState('overview') // 'overview', 'planner', 'analisis'
   
   // Filtros
@@ -24,34 +29,41 @@ function DashboardMantenimientos({ onVolver }) {
     try {
       setLoading(true)
 
-      // Cargar mantenimientos con relaciones
-      const { data: mantData, error: errorMant } = await supabase
-        .from('mantenimientos')
-        .select(`
-          *,
-          equipos (
-            id,
-            numero_identificacion,
-            tipo_equipo,
-            denominacion,
-            estado_operativo,
-            es_critico,
-            notas_criticidad
-          )
-        `)
-        .order('created_at', { ascending: false })
+      // Cargar mantenimientos con relaciones (paginado: la tabla supera las 1.000 filas)
+      const mantData = []
+      for (let desde = 0; ; desde += PAGINA) {
+        const { data: pagina, error: errorMant } = await supabase
+          .from('mantenimientos')
+          .select(`
+            *,
+            equipos (
+              id,
+              numero_identificacion,
+              tipo_equipo,
+              denominacion,
+              estado_operativo,
+              es_critico,
+              notas_criticidad
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(desde, desde + PAGINA - 1)
 
-      if (errorMant) throw errorMant
+        if (errorMant) throw errorMant
+        mantData.push(...(pagina || []))
+        if (!pagina || pagina.length < PAGINA) break
+      }
 
-      // Cargar todos los equipos para estadísticas
-      const { data: equiposData, error: errorEquipos } = await supabase
+      // Total de equipos para el % de flota detenida (solo se usa la cantidad)
+      const { count: totalEquipos, error: errorEquipos } = await supabase
         .from('equipos')
-        .select('*')
+        .select('id', { count: 'exact', head: true })
 
       if (errorEquipos) throw errorEquipos
 
-      setMantenimientos(mantData || [])
-      setEquipos(equiposData || [])
+      setMantenimientos(mantData)
+      setTotalEquipos(totalEquipos || 0)
 
     } catch (error) {
       console.error('Error:', error)
@@ -279,6 +291,7 @@ function DashboardMantenimientos({ onVolver }) {
             >
               🔧 Planner
             </button>
+            {ANALISIS_VISIBLE && (
             <button
               onClick={() => setVista('analisis')}
               style={{
@@ -294,6 +307,7 @@ function DashboardMantenimientos({ onVolver }) {
             >
               📈 Análisis
             </button>
+            )}
           </div>
 
           <button
@@ -394,7 +408,7 @@ function DashboardMantenimientos({ onVolver }) {
               {stats.equiposDetenidos}
             </div>
             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
-              {equipos.length > 0 ? ((stats.equiposDetenidos / equipos.length) * 100).toFixed(1) : 0}% de la flota
+              {totalEquipos > 0 ? ((stats.equiposDetenidos / totalEquipos) * 100).toFixed(1) : 0}% de la flota
             </div>
           </div>
 

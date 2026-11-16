@@ -401,3 +401,114 @@ El "30 días" está hardcodeado. Si los tipos de equipo tienen frecuencias difer
 ---
 
 *Informe generado el 2026-06-26. Código auditado: 25 archivos, ~6.500 líneas.*
+
+---
+
+## 6. ACTUALIZACIÓN — 16/11/2026
+
+Revisión completa del código: 114 archivos, ~30.800 líneas (en junio eran 25 archivos y ~6.500 líneas). Foco: datos incompletos, funciones que se superponen y rendimiento. Los módulos nuevos (Uso de equipos, Correctivos, Planificador, Repuestos, Trabajo de equipos) leen por RPC o paginan con `traerTodo`; los problemas están en las pantallas viejas.
+
+**Tabla de hallazgos:**
+
+| # | Área | Hallazgo | Severidad |
+|---|------|----------|-----------|
+| 17 | Datos | Tope de 1.000 filas de Supabase: Mantenimientos e Inspecciones muestran datos incompletos | 🔴 CRÍTICO |
+| 18 | Performance | Toda la app en un solo bundle (1,5 MB en el build de junio), sin carga por módulo | 🟠 ALTO |
+| 19 | Performance | Listas grandes sin paginar ni `useMemo` (Mantenimientos, Inspecciones, Pedidos de equipos) | 🟠 ALTO |
+| 20 | Código | Helpers de fecha/número duplicados con diferencias entre copias | 🟡 MEDIO |
+| 21 | Código | Pantallas gemelas y 19 consultas distintas a `equipos` | 🟡 MEDIO |
+| 22 | Performance | Consultas en serie que podrían ir en paralelo | 🟡 MEDIO |
+| 23 | Código | Código muerto y dependencia sin uso | 🟢 BAJO |
+
+### 🔴 [DATA-01] Tope de 1.000 filas — pantallas con datos incompletos
+
+PostgREST devuelve como máximo 1.000 filas por consulta. Estas pantallas piden la tabla entera sin `.range()`:
+
+| Pantalla | Archivo | Tabla | Filas (16/11) | Efecto |
+|---|---|---|---|---|
+| Mantenimientos (lista) | `ListaMantenimientos.jsx:24` | `mantenimientos` | 1.042 | Faltan los 42 más viejos; 3 abiertos en Taller Espera no aparecen (PS-CN004 aviso 10010676, VP-CZ005 10010671, VP-CV053 10010422). Contadores: 66/50/884 en vez de 69/50/923 |
+| Mantenimientos (dashboard) | `DashboardMantenimientos.jsx:29` | `mantenimientos` | 1.042 | Igual; además el tiempo promedio de reparación y el análisis histórico se calculan sobre datos truncados |
+| Inspecciones (lista de equipos) | `EquiposList.jsx:37` | `inspecciones` | 1.398 | 33 equipos (26 activos) figuran sin inspección: su última quedó fuera de las 1.000 más recientes |
+| Historial de inspecciones | `HistorialInspeccionesCompleto.jsx:30` | `inspecciones` | 1.398 | Solo las últimas 1.000 |
+| Dashboard Ejecutivo (oculto) | `DashboardEjecutivo.jsx:35` | `inspecciones` | 1.398 | Vencidas mal calculadas |
+
+Empeora con cada fila nueva. Tablas que todavía no llegan al tope pero se leen igual: `equipos` (790), `pedidos_equipos_lineas` (242), `operadores` (165), `pedidos_compra` (153).
+
+**Solución:**
+- Mantenimientos: cargar solo los abiertos (~120) y traer los completados por búsqueda en el servidor; contadores con `count`. Decisión de Andrés (16/11/2026): nadie necesita ver los completados en la pantalla; se muestran solo cuando alguien busca.
+- `EquiposList`: usar `equipos.fecha_ultima_inspeccion` (la mantiene el trigger `trigger_actualizar_semaforo`) en vez de bajar todas las inspecciones.
+- Historial: filtros y paginación en el servidor (ya era PERF-02).
+
+### 🟠 [PERF-06] Un solo bundle, sin carga por módulo
+
+`App.jsx` importa de entrada los 30 módulos, incluidos los 6 ocultos (Caja Chica, Dashboard Ejecutivo, Panel de Flota, Analista Correctivo, Asistente Técnico, Pedidos de Compra) y las librerías `xlsx`, `jspdf`, `jspdf-autotable` y `jszip`. No hay ningún `React.lazy`. Un inspector en obra descarga todo para abrir un checklist.
+
+**Solución:** `React.lazy` + `Suspense` por módulo en `App.jsx`, e `import()` dinámico de `xlsx`/`jspdf` dentro de las funciones de exportar.
+
+### 🟠 [PERF-07] Listas grandes sin paginar ni memoizar
+
+- `ListaMantenimientos` dibuja todas las tarjetas (~920 completadas) y refiltra la lista 9 veces por render.
+- `DashboardMantenimientos`: ~18 `.filter()` sobre la lista completa en cada render, sin `useMemo`.
+- `EquiposList`: 790 tarjetas de una vez; el cruce equipo × inspección es O(n × m) en el navegador.
+- `ListaPedidosEquipos`: 23 `.filter()` por render.
+- Sin `useMemo` en ninguna de las cuatro; cada tecla en el buscador recalcula todo.
+
+### 🟡 [CODE-06] Helpers duplicados
+
+| Helper | Copias | Dónde |
+|---|---|---|
+| `num` | 8 | BandejaPreventivos, RevisarOrdenModal, DesdeUltimoService, ServicesEquipoModal, HistorialEquipo, correctivos/, repuestos/, trabajoEquipos/ (decimales distintos: 0, 1 o 3) |
+| `ddmm` | 4 | CompletarOrdenes, correctivos/, repuestos/, trabajoEquipos/ |
+| `hoyPY` | 3 | correctivos/, logistica/, repuestos/ |
+| `hoyISO` | 3 | NuevaInspeccion, ServicesEquipoModal, RevisarOrdenModal |
+| `fechaCorta` | 3 | BandejaPreventivos, DesdeUltimoService, ServicesEquipoModal (idénticas) |
+| `diasEntre` | 3 | completarOrdenes/, correctivos/Reunion, trabajoEquipos/ (esta suma 1; las otras no) |
+| `sumarDias` | 2 | logistica/, trabajoEquipos/ |
+| `getEstadoColor` / `getEstadoLabel` | 4 / 3 | DashboardMantenimientos, ListaEquipos, ListaPedidosCompra, ListaPedidosEquipos |
+
+**Solución:** un `src/utils/formato.js` (fechas y números) y un `src/utils/estados.js`. Al unificar `diasEntre`, respetar la diferencia inclusivo/exclusivo.
+
+### 🟡 [CODE-07] Pantallas gemelas y carga repetida
+
+- `EquiposList.jsx` (Inspecciones) y `ListaEquipos.jsx` (Gestión de Equipos): dos listas de equipos con carga y filtros propios.
+- `HistorialInspecciones.jsx` e `HistorialInspeccionesCompleto.jsx`: dos historiales.
+- 19 consultas distintas a `equipos`, 12 a `mantenimientos`, 10 a `inspecciones`; varias con `select('*')` (quedan 18 en total).
+- `CompletarOrdenes.jsx` y `BandejaPreventivos.jsx` conviven (una oculta).
+
+### 🟡 [PERF-08] Consultas en serie
+
+Pantallas que hacen `await` una consulta tras otra: `NuevaInspeccion` (11), `CajaChica` (6), `Hallazgos` (6), `FormularioEquipo` (5), `EditarLineaPedidoModal` (5), `DashboardMantenimientos` (2). Las independientes pueden ir en `Promise.all`.
+
+### 🟢 [CODE-08] Código muerto
+
+- `src/utils/ExportarPedidosExdel.js`: no lo importa nadie.
+- Dependencia `file-server` en `package.json`: sin uso.
+- `service_seguimiento()` y `pd_recalcular(text[])` en la base (ya anotados en `CLAUDE.md`).
+
+### Estado de los hallazgos de junio
+
+| Hallazgo | Estado al 16/11/2026 |
+|---|---|
+| SEC-01 Cloudinary | Pendiente |
+| SEC-02 `select('*')` | Quedan 18 (el perfil de usuario ya usa columnas explícitas) |
+| PERF-01 DashboardEjecutivo | Pendiente (tarjeta oculta) |
+| PERF-02 Historial | Pendiente; ahora además trunca datos (DATA-01) |
+| CODE-02 `console.log` | Quedan 38 (eran 95); falta el `drop` en `vite.config.js` |
+| ARCH-01 App.jsx | Pasó de 770 a 1.571 líneas |
+| ARCH-02 hover por DOM | 44 `onMouseEnter` (24 en App.jsx) |
+
+### Orden recomendado
+
+1. **[DATA-01]** Truncado de datos (Mantenimientos primero, después `EquiposList` e Historial).
+2. **[PERF-06]** Carga por módulo en `App.jsx`.
+3. **[CODE-06]** Helpers compartidos.
+4. **[PERF-07]** Listas y filtros, pantalla por pantalla.
+
+### Corregido el 16/11/2026
+
+- **[DATA-01] Mantenimientos:** `ListaMantenimientos` carga solo los abiertos (Taller Espera/Entrada); el contador de completados se cuenta en el servidor y los completados se buscan en el servidor por equipo, orden o aviso (mínimo 3 caracteres, 30 más recientes; si la búsqueda identifica un solo equipo, todo su historial). `DashboardMantenimientos` trae la tabla paginada (ya no trunca), cuenta los equipos sin bajarlos y la pestaña Análisis queda oculta (`ANALISIS_VISIBLE = false`). Falta probar en navegador. Siguen pendientes de DATA-01: `EquiposList`, Historial de inspecciones y Dashboard Ejecutivo.
+- **Pedidos de equipos — OT de otro equipo:** `EditarLineaPedidoModal` no limpiaba la OT al cambiar el equipo asignado y quedaba vinculada la del equipo anterior (15 líneas afectadas, desvinculadas). Ahora la OT pasa a la abierta más reciente del equipo nuevo. El reporte RPT-TYE-01 muestra las OT abiertas (Taller Espera/Entrada) del equipo asignado, sin depender del vínculo.
+
+---
+
+*Actualización del 2026-11-16. Código revisado: 114 archivos, ~30.800 líneas.*
