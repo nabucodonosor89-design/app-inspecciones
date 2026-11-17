@@ -13,9 +13,19 @@
 -- ------------------------------------------------------------
 ALTER TABLE equipos ADD COLUMN IF NOT EXISTS tipo_camion text;
 
+-- 17/11/2026: 'carreton' pasó a 'carreta_granelera'; se agregaron 'grua' (camión con grúa) y 'camioncito'.
+-- (Migración logistica_despacho_v1_tipos_camion: se soltaron los CHECK, se renombraron los valores y se volvieron a crear.)
 ALTER TABLE equipos DROP CONSTRAINT IF EXISTS equipos_tipo_camion_check;
+ALTER TABLE encargos DROP CONSTRAINT IF EXISTS encargos_tipo_camion_requerido_check;
+UPDATE equipos SET tipo_camion = 'carreta_granelera' WHERE tipo_camion = 'carreton';
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'encargos' AND column_name = 'tipo_camion_requerido') THEN
+    UPDATE encargos SET tipo_camion_requerido = 'carreta_granelera' WHERE tipo_camion_requerido = 'carreton';
+  END IF;
+END $$;
+
 ALTER TABLE equipos ADD CONSTRAINT equipos_tipo_camion_check
-  CHECK (tipo_camion IS NULL OR tipo_camion IN ('volcadora','carreton','plancha','camioneta','otro'));
+  CHECK (tipo_camion IS NULL OR tipo_camion IN ('volcadora','carreta_granelera','plancha','grua','camioncito','camioneta','otro'));
 
 COMMENT ON COLUMN equipos.tipo_camion IS
   'Logística: tipo de camión (solo es_logistica). NULL = sin clasificar. Se escribe solo con set_tipo_camion().';
@@ -51,7 +61,7 @@ BEGIN
                  WHERE email = auth.email() AND activo = true AND rol = 'admin') THEN
     RAISE EXCEPTION 'Solo un administrador puede cambiar el tipo de camión';
   END IF;
-  IF p_tipo IS NOT NULL AND p_tipo NOT IN ('volcadora','carreton','plancha','camioneta','otro') THEN
+  IF p_tipo IS NOT NULL AND p_tipo NOT IN ('volcadora','carreta_granelera','plancha','grua','camioncito','camioneta','otro') THEN
     RAISE EXCEPTION 'Tipo de camión no válido: %', p_tipo;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM equipos WHERE id = p_equipo_id AND es_logistica = true) THEN
@@ -81,7 +91,7 @@ ALTER TABLE encargos ADD COLUMN IF NOT EXISTS tipo_camion_requerido text;
 ALTER TABLE encargos DROP CONSTRAINT IF EXISTS encargos_tipo_camion_requerido_check;
 ALTER TABLE encargos ADD CONSTRAINT encargos_tipo_camion_requerido_check
   CHECK (tipo_camion_requerido IS NULL
-         OR tipo_camion_requerido IN ('volcadora','carreton','plancha','camioneta','otro'));
+         OR tipo_camion_requerido IN ('volcadora','carreta_granelera','plancha','grua','camioncito','camioneta','otro'));
 
 COMMENT ON COLUMN encargos.categoria IS 'Categoría de material: aridos | prefabricados | maquinaria | varios';
 COMMENT ON COLUMN encargos.tipo_camion_requerido IS
@@ -190,6 +200,6 @@ REVOKE ALL ON v_encargos FROM anon;
 -- ------------------------------------------------------------
 -- select numero_identificacion, tipo_camion from equipos where es_logistica and activo order by 1;
 -- select categoria, tipo_camion_requerido, destino_key from v_encargos limit 5;
--- Como usuario logistica: select set_tipo_camion('<uuid>', 'carreton');  → error "Solo un administrador…"
+-- Como usuario logistica: select set_tipo_camion('<uuid>', 'carreta_granelera');  → error "Solo un administrador…"
 -- Cargar tipos a mano (SQL Editor, alternativa a la pantalla Camiones):
---   update equipos set tipo_camion = 'carreton' where numero_identificacion = 'VP-CT033';
+--   update equipos set tipo_camion = 'carreta_granelera' where numero_identificacion = 'VP-CT026';

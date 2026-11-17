@@ -14,8 +14,8 @@ import { useEsEscritorio, AZUL } from './logistica/constantes'
  */
 export default function ModuloLogistica({ usuario, onVolver }) {
   const escritorio = useEsEscritorio()
-  const [vista, setVista] = useState('bandeja') // bandeja | plan (Despacho) | camiones | nuevo | editar | detalle
-  const [vistaBase, setVistaBase] = useState('bandeja') // a dónde vuelve el detalle
+  const [vista, setVista] = useState('plan') // plan (Despacho, vista inicial) | bandeja | camiones | nuevo | editar | detalle
+  const [vistaBase, setVistaBase] = useState('plan') // a dónde vuelve el detalle
   const [encargoId, setEncargoId] = useState(null)
   const [encargoEditar, setEncargoEditar] = useState(null)
   const [catalogos, setCatalogos] = useState(null)
@@ -46,8 +46,7 @@ export default function ModuloLogistica({ usuario, onVolver }) {
   const volver = () => {
     if (vista === 'detalle' || vista === 'nuevo') return ir(vistaBase)
     if (vista === 'editar') return setVista('detalle')
-    if (vista === 'plan') return ir('bandeja')
-    if (vista === 'camiones') return ir(escritorio ? 'bandeja' : 'plan')
+    if (vista === 'camiones') return ir('plan')
     onVolver()
   }
 
@@ -61,8 +60,8 @@ export default function ModuloLogistica({ usuario, onVolver }) {
     return { id, label, icono, activo }
   }
   const tabs = escritorio
-    ? [tab('bandeja', 'Bandeja', '📥'), tab('plan', 'Despacho', '🗺️'), tab('camiones', 'Camiones', '🚚'), tab('nuevo', 'Encargo', '＋')]
-    : [tab('bandeja', 'Bandeja', '📥'), tab('plan', 'Despacho', '🗺️'), tab('nuevo', 'Encargo', '＋')]
+    ? [tab('plan', 'Despacho', '🗺️'), tab('bandeja', 'Bandeja', '📥'), tab('camiones', 'Camiones', '🚚'), tab('nuevo', 'Encargo', '＋')]
+    : [tab('plan', 'Despacho', '🗺️'), tab('bandeja', 'Bandeja', '📥'), tab('nuevo', 'Encargo', '＋')]
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
@@ -115,7 +114,7 @@ export default function ModuloLogistica({ usuario, onVolver }) {
           )}
           {vista === 'nuevo' && (
             <FormularioEncargo catalogos={catalogos} onLugarCreado={lugarCreado}
-              onGuardado={() => { huboCambio(); ir('bandeja') }} onCancelar={() => ir(vistaBase)} />
+              onGuardado={() => { huboCambio(); ir('plan') }} onCancelar={() => ir(vistaBase)} />
           )}
           {vista === 'editar' && encargoEditar && (
             <FormularioEncargo catalogos={catalogos} onLugarCreado={lugarCreado} encargo={encargoEditar}

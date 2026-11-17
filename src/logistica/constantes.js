@@ -172,11 +172,14 @@ export const CATEGORIAS = {
 }
 export const categoriaDe = (c) => CATEGORIAS[c] || CATEGORIAS.varios
 
-export const TIPOS_CAMION = { volcadora: 'Volcadora', carreton: 'Carretón', plancha: 'Plancha', camioneta: 'Camioneta', otro: 'Otro' }
+export const TIPOS_CAMION = {
+  volcadora: 'Volcadora', carreta_granelera: 'Carreta granelera', plancha: 'Plancha', grua: 'Camión con grúa',
+  camioncito: 'Camioncito', camioneta: 'Camioneta', otro: 'Otro',
+}
 export const tipoLabel = (t) => (t ? TIPOS_CAMION[t] || t : 'Sin clasificar')
 
 // Sugerencia por defecto al elegir categoría en el formulario (editable)
-export const TIPO_SUGERIDO = { aridos: 'volcadora', prefabricados: 'plancha', maquinaria: 'carreton', varios: null }
+export const TIPO_SUGERIDO = { aridos: 'volcadora', prefabricados: 'plancha', maquinaria: 'plancha', varios: null }
 
 /** "mar 17" (día abreviado + número, sin mes). */
 export function fmtDiaCorto(iso) {
