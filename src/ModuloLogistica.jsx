@@ -3,6 +3,7 @@ import BandejaLogistica from './logistica/BandejaLogistica'
 import FormularioEncargo from './logistica/FormularioEncargo'
 import DetalleEncargo from './logistica/DetalleEncargo'
 import Planificacion from './logistica/Planificacion'
+import CamionesLogistica from './logistica/CamionesLogistica'
 import { cargarCatalogos } from './logistica/datos'
 import { useEsEscritorio, AZUL } from './logistica/constantes'
 
@@ -13,7 +14,7 @@ import { useEsEscritorio, AZUL } from './logistica/constantes'
  */
 export default function ModuloLogistica({ usuario, onVolver }) {
   const escritorio = useEsEscritorio()
-  const [vista, setVista] = useState('bandeja') // bandeja | plan | nuevo | editar | detalle
+  const [vista, setVista] = useState('bandeja') // bandeja | plan (Despacho) | camiones | nuevo | editar | detalle
   const [vistaBase, setVistaBase] = useState('bandeja') // a dónde vuelve el detalle
   const [encargoId, setEncargoId] = useState(null)
   const [encargoEditar, setEncargoEditar] = useState(null)
@@ -26,11 +27,12 @@ export default function ModuloLogistica({ usuario, onVolver }) {
   }, [])
 
   const autorizado = usuario?.rol === 'admin' || usuario?.rol === 'logistica'
+  const esAdmin = usuario?.rol === 'admin'
   if (!autorizado) return null
 
   const ir = (v) => {
     setVista(v)
-    if (v === 'bandeja' || v === 'plan') {
+    if (v === 'bandeja' || v === 'plan' || v === 'camiones') {
       setVistaBase(v)
       // Releer catálogos: puede haber camiones u obras nuevos desde que se abrió el módulo
       cargarCatalogos().then(setCatalogos).catch(() => {})
@@ -45,19 +47,22 @@ export default function ModuloLogistica({ usuario, onVolver }) {
     if (vista === 'detalle' || vista === 'nuevo') return ir(vistaBase)
     if (vista === 'editar') return setVista('detalle')
     if (vista === 'plan') return ir('bandeja')
+    if (vista === 'camiones') return ir(escritorio ? 'bandeja' : 'plan')
     onVolver()
   }
 
   const titulo = {
-    bandeja: 'Bandeja de encargos', plan: escritorio ? 'Planificación semanal' : 'Camiones por día',
+    bandeja: 'Bandeja de encargos', plan: escritorio ? 'Despacho semanal por frente' : 'Despacho del día', camiones: 'Camiones',
     nuevo: 'Nuevo encargo', editar: 'Editar encargo', detalle: 'Detalle del encargo',
   }[vista]
 
   const tab = (id, label, icono) => {
-    const activo = vista === id || (id !== 'nuevo' && vista !== 'nuevo' && vistaBase === id && ['detalle', 'editar'].includes(vista))
+    const activo = vista === id || (!escritorio && vista === 'camiones' && id === 'plan') || (id !== 'nuevo' && vista !== 'nuevo' && vistaBase === id && ['detalle', 'editar'].includes(vista))
     return { id, label, icono, activo }
   }
-  const tabs = [tab('bandeja', 'Bandeja', '📥'), tab('plan', escritorio ? 'Semana' : 'Día', '📅'), tab('nuevo', 'Encargo', '＋')]
+  const tabs = escritorio
+    ? [tab('bandeja', 'Bandeja', '📥'), tab('plan', 'Despacho', '🗺️'), tab('camiones', 'Camiones', '🚚'), tab('nuevo', 'Encargo', '＋')]
+    : [tab('bandeja', 'Bandeja', '📥'), tab('plan', 'Despacho', '🗺️'), tab('nuevo', 'Encargo', '＋')]
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
@@ -101,7 +106,12 @@ export default function ModuloLogistica({ usuario, onVolver }) {
             <BandejaLogistica catalogos={catalogos} version={version} onAbrirEncargo={abrirEncargo} onNuevo={() => ir('nuevo')} />
           )}
           {vista === 'plan' && (
-            <Planificacion catalogos={catalogos} version={version} onAbrirEncargo={abrirEncargo} />
+            <Planificacion catalogos={catalogos} version={version} onAbrirEncargo={abrirEncargo}
+              esAdmin={esAdmin} onAbrirCamiones={() => ir('camiones')} />
+          )}
+          {vista === 'camiones' && (
+            <CamionesLogistica catalogos={catalogos} esAdmin={esAdmin}
+              onCambio={() => cargarCatalogos().then(setCatalogos).catch(() => {})} />
           )}
           {vista === 'nuevo' && (
             <FormularioEncargo catalogos={catalogos} onLugarCreado={lugarCreado}

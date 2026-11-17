@@ -4,7 +4,7 @@ import { toast, confirmar } from '../utils/ui'
 import Sheet from './Sheet'
 import ComboBox from './ComboBox'
 import { COLS_ENCARGO, claveDestino } from './datos'
-import { estilos, hoyPY, sumarDias, fmtFecha, msgError } from './constantes'
+import { estilos, hoyPY, sumarDias, fmtFecha, msgError, tipoLabel } from './constantes'
 
 /**
  * Crear o reprogramar una asignación (camión + día).
@@ -68,6 +68,16 @@ export default function AsignarSheet({ catalogos, encargo: encargoProp, asignaci
     ocupacion.forEach(a => { if (a.id !== asignacion?.id) m[a.equipo_id] = (m[a.equipo_id] || 0) + 1 })
     return m
   }, [ocupacion, asignacion])
+
+  // Camiones: primero los del tipo requerido que están libres ese día; el resto en el orden de siempre
+  const requerido = encargo?.tipo_camion_requerido || null
+  const camionesOrdenados = useMemo(() => {
+    if (!requerido) return catalogos.camiones
+    const primero = (c) => (c.tipo_camion === requerido && !conteoPorCamion[c.id] ? 0 : 1)
+    return [...catalogos.camiones].sort((a, b) => primero(a) - primero(b))
+  }, [catalogos.camiones, requerido, conteoPorCamion])
+  const camionElegido = catalogos.camiones.find(c => c.id === equipoId)
+  const tipoNoCoincide = requerido && camionElegido && camionElegido.tipo_camion !== requerido
 
   // Avisos: otros encargos del mismo camión ese día
   const otrosDelCamion = ocupacion.filter(a => a.equipo_id === equipoId && a.id !== asignacion?.id && a.encargo_id !== encargo?.id)
@@ -142,18 +152,23 @@ export default function AsignarSheet({ catalogos, encargo: encargoProp, asignaci
       <div style={{ marginBottom: '16px' }}>
         <label style={estilos.label}>Camión</label>
         <ComboBox
-          opciones={catalogos.camiones}
+          opciones={camionesOrdenados}
           valor={equipoId}
           onChange={id => { setEquipoId(id); if (!operadorTocado) setOperadorId(choferDe(id)) }}
           getId={c => c.id}
-          getLabel={c => c.numero_identificacion}
+          getLabel={c => (c.tipo_camion ? `${c.numero_identificacion} · ${tipoLabel(c.tipo_camion)}` : c.numero_identificacion)}
           getDetalle={c => {
             const n = conteoPorCamion[c.id] || 0
-            const tipo = (c.denominacion || '').replace(c.numero_identificacion, '').trim().toLowerCase()
-            return `${tipo}${n ? ` · ${n} el ${fmtFecha(fecha, { conDia: false })}` : ' · libre'}`
+            const denom = (c.denominacion || '').replace(c.numero_identificacion, '').trim().toLowerCase()
+            return `${c.tipo_camion ? '' : `${denom} · `}${n ? `${n} el ${fmtFecha(fecha, { conDia: false })}` : 'libre'}`
           }}
           placeholder="Buscar camión (ej. VP-GR007)"
         />
+        {tipoNoCoincide && (
+          <div style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '10px', background: '#fef9c3', color: '#854d0e', fontSize: '13px', fontWeight: 600 }}>
+            ⚠️ Este encargo pide {tipoLabel(requerido).toLowerCase()}{camionElegido.tipo_camion ? ` y ${camionElegido.numero_identificacion} es ${tipoLabel(camionElegido.tipo_camion).toLowerCase()}` : ` y ${camionElegido.numero_identificacion} no tiene tipo cargado`}. Se puede asignar igual.
+          </div>
+        )}
         {mismoDestino.length > 0 && (
           <div style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '10px', background: '#ecfdf5', color: '#065f46', fontSize: '13px' }}>
             🔗 Va junto con: {mismoDestino.map(a => a.encargos.descripcion).join(', ')}

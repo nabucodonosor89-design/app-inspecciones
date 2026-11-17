@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import SelectorLugar from './SelectorLugar'
-import { UNIDADES, estilos, hoyPY, sumarDias, msgError } from './constantes'
+import { CATEGORIAS, TIPOS_CAMION, TIPO_SUGERIDO, UNIDADES, estilos, hoyPY, sumarDias, msgError } from './constantes'
 
 const lugarDe = (lugarId, obraId) =>
   obraId ? { tipo: 'obra', id: obraId } : lugarId ? { tipo: 'lugar', id: lugarId } : null
@@ -25,6 +25,8 @@ export default function FormularioEncargo({ catalogos, onLugarCreado, encargo, o
   const [unidad, setUnidad]     = useState(encargo?.unidad || 'un')
   const [fecha, setFecha]       = useState(encargo?.fecha_requerida || null)
   const [elegirFecha, setElegirFecha] = useState(!!encargo?.fecha_requerida && ![hoy, manana].includes(encargo.fecha_requerida))
+  const [categoria, setCategoria] = useState(encargo?.categoria || 'varios')
+  const [tipoReq, setTipoReq]     = useState(encargo ? encargo.tipo_camion_requerido || null : TIPO_SUGERIDO.varios)
   const [notas, setNotas]       = useState(encargo?.notas || '')
   const [verNotas, setVerNotas] = useState(!!encargo?.notas)
   const [guardando, setGuardando] = useState(false)
@@ -49,6 +51,8 @@ export default function FormularioEncargo({ catalogos, onLugarCreado, encargo, o
       cantidad: cant,
       unidad: conCantidad ? unidad : null,
       fecha_requerida: fecha,
+      categoria,
+      tipo_camion_requerido: tipoReq,
       notas: notas.trim() || null,
     }
 
@@ -91,6 +95,31 @@ export default function FormularioEncargo({ catalogos, onLugarCreado, encargo, o
         <SelectorLugar obras={catalogos.obras} lugares={catalogos.lugares} valor={destino} onChange={setDestino}
           onLugarCreado={onLugarCreado} placeholder="Buscar obra, base o proveedor…" />
         {mismaRuta && <div style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>El destino es igual al origen</div>}
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={estilos.label}>Material</label>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {Object.entries(CATEGORIAS).map(([id, c]) => {
+            const activo = categoria === id
+            return (
+              <button key={id} type="button" onClick={() => { setCategoria(id); setTipoReq(TIPO_SUGERIDO[id]) }}
+                style={{ ...estilos.chip(activo), ...(activo ? { background: c.bg, color: c.fg, borderColor: c.fg } : {}) }}>
+                {c.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={estilos.label}>Camión requerido</label>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setTipoReq(null)} style={estilos.chip(tipoReq === null)}>Cualquiera</button>
+          {Object.entries(TIPOS_CAMION).map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setTipoReq(id)} style={estilos.chip(tipoReq === id)}>{label}</button>
+          ))}
+        </div>
       </div>
 
       <div style={{ marginBottom: '16px' }}>

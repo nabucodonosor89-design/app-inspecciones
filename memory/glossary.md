@@ -104,6 +104,17 @@
 | **cierre** | Siempre manual. Requiere que no haya asignaciones planificadas ni sin confirmar |
 | rol **logistica** | Rol de usuario del encargado de logística. Solo `admin` y `logistica` ven el módulo |
 
+## Logística — Tablero de despacho (17/11/2026)
+| Término | Significado |
+|---------|-------------|
+| **frente** | El destino de un encargo (obra o lugar), clave `destino_key` en `v_encargos` (`obra:<id>` / `lugar:<id>`). El tablero de despacho agrupa por frente, no por camión: los pedidos nacen en el destino |
+| **categoría de material** | `encargos.categoria`: aridos · prefabricados · maquinaria · varios (default). Da el color de las tarjetas y el filtro del tablero |
+| **tipo de camión** | `equipos.tipo_camion`: volcadora · carreton · plancha · camioneta · otro; NULL = sin clasificar. Lo carga el gerente (admin) en Logística → Camiones (RPC `set_tipo_camion`). Lo escaso no es la cantidad de camiones sino ciertos tipos (el carretón) |
+| **camión requerido** | `encargos.tipo_camion_requerido` (NULL = cualquiera). Se sugiere según la categoría (áridos → volcadora, prefabricados → plancha, maquinaria → carretón). **No bloquea**: solo avisos y sugerencias |
+| **hueco** | Encargo abierto sin ninguna asignación y con fecha requerida, dibujado en la grilla: punteado naranja en su día; punteado rojo en **hoy** si ya venció ("Sin camión · era lun 16"). Sin fecha o fuera de la semana → solo en el panel "Por asignar" |
+| **camión-día** | Par distinto (camión, fecha) con al menos una asignación (cualquier estado) o una copia proyectada. Base de "Ocupación de la flota" = camión-días ocupados / (camiones de logística activos × 7) |
+| **sin camión** | Encargo abierto con `n_asignaciones = 0` (puede estar además atrasado) |
+
 ## Módulo Correctivos (oct-2026)
 | Término | Significado |
 |---------|-------------|

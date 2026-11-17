@@ -1,12 +1,14 @@
 import { supabase } from '../lib/supabase'
 
+export const COLS_CAMION = 'id, numero_identificacion, denominacion, operador_asignado_id, tipo_camion'
+
 /** Catálogos que usa todo el módulo. Se cargan una vez al entrar. */
 export async function cargarCatalogos() {
   const [obras, lugares, camiones, operadores] = await Promise.all([
     supabase.from('obras').select('id, codigo_obra, nombre_obra').eq('activa', true).order('nombre_obra').limit(500),
     supabase.from('lugares').select('id, nombre, tipo').eq('activo', true).order('nombre').limit(500),
     supabase.from('equipos')
-      .select('id, numero_identificacion, denominacion, operador_asignado_id')
+      .select(COLS_CAMION)
       .eq('es_logistica', true).eq('activo', true)
       .order('numero_identificacion').limit(200),
     supabase.from('operadores').select('id, nombres, apellidos').eq('estado', 'activo').order('nombres').limit(1000),
@@ -27,6 +29,7 @@ export const COLS_ENCARGO = [
   'origen_nombre', 'origen_tipo', 'destino_nombre', 'destino_tipo', 'creado_por_nombre', 'cerrado_por_nombre',
   'n_asignaciones', 'n_planificadas', 'n_entregadas', 'n_confirmadas', 'n_atrasadas',
   'cantidad_confirmada', 'cantidad_sin_confirmar', 'proxima_fecha', 'subestado',
+  'categoria', 'tipo_camion_requerido', 'destino_key',
 ].join(', ')
 
 export const COLS_ASIG = 'id, encargo_id, fecha, fecha_programada, equipo_id, operador_id, estado, cantidad_real, notas, entregada_at, confirmada_at, equipo:equipos(numero_identificacion)'

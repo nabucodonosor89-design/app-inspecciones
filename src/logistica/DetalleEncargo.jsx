@@ -9,6 +9,7 @@ import { COLS_ENCARGO, COLS_ASIG, nombreCamion, nombreOperador } from './datos'
 import {
   ESTADO_ASIG, estilos, fmtFecha, fmtFechaHora, fmtFechaRelativa, fmtNum, unidadLabel, hoyPY, msgError,
 } from './constantes'
+import { ChipCamionRequerido, ChipCategoria } from './Tarjetas'
 
 const TEXTO_EVENTO = {
   creado: 'Encargo cargado',
@@ -24,6 +25,10 @@ const TEXTO_EVENTO = {
   cancelado: 'Encargo cancelado',
 }
 
+const CAMPOS_EDITADOS = {
+  descripcion: 'descripción', fecha_requerida: 'fecha requerida', categoria: 'material', tipo_camion_requerido: 'camión requerido',
+}
+
 function detalleEvento(ev, unidad) {
   const d = ev.detalle || {}
   switch (ev.tipo) {
@@ -34,7 +39,7 @@ function detalleEvento(ev, unidad) {
     case 'confirmada':   return `${d.equipo || ''}${d.cantidad != null ? ` · ${fmtNum(d.cantidad)} ${unidad}` : ''}`
     case 'cantidad_corregida': return `${d.equipo} · ${fmtNum(d.de)} → ${fmtNum(d.a)} ${unidad}`
     case 'cancelado':    return d.motivo || ''
-    case 'editado':      return Object.keys(d).join(', ')
+    case 'editado':      return Object.keys(d).map(k => CAMPOS_EDITADOS[k] || k).join(', ')
     default:             return ''
   }
 }
@@ -116,6 +121,10 @@ export default function DetalleEncargo({ encargoId, catalogos, onEditar, onCambi
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '12px', fontSize: '14px', color: '#374151' }}>
           <div><span style={{ color: '#6b7280' }}>Para: </span><strong>{fmtFechaRelativa(encargo.fecha_requerida)}</strong></div>
           {encargo.cantidad != null && <div><span style={{ color: '#6b7280' }}>Cantidad: </span><strong>{fmtNum(encargo.cantidad)} {unidad}</strong></div>}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <ChipCategoria categoria={encargo.categoria} />
+            <ChipCamionRequerido tipo={encargo.tipo_camion_requerido} />
+          </div>
           <div><span style={{ color: '#6b7280' }}>Estado: </span><strong>{abierto ? 'Abierto' : encargo.estado === 'cerrado' ? 'Cerrado' : 'Cancelado'}</strong></div>
         </div>
         {encargo.cantidad != null && <div style={{ marginTop: '10px' }}><BarraAvance encargo={encargo} grande /></div>}

@@ -162,3 +162,55 @@ export const estilos = {
     fontSize: '14px', fontWeight: activo ? 700 : 500,
   }),
 }
+
+// ── Despacho v1: categoría de material y tipo de camión ──────────────────────
+export const CATEGORIAS = {
+  aridos:        { label: 'Áridos',        bg: '#fef3c7', fg: '#92400e' },
+  prefabricados: { label: 'Prefabricados', bg: '#ccfbf1', fg: '#115e59' },
+  maquinaria:    { label: 'Maquinaria',    bg: '#ede9fe', fg: '#5b21b6' },
+  varios:        { label: 'Varios',        bg: '#f3f4f6', fg: '#374151' },
+}
+export const categoriaDe = (c) => CATEGORIAS[c] || CATEGORIAS.varios
+
+export const TIPOS_CAMION = { volcadora: 'Volcadora', carreton: 'Carretón', plancha: 'Plancha', camioneta: 'Camioneta', otro: 'Otro' }
+export const tipoLabel = (t) => (t ? TIPOS_CAMION[t] || t : 'Sin clasificar')
+
+// Sugerencia por defecto al elegir categoría en el formulario (editable)
+export const TIPO_SUGERIDO = { aridos: 'volcadora', prefabricados: 'plancha', maquinaria: 'carreton', varios: null }
+
+/** "mar 17" (día abreviado + número, sin mes). */
+export function fmtDiaCorto(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return `${DIAS[dow]} ${d}`
+}
+
+/** Lista legible: "a", "a y b", "a, b y c". */
+export function unirY(lista) {
+  if (lista.length <= 1) return lista.join('')
+  return `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}`
+}
+
+/** localStorage con try/catch (puede fallar en navegación privada o webviews). */
+export function leerPref(clave, porDefecto) {
+  try { return window.localStorage.getItem(clave) ?? porDefecto } catch { return porDefecto }
+}
+export function guardarPref(clave, valor) {
+  try { window.localStorage.setItem(clave, valor) } catch { /* sin almacenamiento: no pasa nada */ }
+}
+
+/** true si el ancho de pantalla alcanza la media query (ej. '(min-width: 1200px)'). */
+export function useMedia(query) {
+  const [es, setEs] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const h = () => setEs(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [query])
+  return es
+}
+
+// Copias visuales de asignaciones pendientes de días anteriores (addendum pendientes)
+export const ESTILO_COPIA = { color: '#4b5563', bg: '#f3f4f6', borde: '#9ca3af' }
