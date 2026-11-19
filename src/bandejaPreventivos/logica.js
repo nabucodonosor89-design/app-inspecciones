@@ -172,3 +172,13 @@ export function exportarReprogramadas(rows, fecha) {
     }))
   descargar([['Reprogramadas', f, [10, 12, 30, 28, 13, 12, 10, 7, 40]]], `Ordenes reprogramadas ${fecha}.xlsx`)
 }
+
+// ---------- fecha propuesta de reprogramación (ver supabase/bandeja_fecha_propuesta.sql) ----------
+// 70 % de lo que falta ÷ ritmo de los últimos 14 días (parte → rastreo → combustible), tope 30 días.
+export function textoRitmo(r) {
+  const u = r.unidad === 'km' ? 'km' : 'h'
+  if (r.ritmo_fuente == null) return 'sin datos de uso en 14 días: tope 30 días'
+  if (!(Number(r.ritmo) > 0)) return `sin uso en 14 días (${r.ritmo_fuente}): tope 30 días`
+  const base = `${Number(r.ritmo).toLocaleString('es-PY', { maximumFractionDigits: 1 })} ${u}/día (${r.ritmo_fuente})`
+  return r.propuesta_dias >= 30 ? `${base} · tope 30 días` : base
+}

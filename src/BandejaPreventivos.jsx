@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import { toast } from './utils/ui'
 import {
   leerLibro, prepararHoja, filasIP30, CAMPOS_IP30, colorJ, RANGO_COLOR, abierta, ESTADO_TXT,
-  exportarListaObra, exportarListaGeneral, exportarReprogramadas, listaEnvio,
+  exportarListaObra, exportarListaGeneral, exportarReprogramadas, listaEnvio, textoRitmo,
 } from './bandejaPreventivos/logica'
 import RevisarOrdenModal from './bandejaPreventivos/RevisarOrdenModal.jsx'
 
@@ -124,9 +124,19 @@ function CeldaOrden({ r }) {
   )
 }
 
+function TextoPropuesta({ r }) {
+  return (
+    <div style={{ marginTop: 4, fontSize: 12 }} title="70 % de lo que falta ÷ ritmo de los últimos 14 días, con tope de 30 días. Es una propuesta: se puede cambiar en Revisar.">
+      <span style={{ color: C.azul, fontWeight: 600 }}>Propuesta: {fechaCorta(r.fecha_propuesta)}</span>
+      <div style={s.sub}>{textoRitmo(r)}</div>
+    </div>
+  )
+}
+
 function CeldaConfirmado({ r, onRevisar, onAceptar, guardando }) {
   const difiere = r.estado_confirmado && r.estado_sugerido && r.estado_confirmado !== r.estado_sugerido
-  const puedeAceptar = r.estado_sugerido && r.estado_sugerido !== 'reprogramado' && (r.estado_confirmado !== r.estado_sugerido || r.pendiente)
+  // Reprogramado se acepta en un clic solo si hay fecha propuesta (ip30_fecha_propuesta)
+  const puedeAceptar = r.estado_sugerido && (r.estado_sugerido !== 'reprogramado' || r.fecha_propuesta) && (r.estado_confirmado !== r.estado_sugerido || r.pendiente)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
       {r.estado_confirmado
@@ -139,9 +149,9 @@ function CeldaConfirmado({ r, onRevisar, onAceptar, guardando }) {
       <div style={{ display: 'flex', gap: 4 }}>
         <button onClick={onRevisar} style={{ ...s.boton, padding: '4px 10px', fontSize: 12 }}>Revisar</button>
         {puedeAceptar && (
-          <button onClick={onAceptar} disabled={guardando} title={`Confirmar ${ESTADO_TXT[r.estado_sugerido]}`}
+          <button onClick={onAceptar} disabled={guardando} title={r.estado_sugerido === 'reprogramado' ? `Reprogramar al ${fechaCorta(r.fecha_propuesta)}` : `Confirmar ${ESTADO_TXT[r.estado_sugerido]}`}
             style={{ ...s.boton, padding: '4px 10px', fontSize: 12, color: C.azul, borderColor: C.azul }}>
-            ✓ {ESTADO_TXT[r.estado_sugerido]}
+            ✓ {r.estado_sugerido === 'reprogramado' ? `Reprogramar al ${fechaCorta(r.fecha_propuesta).slice(0, 5)}` : ESTADO_TXT[r.estado_sugerido]}
           </button>
         )}
       </div>
@@ -194,9 +204,18 @@ export default function BandejaPreventivos({ onVolver }) {
   const cargar = useCallback(async () => {
     setCargando(true)
     try {
-      const [rows, f] = await Promise.all([rpcTodo('ip30_bandeja'), supabase.rpc('ip30_bandeja_frescura')])
+      const [rows, f, prop] = await Promise.all([
+        rpcTodo('ip30_bandeja'),
+        supabase.rpc('ip30_bandeja_frescura'),
+        // Fecha propuesta de reprogramación (ver supabase/bandeja_fecha_propuesta.sql). Si falla, la bandeja funciona igual.
+        rpcTodo('ip30_fecha_propuesta').catch((e) => { console.error(e); toast('⚠️ No se pudo calcular la fecha propuesta: ' + e.message, 'error'); return [] }),
+      ])
       if (f.error) throw f.error
-      setFilas(rows)
+      const porOrden = new Map(prop.map((p) => [p.orden, p]))
+      setFilas(rows.map((r) => {
+        const p = porOrden.get(r.orden)
+        return p ? { ...r, fecha_propuesta: p.fecha_propuesta, propuesta_dias: p.dias, ritmo: p.ritmo, ritmo_fuente: p.ritmo_fuente } : r
+      }))
       setFrescura((f.data || [])[0] || null)
       setSinOrden(null); setPendContador(null)
     } catch (e) {
@@ -287,7 +306,9 @@ export default function BandejaPreventivos({ onVolver }) {
     setGuardando(r.orden)
     try {
       const { error } = await supabase.rpc('ip30_confirmar_estado', {
-        p_orden: r.orden, p_estado: r.estado_sugerido, p_nueva_fecha: null, p_notas: r.notas, p_contador: null, p_fecha: null,
+        p_orden: r.orden, p_estado: r.estado_sugerido,
+        p_nueva_fecha: r.estado_sugerido === 'reprogramado' ? r.fecha_propuesta : null,
+        p_notas: r.notas, p_contador: null, p_fecha: null,
       })
       if (error) throw error
       await cargar()
@@ -440,6 +461,7 @@ export default function BandejaPreventivos({ onVolver }) {
                     <td style={s.td}>
                       {r.estado_sugerido ? <span style={{ ...s.chip, ...COLOR_ESTADO[r.estado_sugerido], fontWeight: 600 }}>{ESTADO_TXT[r.estado_sugerido]}</span> : <span style={{ color: C.gris, fontSize: 12 }}>—</span>}
                       <div style={s.sub}>{r.motivo}</div>
+                      {r.estado_sugerido === 'reprogramado' && r.fecha_propuesta && <TextoPropuesta r={r} />}
                     </td>
                     <td style={s.td}>
                       <CeldaConfirmado r={r} guardando={guardando === r.orden}

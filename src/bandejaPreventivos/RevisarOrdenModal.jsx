@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
-import { ESTADO_TXT } from './logica'
+import { ESTADO_TXT, textoRitmo } from './logica'
 
 // ============================================================
 // Revisar una orden de la bandeja: estado confirmado (+ nueva fecha si se reprograma), notas,
@@ -35,7 +35,9 @@ const st = {
 
 export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGuardado }) {
   const [estado, setEstado] = useState(estadoInicial ?? fila.estado_confirmado ?? fila.estado_sugerido ?? '')
-  const [nuevaFecha, setNuevaFecha] = useState(fila.nueva_fecha || '')
+  const estadoIni = estadoInicial ?? fila.estado_confirmado ?? fila.estado_sugerido ?? ''
+  // Si se va a reprogramar y no hay fecha cargada, arranca con la fecha propuesta (ip30_fecha_propuesta)
+  const [nuevaFecha, setNuevaFecha] = useState(fila.nueva_fecha || (estadoIni === 'reprogramado' && fila.fecha_propuesta) || '')
   const [notas, setNotas] = useState(fila.notas || '')
   const [h, setH] = useState(fila.h_fuente === 'cargado' && fila.h != null ? String(fila.h) : '')
   const [unidad, setUnidad] = useState(fila.unidad || 'h')
@@ -104,7 +106,11 @@ export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGua
         </div>
 
         <label style={st.label}>Estado</label>
-        <select style={st.input} value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <select style={st.input} value={estado} onChange={(e) => {
+          const v = e.target.value
+          setEstado(v)
+          if (v === 'reprogramado' && !nuevaFecha && fila.fecha_propuesta) setNuevaFecha(fila.fecha_propuesta)
+        }}>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
 
@@ -112,6 +118,17 @@ export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGua
           <>
             <label style={{ ...st.label, color: nuevaFecha ? '#6b7280' : '#b91c1c' }}>Nueva fecha (la que se pone en SAP)</label>
             <input type="date" style={st.input} value={nuevaFecha} min={hoyISO()} onChange={(e) => setNuevaFecha(e.target.value)} />
+            {fila.fecha_propuesta && (
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                Propuesta: <b style={{ color: '#1d4ed8' }}>{fila.fecha_propuesta.split('-').reverse().join('/')}</b> · {textoRitmo(fila)}
+                {nuevaFecha && nuevaFecha !== fila.fecha_propuesta && (
+                  <button type="button" onClick={() => setNuevaFecha(fila.fecha_propuesta)}
+                    style={{ marginLeft: 6, border: 'none', background: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: 12, padding: 0, textDecoration: 'underline' }}>
+                    usar propuesta
+                  </button>
+                )}
+              </div>
+            )}
           </>
         )}
 

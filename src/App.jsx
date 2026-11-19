@@ -852,8 +852,8 @@ function App() {
             </p>
           </div>
           )}
-          {/* Card Bandeja de preventivos — OCULTA desde 21/10/2026 (se volvió a Completar órdenes IP30). Código, datos y RPC siguen (ver supabase/bandeja_preventivos.sql) */}
-          {MODULOS_OCULTOS_VISIBLES && user.ve_completar_ordenes === true && (
+          {/* Card Bandeja de preventivos — oculta 21/10/2026, vuelve a mostrarse 19/11/2026 (MVP con fecha propuesta de reprogramación, ver supabase/bandeja_fecha_propuesta.sql). Convive con Completar órdenes IP30 */}
+          {user.ve_completar_ordenes === true && (
           <div
             onClick={() => setModulo('bandeja-preventivos')}
             style={{
