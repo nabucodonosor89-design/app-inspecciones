@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { toast } from '../utils/ui'
+import { toast, confirmar } from '../utils/ui'
+import { hoyISO, FECHA_MIN_MTTO, errorFechaMantenimiento, avisoFechaVieja } from '../utils/fechaMantenimiento'
 import { ESTADO_TXT, textoRitmo } from './logica'
 
 // ============================================================
@@ -18,10 +19,6 @@ const ESTADOS = [
   ['verificar', 'Verificar'],
 ]
 
-const hoyISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 const num = (v, dec = 1) => (v == null ? '—' : Number(v).toLocaleString('es-PY', { maximumFractionDigits: dec }))
 
 const st = {
@@ -52,13 +49,18 @@ export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGua
     if (estado === 'reprogramado' && !nuevaFecha) return 'Para reprogramar hace falta la nueva fecha'
     if (h.trim() !== '' && (!Number.isFinite(Number(h)) || Number(h) < 0)) return 'El próximo mantenimiento no es un número válido'
     if (contador.trim() !== '' && (!Number.isFinite(Number(contador)) || Number(contador) < 0)) return 'El contador no es un número válido'
-    if (fecha && fecha > hoyISO()) return 'La fecha del mantenimiento no puede ser futura'
+    if (estado === 'concluido' && fecha) {
+      const errFecha = errorFechaMantenimiento(fecha)
+      if (errFecha) return errFecha
+    }
     return ''
   }
   const error = validar()
 
   async function guardar() {
     if (error) return
+    const aviso = estado === 'concluido' ? avisoFechaVieja(fecha) : null
+    if (aviso && !(await confirmar(aviso))) return
     setGuardando(true)
     try {
       if (cambioH) {
@@ -144,7 +146,7 @@ export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGua
               </div>
               <div>
                 <label style={st.label}>Fecha</label>
-                <input type="date" style={st.input} value={fecha} max={hoyISO()} onChange={(e) => setFecha(e.target.value)} />
+                <input type="date" style={st.input} value={fecha} min={FECHA_MIN_MTTO} max={hoyISO()} onChange={(e) => setFecha(e.target.value)} />
               </div>
             </div>
           </div>

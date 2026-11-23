@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import SubidaFotos from './SubidaFotos.jsx'
 import { getSemaforoColor, getSemaforoEmoji, getSemaforoTexto } from './utils/semaforo'
-import { toast } from './utils/ui'
+import { toast, confirmar } from './utils/ui'
+import { hoyISO, FECHA_MIN_MTTO, errorFechaMantenimiento, avisoFechaVieja } from './utils/fechaMantenimiento'
 
 // Ítem del checklist "Ficha de mantenimiento - Presente y actualizada" (existe en todos los tipos de equipo)
 const esItemFicha = (nombre) => /^\s*ficha de mantenimiento/i.test(nombre || '')
@@ -11,10 +12,6 @@ const admiteNA = (nombre) => esItemFicha(nombre) || /\(N\/A si /i.test(nombre ||
 // Equipos estáticos (contenedores ST-CN y tanques ST-TN): sin horómetro/odómetro ni ficha de mantenimiento
 // (ver supabase/inspeccion_estaticos.sql)
 const esEstatico = (equipo) => equipo?.tipo_equipo === 'S'
-const hoyISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
   const [paso, setPaso] = useState(equipoPreseleccionado ? 2 : 1)
@@ -258,6 +255,11 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
         setLoading(false)
         return
       }
+      const avisoFicha = fichaPresente ? avisoFechaVieja(fichaFecha) : null
+      if (avisoFicha && !(await confirmar(avisoFicha))) {
+        setLoading(false)
+        return
+      }
 
       // Calcular el semáforo
       const semaforoCalculado = calcularSemaforo()
@@ -403,7 +405,8 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
     if (!Number.isFinite(c) || c < 0) return 'El contador del último mantenimiento no es un número válido'
     const actual = Number(horometro)
     if (horometro !== '' && Number.isFinite(actual) && c > actual) return `El contador del último mantenimiento (${c}) no puede ser mayor que el horómetro/odómetro actual (${actual})`
-    if (fichaFecha > hoyISO()) return 'La fecha del último mantenimiento no puede ser futura'
+    const errFecha = errorFechaMantenimiento(fichaFecha)
+    if (errFecha) return errFecha
     return null
   }
 
@@ -909,7 +912,7 @@ function NuevaInspeccion({ user, onVolver, equipoPreseleccionado }) {
                           </label>
                           <label style={{ fontSize: '0.8rem', color: '#374151' }}>
                             Fecha
-                            <input type="date" max={hoyISO()} value={fichaFecha}
+                            <input type="date" min={FECHA_MIN_MTTO} max={hoyISO()} value={fichaFecha}
                               onChange={(e) => setFichaFecha(e.target.value)}
                               style={{ width: '100%', padding: '0.6rem', border: '2px solid #e5e7eb', borderRadius: '6px', fontSize: '1rem', marginTop: '0.25rem', boxSizing: 'border-box' }} />
                           </label>
