@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { toast, confirmar } from './utils/ui'
+import { hoyISO, FECHA_MIN_MTTO, errorFechaMantenimiento, avisoFechaVieja } from './utils/fechaMantenimiento'
 
 // ============================================================
 // Mantenimientos de un equipo (Gestión de Equipos) — solo usuarios con ve_completar_ordenes
@@ -11,10 +12,6 @@ import { toast, confirmar } from './utils/ui'
 // Período de mantenimiento del equipo: mantenimiento_periodo / fijar_periodo_mantenimiento (ver supabase/periodo_mantenimiento.sql)
 // ============================================================
 
-const hoyISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 const fechaCorta = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—')
 const num = (v) => (v == null ? '—' : Number(v).toLocaleString('es-PY', { maximumFractionDigits: 1 }))
 
@@ -73,12 +70,15 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
     if (!fecha || contador === '') return 'Completá la fecha y el contador'
     const c = Number(contador)
     if (!Number.isFinite(c) || c < 0) return 'El contador no es un número válido'
-    if (fecha > hoyISO()) return 'La fecha no puede ser futura'
+    const errFecha = errorFechaMantenimiento(fecha)
+    if (errFecha) return errFecha
     return null
   })()
 
   async function guardar() {
     if (error) return
+    const aviso = avisoFechaVieja(fecha)
+    if (aviso && !(await confirmar(aviso))) return
     const c = Number(contador)
     // Contador menor que el de un mantenimiento anterior (más viejo): puede ser error de tipeo o cambio de horómetro
     const anterior = lista.find((s) => s.fecha <= fecha && s.contador != null)
@@ -153,7 +153,7 @@ export default function ServicesEquipoModal({ equipo, onCerrar }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem' }}>
             <label style={{ fontSize: '0.8rem', color: '#374151' }}>
               Fecha del mantenimiento
-              <input type="date" max={hoyISO()} value={fecha} onChange={(e) => setFecha(e.target.value)} style={input} />
+              <input type="date" min={FECHA_MIN_MTTO} max={hoyISO()} value={fecha} onChange={(e) => setFecha(e.target.value)} style={input} />
             </label>
             <label style={{ fontSize: '0.8rem', color: '#374151' }}>
               Contador (hs o km)
