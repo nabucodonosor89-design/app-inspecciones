@@ -15,7 +15,7 @@ import HiloSheet, { ChipSituacion, ChipsAlertas, FormNovedad } from './HiloSheet
 
 const PRIORIDAD_ALERTA = ['compromiso_vencido', 'otes_con_trabajo', 'cerrada_sap_con_seguimiento', 'equipo_distinto', 'sin_seguimiento', 'terminado_abierta_sap']
 
-function AltaAviso({ responsables, onCreado, onCancelar }) {
+export function AltaAviso({ responsables, onCreado, onCancelar }) {
   const [equipo, setEquipo] = useState('')
   const [aviso, setAviso] = useState('')
   const [descripcion, setDescripcion] = useState('')

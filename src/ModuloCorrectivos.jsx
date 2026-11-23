@@ -7,9 +7,10 @@ import Resumen from './correctivos/Resumen'
 import TablaYpane from './correctivos/TablaYpane'
 import TablaEmpresa from './correctivos/TablaEmpresa'
 import TablaMateriales from './correctivos/TablaMateriales'
-import Reunion from './correctivos/Reunion'
+// Reunion.jsx y Seguimiento.jsx ya no se usan acá (23/11/2026): las dos pestañas se fusionaron en SeguimientoEquipos.
+// No se borran: Seguimiento.jsx lo siguen usando los residentes (ModuloSeguimientoObra.jsx).
 import Hallazgos from './correctivos/Hallazgos'
-import Seguimiento from './correctivos/Seguimiento'
+import SeguimientoEquipos from './correctivos/SeguimientoEquipos'
 import { useEscritorio } from './correctivos/useEscritorio'
 
 // ============================================================
@@ -44,7 +45,7 @@ export default function ModuloCorrectivos({ onVolver }) {
   const [datos, setDatos] = useState(VACIO)
   const [cargando, setCargando] = useState(true)
   const [tab, setTab] = useState('resumen')
-  const sinFiltrosTipo = ['reunion', 'hallazgos', 'seguimiento'].includes(tab)
+  const sinFiltrosTipo = ['hallazgos', 'seguimiento'].includes(tab)
   const [tipos, setTipos] = useState([]) // vacío = todos
   const [busqueda, setBusqueda] = useState('')
   const [cargadoEn, setCargadoEn] = useState(0)
@@ -124,7 +125,7 @@ export default function ModuloCorrectivos({ onVolver }) {
         {/* Fija solo en escritorio: en celular ocuparía media pantalla */}
         <div style={{ ...s.barra, position: escritorio ? 'sticky' : 'static' }}>
           <div style={s.tabs}>
-            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales'], ['seguimiento', 'Seguimiento'], ['reunion', 'Reunión'], ['hallazgos', 'Hallazgos']].map(([id, label]) => (
+            {[['resumen', 'Resumen'], ['ypane', 'Ypané'], ['empresa', 'Empresa'], ['materiales', 'Materiales'], ['seguimiento', 'Seguimiento'], ['hallazgos', 'Hallazgos']].map(([id, label]) => (
               <button key={id} style={s.tab(tab === id)} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
@@ -146,7 +147,7 @@ export default function ModuloCorrectivos({ onVolver }) {
           <div style={s.aviso}>⚠ Mostrando las primeras {num(LIMITE)} filas en: {limiteAlcanzado.join(', ')}. Los totales de los indicadores siguen siendo completos.</div>
         )}
 
-        {tab === 'seguimiento' ? <Seguimiento modo="completo" recarga={cargadoEn} /> : tab === 'reunion' ? <Reunion recarga={cargadoEn} /> : tab === 'hallazgos' ? <Hallazgos recarga={cargadoEn} /> : cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
+        {tab === 'seguimiento' ? <SeguimientoEquipos recarga={cargadoEn} /> : tab === 'hallazgos' ? <Hallazgos recarga={cargadoEn} /> : cargando && !k ? <div style={s.vacio}>⏳ Cargando…</div> : (
           <>
             {tab === 'resumen' && (
               <Resumen k={k} ypane={f.ypane} inconsistencias={f.inconsistencias} duplicados={f.duplicados}
