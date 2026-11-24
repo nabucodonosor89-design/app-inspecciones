@@ -12,7 +12,7 @@ import { AltaAviso } from './Seguimiento'
 // con su situación (cargada a mano: manda) y el freno calculado de SAP (etiqueta gris).
 // Datos: RPC corr_equipos_seguimiento() (solo admin / ve_correctivos),
 //        corr_seg_listar() para abrir cada hilo en HiloSheet,
-//        correctivos_parados_reservas(equipo) en el detalle.
+//        correctivos_parados_reservas(equipo) en el detalle, repartidas por orden (24/11/2026).
 // Ver supabase/correctivos_fusion_reunion_seguimiento.sql
 // Los residentes siguen usando Seguimiento.jsx (modo residente), sin cambios.
 // ============================================================
@@ -142,58 +142,68 @@ function Historial({ hiloId, version }) {
   ))
 }
 
-function Reservas({ eq }) {
+const claveOrden = (o) => (o == null ? '' : String(o).trim().replace(/^0+/, ''))
+
+// Reservas pendientes del equipo, cargadas una vez y repartidas por orden (24/11/2026)
+function useReservas(equipo) {
   const [reservas, setReservas] = useState(null)
   const [error, setError] = useState(null)
   useEffect(() => {
     let vivo = true
-    supabase.rpc('correctivos_parados_reservas', { p_equipo: eq.equipo }).then(({ data, error: e }) => {
+    setReservas(null); setError(null)
+    supabase.rpc('correctivos_parados_reservas', { p_equipo: equipo }).then(({ data, error: e }) => {
       if (!vivo) return
       if (e) setError(e.message)
       else setReservas(data || [])
     })
     return () => { vivo = false }
-  }, [eq.equipo])
+  }, [equipo])
+  return { reservas, error }
+}
 
+function TablaReservas({ filas, centroEquipo, conOrden }) {
+  const cols = [...(conOrden ? ['Orden'] : []), 'Material', 'Pendiente', 'Centro reserva', 'Stock por centro']
+  return (
+    <div style={s.scroll}>
+      <table style={s.tabla}>
+        <thead><tr>{cols.map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+        <tbody>
+          {filas.map((r) => (
+            <tr key={`${r.orden}-${r.posicion}`}>
+              {conOrden && <td style={s.td}>{r.orden}</td>}
+              <td style={s.td}><strong>{r.material}</strong><br /><span style={s.meta}>{r.descripcion}</span></td>
+              <td style={s.td}>{num(r.cantidad_pendiente)} {r.unidad}</td>
+              <td style={s.td}>{r.centro_reserva || '—'}</td>
+              <td style={s.td}>
+                {(r.stock_por_centro || []).length === 0
+                  ? <span style={s.chip(C.rojoBg, C.rojo)}>sin stock</span>
+                  : r.stock_por_centro.map((x) => {
+                    const propio = x.centro === centroEquipo
+                    return (
+                      <span key={x.centro} title={`al ${ddmm(x.a_fecha)}`}
+                        style={{ ...s.chip(propio ? C.verdeBg : '#f3f4f6', propio ? C.verde : C.texto), marginRight: 4, marginBottom: 2, border: propio ? `1px solid ${C.verde}` : 'none' }}>
+                        {x.centro}: {num(x.stock)}
+                      </span>
+                    )
+                  })}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Bloque de repuestos dentro de la tarjeta de una orden
+function ReservasOrden({ filas, cargando, error, centroEquipo }) {
   return (
     <>
-      <div style={{ ...s.subtitulo, marginTop: 16 }}>
-        Repuestos pendientes · stock por centro{' '}
-        <span style={{ textTransform: 'none' }}>{eq.centro ? <>(centro del equipo: <strong>{eq.centro}</strong>)</> : '(equipo sin centro en SAP)'}</span>
-      </div>
+      <div style={{ ...s.subtitulo, marginTop: 10, fontSize: 12 }}>Repuestos pendientes</div>
       {error && <div style={s.aviso}>No se pudieron cargar las reservas: {error}</div>}
-      {!error && reservas === null && <div style={s.meta}>⏳ Cargando…</div>}
-      {reservas && reservas.length === 0 && <div style={s.meta}>Sin reservas pendientes.</div>}
-      {reservas && reservas.length > 0 && (
-        <div style={s.scroll}>
-          <table style={s.tabla}>
-            <thead><tr>{['Orden', 'Material', 'Pendiente', 'Centro reserva', 'Stock por centro'].map((h) => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {reservas.map((r) => (
-                <tr key={`${r.orden}-${r.posicion}`}>
-                  <td style={s.td}>{r.orden}</td>
-                  <td style={s.td}><strong>{r.material}</strong><br /><span style={s.meta}>{r.descripcion}</span></td>
-                  <td style={s.td}>{num(r.cantidad_pendiente)} {r.unidad}</td>
-                  <td style={s.td}>{r.centro_reserva || '—'}</td>
-                  <td style={s.td}>
-                    {(r.stock_por_centro || []).length === 0
-                      ? <span style={s.chip(C.rojoBg, C.rojo)}>sin stock</span>
-                      : r.stock_por_centro.map((x) => {
-                        const propio = x.centro === eq.centro
-                        return (
-                          <span key={x.centro} title={`al ${ddmm(x.a_fecha)}`}
-                            style={{ ...s.chip(propio ? C.verdeBg : '#f3f4f6', propio ? C.verde : C.texto), marginRight: 4, marginBottom: 2, border: propio ? `1px solid ${C.verde}` : 'none' }}>
-                            {x.centro}: {num(x.stock)}
-                          </span>
-                        )
-                      })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {!error && cargando && <div style={s.meta}>⏳ Cargando…</div>}
+      {!error && !cargando && filas.length === 0 && <div style={s.meta}>Sin reservas pendientes.</div>}
+      {!error && !cargando && filas.length > 0 && <TablaReservas filas={filas} centroEquipo={centroEquipo} />}
     </>
   )
 }
@@ -205,6 +215,19 @@ function DetalleEquipo({ eq, version, puedeCargarEn, onAbrirHilo, onCerrar, hilo
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onCerrar, hiloAbierto])
+
+  const { reservas, error: errorReservas } = useReservas(eq.equipo)
+  const { porOrden, otras } = useMemo(() => {
+    const ordenes = new Set((eq.items || []).filter((i) => i.orden).map((i) => claveOrden(i.orden)))
+    const m = {}
+    const resto = []
+    for (const r of reservas || []) {
+      const k = claveOrden(r.orden)
+      if (ordenes.has(k)) (m[k] = m[k] || []).push(r)
+      else resto.push(r)
+    }
+    return { porOrden: m, otras: resto }
+  }, [reservas, eq.items])
 
   return (
     <div style={st.fondo} onClick={onCerrar}>
@@ -239,6 +262,10 @@ function DetalleEquipo({ eq, version, puedeCargarEn, onAbrirHilo, onCerrar, hilo
             </div>
             <div style={{ marginTop: 4, fontSize: 14 }}>{i.texto || '—'}</div>
             {i.alertas?.length > 0 && <div style={{ marginTop: 6 }}><ChipsAlertas alertas={i.alertas} /></div>}
+            {i.orden && (
+              <ReservasOrden filas={porOrden[claveOrden(i.orden)] || []} cargando={reservas === null}
+                error={errorReservas} centroEquipo={eq.centro} />
+            )}
             {i.sin_hilo ? (
               <div style={{ ...s.meta, marginTop: 6 }}>
                 Sin hilo de seguimiento: {i.orden ? 'la orden no es TCOC/TCUR o todavía no corrió la sincronización (cada 2 h).' : 'el aviso de la app todavía no tiene hilo.'}
@@ -255,7 +282,15 @@ function DetalleEquipo({ eq, version, puedeCargarEn, onAbrirHilo, onCerrar, hilo
           </div>
         ))}
 
-        <Reservas eq={eq} />
+        <div style={{ ...s.meta, marginTop: 12 }}>
+          Stock por centro: en verde el centro del equipo{eq.centro ? <> (<strong>{eq.centro}</strong>)</> : ' (equipo sin centro en SAP)'}.
+        </div>
+        {otras.length > 0 && (
+          <>
+            <div style={{ ...s.subtitulo, marginTop: 16 }}>Repuestos de otras órdenes del equipo · {otras.length}</div>
+            <TablaReservas filas={otras} centroEquipo={eq.centro} conOrden />
+          </>
+        )}
       </div>
     </div>
   )
