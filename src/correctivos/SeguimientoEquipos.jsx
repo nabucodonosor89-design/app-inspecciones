@@ -45,6 +45,18 @@ function ChipFreno({ freno }) {
   return <span style={st.freno} title="Qué la frena según SAP (calculado)">{FRENOS[freno]}</span>
 }
 
+// Orden/aviso con correctivo abierto en la app que NO ingresa al taller de Ypané:
+// va a un taller tercerizado (gestión exclusiva de TyE). Ver supabase/correctivos_seguimiento_taller_externo.sql
+const VIOLETA = { bg: '#ede9fe', fg: '#6d28d9' }
+function ChipTallerExterno({ taller }) {
+  if (!taller) return null
+  return (
+    <span style={{ ...s.chip(VIOLETA.bg, VIOLETA.fg), border: `1px solid ${VIOLETA.fg}` }} title="Taller tercerizado: gestión exclusiva de TyE">
+      🔧 Taller externo · {taller}
+    </span>
+  )
+}
+
 function ChipSituacionItem({ i, compacto = false }) {
   if (i.situacion) return <ChipSituacion id={i.situacion} />
   // En la fila, si ya está la alerta "Sin seguimiento" el chip "sin novedades" dice lo mismo
@@ -58,12 +70,13 @@ function ChipSituacionItem({ i, compacto = false }) {
 function LineaItem({ i, equipo, resaltada, onAbrir }) {
   const roja = (i.alertas || []).some((a) => ALERTAS_ROJAS.includes(a))
   return (
-    <div style={st.linea(resaltada, roja)} role="button" tabIndex={0}
+    <div style={{ ...st.linea(resaltada, roja), ...(i.taller_externo ? { borderLeft: `4px solid ${VIOLETA.fg}` } : {}) }} role="button" tabIndex={0}
       onClick={(e) => { e.stopPropagation(); onAbrir(i) }}
       onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onAbrir(i) } }}>
       <strong style={{ whiteSpace: 'nowrap' }}>{ref(i)}</strong>
       {i.status_sap && <span style={s.meta}>{i.status_sap}{i.abierta_sap === false ? ' (cerrada)' : ''}</span>}
       <span style={st.texto} title={i.texto || ''}>{quitarId(i.texto, equipo)}</span>
+      <ChipTallerExterno taller={i.taller_externo} />
       <ChipSituacionItem i={i} compacto />
       {i.responsable && <span style={s.meta}>→ {i.responsable}</span>}
       {i.compromiso && <span style={s.meta}>· para {ddmm(i.compromiso)}</span>}
@@ -220,6 +233,7 @@ function DetalleEquipo({ eq, version, puedeCargarEn, onAbrirHilo, onCerrar, hilo
               {i.status_sap && <span style={s.meta}>· SAP {i.status_sap}{i.abierta_sap === false ? ' (cerrada)' : ''}</span>}
               {i.fecha_entrada && <span style={s.meta}>· entrada {ddmm(i.fecha_entrada)}</span>}
               <span style={{ flex: 1 }} />
+              <ChipTallerExterno taller={i.taller_externo} />
               <ChipSituacionItem i={i} />
               <ChipFreno freno={i.freno} />
             </div>
@@ -268,6 +282,7 @@ export default function SeguimientoEquipos({ recarga }) {
   const [responsable, setResponsable] = useState('')
   const [alerta, setAlerta] = useState('')
   const [soloParados, setSoloParados] = useState(false)
+  const [soloExterno, setSoloExterno] = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -296,12 +311,13 @@ export default function SeguimientoEquipos({ recarga }) {
   useEffect(() => { cargar() }, [cargar, recarga])
 
   // ---------- filtros por línea (situación, responsable, alerta) ----------
-  const hayFiltroItem = !!(situacion || responsable || alerta)
+  const hayFiltroItem = !!(situacion || responsable || alerta || soloExterno)
   const coincideItem = useCallback((i) =>
-    (!situacion || (situacion === '_sin' ? !i.situacion : i.situacion === situacion))
+    (!soloExterno || !!i.taller_externo)
+    && (!situacion || (situacion === '_sin' ? !i.situacion : i.situacion === situacion))
     && (!responsable || i.responsable === responsable)
     && (!alerta || (alerta === '_alguna' ? (i.alertas || []).length > 0 : (i.alertas || []).includes(alerta)))
-  , [situacion, responsable, alerta])
+  , [situacion, responsable, alerta, soloExterno])
 
   const obras = useMemo(() => [...new Set(equipos.map((e) => e.ubicacion || SIN_OBRA))].sort((a, b) => a.localeCompare(b)), [equipos])
   const qq = q.trim()
@@ -318,6 +334,7 @@ export default function SeguimientoEquipos({ recarga }) {
   const cuenta = (a) => abiertos.filter((h) => h.alertas?.includes(a)).length
   const conNovedadHoy = abiertos.filter((h) => h.dias_sin_novedad === 0 && h.cant_novedades > 0).length
   const parados = equipos.filter((e) => e.parado).length
+  const enTallerExterno = equipos.reduce((n, e) => n + (e.cant_taller_externo || 0), 0)
   const terminados = hilos.filter((h) => h.terminado)
 
   // ---------- orden y agrupado por obra ----------
@@ -355,7 +372,7 @@ export default function SeguimientoEquipos({ recarga }) {
 
   if (cargando && !equipos.length) return <div style={s.vacio}>⏳ Cargando…</div>
 
-  const limpiarFiltros = () => { setObra(''); setQ(''); setSituacion(''); setResponsable(''); setAlerta(''); setSoloParados(false) }
+  const limpiarFiltros = () => { setObra(''); setQ(''); setSituacion(''); setResponsable(''); setAlerta(''); setSoloParados(false); setSoloExterno(false) }
   const filtrando = obra || qq || hayFiltroItem || soloParados
 
   return (
@@ -363,9 +380,10 @@ export default function SeguimientoEquipos({ recarga }) {
       {/* Indicadores (tocables = filtro) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
         {[
-          { label: 'órdenes y avisos abiertos', n: abiertos.length, color: C.texto, on: !alerta && !soloParados, click: () => { setAlerta(''); setSoloParados(false) } },
+          { label: 'órdenes y avisos abiertos', n: abiertos.length, color: C.texto, on: !alerta && !soloParados && !soloExterno, click: () => { setAlerta(''); setSoloParados(false); setSoloExterno(false) } },
           { label: 'con novedad hoy', n: conNovedadHoy, color: C.verde, click: null },
           { label: 'equipos parados', n: parados, color: C.rojo, on: soloParados, click: () => setSoloParados(!soloParados) },
+          { label: 'en taller externo (TyE)', n: enTallerExterno, color: VIOLETA.fg, on: soloExterno, click: () => setSoloExterno(!soloExterno) },
           ...['sin_seguimiento', 'compromiso_vencido', 'cerrada_sap_con_seguimiento', 'otes_con_trabajo'].map((a) => ({
             label: a === 'sin_seguimiento' ? 'sin seguimiento (> 3 d)' : a === 'compromiso_vencido' ? 'compromisos vencidos' : a === 'cerrada_sap_con_seguimiento' ? 'cerradas en SAP' : '0TES con trabajo',
             n: cuenta(a), color: a === 'sin_seguimiento' ? C.ambar : C.rojo, on: alerta === a, click: () => setAlerta(alerta === a ? '' : a),
@@ -405,6 +423,9 @@ export default function SeguimientoEquipos({ recarga }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
           <input type="checkbox" checked={soloParados} onChange={(e) => setSoloParados(e.target.checked)} /> Solo parados
+        </label>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
+          <input type="checkbox" checked={soloExterno} onChange={(e) => setSoloExterno(e.target.checked)} /> Solo taller externo
         </label>
         <span style={s.meta}>{num(visibles.length)} de {num(equipos.length)} equipos</span>
         {filtrando && <button style={{ ...s.boton, minHeight: 34 }} onClick={limpiarFiltros}>✕ Limpiar filtros</button>}
