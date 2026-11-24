@@ -23,3 +23,18 @@ export const ALERTAS = {
 }
 
 export const refOrden = (r) => (r.orden ? `Orden ${r.orden}` : `Aviso ${r.aviso}`)
+
+// "Qué la frena" calculado desde SAP (corr.par_ordenes). En Seguimiento es solo una etiqueta secundaria:
+// manda la situación cargada a mano.
+export const FRENOS = {
+  compras: 'Compras',
+  traslado: 'Traslado',
+  retirar: 'Retirar de depósito',
+  liberar: 'Liberar orden',
+  definir_repuestos: 'Definir repuestos',
+  ejecutar: 'Ejecutar reparación',
+  generar_orden: 'Generar orden',
+}
+
+// Alertas que ponen un equipo arriba de todo en la lista
+export const ALERTAS_ROJAS = ['compromiso_vencido', 'cerrada_sap_con_seguimiento', 'otes_con_trabajo']
