@@ -13,6 +13,7 @@ import RevisarOrdenModal from './bandejaPreventivos/RevisarOrdenModal.jsx'
 // calcula cuánto falta (J = próximo mantenimiento − lectura actual), sugiere un estado y ella confirma.
 // Datos: RPC ip30_bandeja / ip30_bandeja_frescura / ip30_subir / ip30_equipos_sin_orden /
 //        ip30_contador_pendiente / ip30_sync_cierres (ver supabase/bandeja_preventivos.sql)
+//        ip30_reservas_resumen (reservas, stock y propuesta de reservas: supabase/bandeja_reservas.sql)
 // Permiso: usuarios.ve_completar_ordenes
 // ============================================================
 
@@ -120,8 +121,25 @@ function CeldaOrden({ r }) {
       {r.sugerencia_cambio && <span style={{ ...s.badge, background: C.ambarBg, color: C.ambar }}>la sugerencia cambió</span>}
       {r.falta_cierre_tecnico && <span style={{ ...s.badge, background: C.rojoBg, color: C.rojo }}>falta cierre técnico</span>}
       {r.salio_sin_cierre && <span style={{ ...s.badge, background: C.rojoBg, color: C.rojo }}>salió del IP30 sin cierre</span>}
+      <BadgesReservas res={r.reservas} />
     </>
   )
+}
+
+// Reservas (ip30_reservas_resumen): solo órdenes abiertas
+function BadgesReservas({ res }) {
+  if (!res) return null
+  const b = (txt, bg, fg, title) => <span key={txt} style={{ ...s.badge, background: bg, color: fg }} title={title}>{txt}</span>
+  const out = []
+  if (res.otro_centro) out.push(b('reserva en otro centro', C.violetaBg, C.violeta, 'Alguna posición está reservada en un centro distinto del que abastece a la obra del equipo'))
+  if (res.peor_nivel === 'quiebre') out.push(b('quiebre', C.rojoBg, C.rojo, 'El stock no cubre alguna posición de la reserva'))
+  if (res.peor_nivel === 'riesgo') out.push(b('en riesgo', C.ambarBg, C.ambar, 'El stock cubre la reserva, pero no todo lo pendiente en preventivas abiertas'))
+  if (res.peor_nivel === 'propuesta') {
+    out.push(b(`propuesta de ${res.orden_propuesta}`, C.azulBg, C.azul, `Sin reserva en SAP. Propuesta: la reserva de la orden ${res.orden_propuesta} (ver en Revisar)`))
+    if (res.propuesta_peor === 'quiebre') out.push(b('propuesta con quiebre', C.rojoBg, C.rojo, 'Algún material de la propuesta no tiene stock en el centro sugerido'))
+  }
+  if (res.peor_nivel === 'sin_reserva') out.push(b('sin reserva', '#f3f4f6', C.gris, 'Sin reserva en SAP y sin preventiva anterior con reserva'))
+  return out
 }
 
 function TextoPropuesta({ r }) {
@@ -193,6 +211,11 @@ export default function BandejaPreventivos({ onVolver }) {
   const [busqueda, setBusqueda] = useState('')
   const [obra, setObra] = useState('')
   const [soloVencidos, setSoloVencidos] = useState(false)
+  const [sugerido, setSugerido] = useState('') // '' | programado | reprogramado | concluido | sin
+  const [distintoSugerido, setDistintoSugerido] = useState(false)
+  const [fOtroCentro, setFOtroCentro] = useState(false)
+  const [fQuiebre, setFQuiebre] = useState(false)
+  const [fPropuesta, setFPropuesta] = useState(false)
   const [modal, setModal] = useState(null) // { fila, estadoInicial }
   const [guardando, setGuardando] = useState(0)
   const [subida, setSubida] = useState(null) // { nombre, filas, sinOrden, hoja, map, hs }
@@ -204,17 +227,21 @@ export default function BandejaPreventivos({ onVolver }) {
   const cargar = useCallback(async () => {
     setCargando(true)
     try {
-      const [rows, f, prop] = await Promise.all([
+      const [rows, f, prop, res] = await Promise.all([
         rpcTodo('ip30_bandeja'),
         supabase.rpc('ip30_bandeja_frescura'),
         // Fecha propuesta de reprogramación (ver supabase/bandeja_fecha_propuesta.sql). Si falla, la bandeja funciona igual.
         rpcTodo('ip30_fecha_propuesta').catch((e) => { console.error(e); toast('⚠️ No se pudo calcular la fecha propuesta: ' + e.message, 'error'); return [] }),
+        // Reservas, stock y propuesta (ver supabase/bandeja_reservas.sql). Si falla, la bandeja funciona igual.
+        rpcTodo('ip30_reservas_resumen').catch((e) => { console.error(e); toast('⚠️ No se pudieron leer las reservas: ' + e.message, 'error'); return [] }),
       ])
       if (f.error) throw f.error
       const porOrden = new Map(prop.map((p) => [p.orden, p]))
+      const resPorOrden = new Map(res.map((x) => [x.orden, x]))
       setFilas(rows.map((r) => {
         const p = porOrden.get(r.orden)
-        return p ? { ...r, fecha_propuesta: p.fecha_propuesta, propuesta_dias: p.dias, ritmo: p.ritmo, ritmo_fuente: p.ritmo_fuente } : r
+        const conRes = { ...r, reservas: resPorOrden.get(r.orden) || null }
+        return p ? { ...conRes, fecha_propuesta: p.fecha_propuesta, propuesta_dias: p.dias, ritmo: p.ritmo, ritmo_fuente: p.ritmo_fuente } : conRes
       }))
       setFrescura((f.data || [])[0] || null)
       setSinOrden(null); setPendContador(null)
@@ -245,8 +272,13 @@ export default function BandejaPreventivos({ onVolver }) {
     return filas.filter((r) =>
       (!obra || (r.ubicacion || '(sin ubicación)') === obra)
       && (!q || [String(r.orden), r.equipo, r.denominacion, r.texto].some((v) => (v || '').toLowerCase().includes(q)))
-      && (!soloVencidos || colorJ(r) === 'rojo'))
-  }, [filas, busqueda, obra, soloVencidos])
+      && (!soloVencidos || colorJ(r) === 'rojo')
+      && (!sugerido || (sugerido === 'sin' ? !r.estado_sugerido : r.estado_sugerido === sugerido))
+      && (!distintoSugerido || (r.estado_confirmado && r.estado_sugerido && r.estado_confirmado !== r.estado_sugerido))
+      && (!fOtroCentro || r.reservas?.otro_centro)
+      && (!fQuiebre || r.reservas?.peor_nivel === 'quiebre' || r.reservas?.propuesta_peor === 'quiebre')
+      && (!fPropuesta || r.reservas?.peor_nivel === 'propuesta'))
+  }, [filas, busqueda, obra, soloVencidos, sugerido, distintoSugerido, fOtroCentro, fQuiebre, fPropuesta])
 
   const cuentas = useMemo(() => {
     const c = {}
@@ -422,6 +454,25 @@ export default function BandejaPreventivos({ onVolver }) {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
             <input type="checkbox" checked={soloVencidos} onChange={(e) => setSoloVencidos(e.target.checked)} /> Solo vencidos
           </label>
+        </div>
+        <div style={{ display: 'flex', gap: '6px 14px', flexWrap: 'wrap', alignItems: 'center', marginBottom: 8, fontSize: 13 }}>
+          <select style={s.input} value={sugerido} onChange={(e) => setSugerido(e.target.value)} aria-label="Sugerido">
+            <option value="">Sugerido: todos</option>
+            <option value="programado">Sugerido: Programado</option>
+            <option value="reprogramado">Sugerido: Reprogramado</option>
+            <option value="concluido">Sugerido: Concluido</option>
+            <option value="sin">Sin sugerencia</option>
+          </select>
+          {[
+            [distintoSugerido, setDistintoSugerido, 'Confirmado distinto del sugerido'],
+            [fOtroCentro, setFOtroCentro, 'Reserva en otro centro'],
+            [fQuiebre, setFQuiebre, 'Con quiebre'],
+            [fPropuesta, setFPropuesta, 'Propuesta disponible'],
+          ].map(([v, set, l]) => (
+            <label key={l} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={v} onChange={(e) => set(e.target.checked)} /> {l}
+            </label>
+          ))}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
           {PESTANAS.map(([k, l]) => {

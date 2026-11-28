@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import { C, s, ddmm, ddmmhhmm, hoyPY } from './constantes'
-import { SITUACIONES, SITUACION_POR_ID, ALERTAS, refOrden } from './seguimientoConst'
+import { SITUACIONES, SITUACION_POR_ID, ALERTAS, refOrden, esSinAviso } from './seguimientoConst'
 
 // ============================================================
 // Panel de un hilo de seguimiento: datos SAP, historial y nueva novedad.
@@ -78,7 +78,11 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
   const [motivo, setMotivo] = useState('')
   const [verTerminar, setVerTerminar] = useState(false)
 
-  const puedeCargar = permisos?.gestiona || (permisos?.ubicaciones || []).includes(hilo.ubicacion)
+  // Residentes: su obra + los hilos donde participan (los reportaron o cargaron novedades), ver correctivos_parte_residentes.sql
+  const participa = (permisos?.mis_hilos || []).includes(hilo.id)
+  const puedeCargar = permisos?.gestiona || participa || (permisos?.ubicaciones || []).includes(hilo.ubicacion)
+  const puedeTerminar = permisos?.gestiona || participa
+  const [avisoNuevo, setAvisoNuevo] = useState('')
 
   const [version, setVersion] = useState(0)
   const cargar = useCallback(() => setVersion((v) => v + 1), [])
@@ -118,6 +122,15 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
     toast('✅ Seguimiento terminado'); onCambio(); onCerrar()
   }
 
+  // El encargado carga el N° de aviso SAP en un reporte sin aviso (si ya hay hilo con ese aviso, se fusionan)
+  const completarAviso = async () => {
+    if (!/^1\d{7}$/.test(avisoNuevo.trim())) return toast('El aviso debe tener 8 dígitos y empezar con 1', 'error')
+    const { data, error } = await supabase.rpc('corr_seg_completar_aviso', { p_id: hilo.id, p_aviso: Number(avisoNuevo.trim()) })
+    if (error) return toast('❌ ' + error.message, 'error')
+    toast(data?.fusionado ? '✅ Ese aviso ya tenía seguimiento: se unieron los dos' : '✅ Aviso cargado')
+    onCambio(); onCerrar()
+  }
+
   const reabrir = async () => {
     const { error } = await supabase.rpc('corr_seg_reabrir', { p_id: hilo.id })
     if (error) return toast('❌ ' + error.message, 'error')
@@ -138,6 +151,7 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
         <div style={{ ...s.card, marginTop: 10, fontSize: 14 }}>
           <div><strong>{refOrden(hilo)}</strong>{hilo.orden && hilo.aviso ? <span style={s.meta}> · aviso {hilo.aviso}</span> : null}
             {hilo.origen === 'manual' && !hilo.orden && <span style={{ ...s.chip(C.ambarBg, C.ambar), marginLeft: 6 }}>aviso sin orden SAP</span>}
+            {esSinAviso(hilo) && <span style={{ ...s.chip(C.ambarBg, C.ambar), marginLeft: 6 }}>reportado sin aviso: lo crea el encargado en SAP</span>}
           </div>
           <div style={{ marginTop: 4 }}>{hilo.descripcion || '—'}</div>
           <div style={{ ...s.meta, marginTop: 4 }}>
@@ -149,6 +163,18 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
           {hilo.alertas?.map((a) => ALERTAS[a] && <div key={a} style={{ ...s.meta, marginTop: 4 }}>• {ALERTAS[a].ayuda}</div>)}
           {hilo.terminado && <div style={{ ...s.aviso, marginTop: 8, marginBottom: 0 }}>Terminado {ddmmhhmm(hilo.terminado_en)}: {hilo.motivo_termino}</div>}
         </div>
+
+        {permisos?.gestiona && esSinAviso(hilo) && !hilo.terminado && (
+          <div style={{ ...s.card, borderColor: C.ambar }}>
+            <div style={s.subtitulo}>Cargar N° de aviso</div>
+            <div style={s.meta}>Creá el aviso en SAP y cargá el número acá. Si ese aviso ya tiene seguimiento, se unen los dos.</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input style={{ ...s.input, flex: 1 }} placeholder="N° de aviso" inputMode="numeric" value={avisoNuevo}
+                onChange={(e) => setAvisoNuevo(e.target.value.replace(/\D/g, '').slice(0, 8))} aria-label="N° de aviso" />
+              <button style={{ ...s.boton, background: C.azul, color: '#fff', border: 'none', fontWeight: 700 }} onClick={completarAviso}>Guardar</button>
+            </div>
+          </div>
+        )}
 
         {puedeCargar && !hilo.terminado && (
           <div style={s.card}>
@@ -172,7 +198,7 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
           </div>
         ))}
 
-        {permisos?.gestiona && (
+        {puedeTerminar && (permisos?.gestiona || !hilo.terminado) && (
           <div style={{ marginTop: 16, borderTop: `1px solid ${C.borde}`, paddingTop: 12 }}>
             {hilo.terminado ? (
               <button style={s.boton} onClick={reabrir}>↺ Reabrir seguimiento</button>
@@ -180,7 +206,7 @@ export default function HiloSheet({ hilo, permisos, responsables, onCerrar, onCa
               <button style={{ ...s.boton, color: C.verde, borderColor: C.verde }} onClick={() => setVerTerminar(true)}>✓ Terminar seguimiento</button>
             ) : (
               <div>
-                <label style={st.label} htmlFor="motivo">Motivo (ej.: equipo liberado, orden cerrada, aviso duplicado)</label>
+                <label style={st.label} htmlFor="motivo">Motivo (ej.: equipo reparado, orden cerrada, aviso duplicado)</label>
                 <input id="motivo" style={s.input} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button style={{ ...s.boton, background: C.verde, color: '#fff', border: 'none', fontWeight: 700 }} onClick={terminar}>Terminar</button>

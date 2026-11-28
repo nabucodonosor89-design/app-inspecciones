@@ -3,11 +3,13 @@ import { supabase } from '../lib/supabase'
 import { toast, confirmar } from '../utils/ui'
 import { hoyISO, FECHA_MIN_MTTO, errorFechaMantenimiento, avisoFechaVieja } from '../utils/fechaMantenimiento'
 import { ESTADO_TXT, textoRitmo } from './logica'
+import SeccionReservas from './SeccionReservas.jsx'
 
 // ============================================================
 // Revisar una orden de la bandeja: estado confirmado (+ nueva fecha si se reprograma), notas,
 // próximo mantenimiento (H, cargado a mano desde SAP) y, al concluir, contador y fecha reales (opcionales).
 // RPC: ip30_confirmar_estado, ip30_fijar_proximo (ver supabase/bandeja_preventivos.sql)
+// Sección Reservas / propuesta de reservas: SeccionReservas.jsx (supabase/bandeja_reservas.sql)
 // ============================================================
 
 const ESTADOS = [
@@ -23,7 +25,7 @@ const num = (v, dec = 1) => (v == null ? '—' : Number(v).toLocaleString('es-PY
 
 const st = {
   fondo: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 },
-  caja: { background: 'white', borderRadius: 12, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', padding: 18 },
+  caja: { background: 'white', borderRadius: 12, width: '100%', maxWidth: 760, maxHeight: '92vh', overflow: 'auto', padding: 18 },
   label: { display: 'block', fontSize: 12, color: '#6b7280', margin: '10px 0 3px' },
   input: { width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, background: 'white' },
   boton: { border: '1px solid #e5e7eb', background: 'white', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontSize: 14 },
@@ -106,6 +108,8 @@ export default function RevisarOrdenModal({ fila, estadoInicial, onCerrar, onGua
           {fila.motivo ? <span style={{ color: '#6b7280' }}> ({fila.motivo})</span> : null}
           {fila.j != null && <> · {Number(fila.j) < 0 ? `pasado ${num(-fila.j)} ${u}` : `falta ${num(fila.j)} ${u}`} ({fila.j_fuente})</>}
         </div>
+
+        <SeccionReservas orden={fila.orden} resumen={fila.reservas} />
 
         <label style={st.label}>Estado</label>
         <select style={st.input} value={estado} onChange={(e) => {

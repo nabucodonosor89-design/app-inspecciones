@@ -4,6 +4,7 @@ import { toast } from '../utils/ui'
 import { C, s, num, ddmm, coincide, LIMITE } from './constantes'
 import { SITUACIONES, ALERTAS, refOrden } from './seguimientoConst'
 import HiloSheet, { ChipSituacion, ChipsAlertas, FormNovedad } from './HiloSheet'
+import ParteDelDia from './ParteDelDia'
 
 // ============================================================
 // SEGUIMIENTO DE CORRECTIVOS — un hilo de novedades por orden/aviso.
@@ -13,7 +14,7 @@ import HiloSheet, { ChipSituacion, ChipsAlertas, FormNovedad } from './HiloSheet
 // modo: 'completo' (dentro de Correctivos) | 'residente' (tarjeta Seguimiento correctivos)
 // ============================================================
 
-const PRIORIDAD_ALERTA = ['compromiso_vencido', 'otes_con_trabajo', 'cerrada_sap_con_seguimiento', 'equipo_distinto', 'sin_seguimiento', 'terminado_abierta_sap']
+const PRIORIDAD_ALERTA = ['compromiso_vencido', 'otes_con_trabajo', 'cerrada_sap_con_seguimiento', 'equipo_distinto', 'sin_seguimiento', 'ubicacion_distinta', 'terminado_abierta_sap']
 
 export function AltaAviso({ responsables, onCreado, onCancelar }) {
   const [equipo, setEquipo] = useState('')
@@ -22,19 +23,19 @@ export function AltaAviso({ responsables, onCreado, onCancelar }) {
   const [guardando, setGuardando] = useState(false)
 
   const guardar = async (nov) => {
-    if (!equipo.trim() || !/^1\d{7}$/.test(aviso.trim())) {
-      toast('Completá el equipo y un aviso de 8 dígitos que empiece con 1', 'error')
-      return false
-    }
+    // N° de aviso opcional desde 24/11/2026: sin aviso queda «reportado sin aviso» y lo completa el encargado
+    if (!equipo.trim()) { toast('Completá el equipo', 'error'); return false }
+    if (aviso.trim() && !/^1\d{7}$/.test(aviso.trim())) { toast('El aviso debe tener 8 dígitos y empezar con 1', 'error'); return false }
+    if (!aviso.trim() && !descripcion.trim()) { toast('Contá qué le pasa al equipo', 'error'); return false }
     setGuardando(true)
     const { data, error } = await supabase.rpc('corr_seg_alta_aviso', {
-      p_equipo: equipo.trim(), p_aviso: Number(aviso.trim()), p_descripcion: descripcion.trim() || null,
+      p_equipo: equipo.trim(), p_aviso: aviso.trim() ? Number(aviso.trim()) : null, p_descripcion: descripcion.trim() || null,
       p_texto: nov.texto, p_situacion: nov.situacion, p_responsable: nov.responsable, p_fecha_compromiso: nov.fecha,
     })
     setGuardando(false)
     if (error) { toast('❌ ' + error.message, 'error'); return false }
     if (data?.existente) toast('⚠ Ese aviso ya tenía seguimiento: te lo abro para que cargues la novedad ahí', 'warning')
-    else toast('✅ Aviso cargado')
+    else toast(aviso.trim() ? '✅ Aviso cargado' : '✅ Problema reportado: el encargado crea el aviso en SAP')
     onCreado(data?.id)
     return true
   }
@@ -42,26 +43,27 @@ export function AltaAviso({ responsables, onCreado, onCancelar }) {
   return (
     <div style={s.card}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        <div style={{ ...s.subtitulo, flex: 1, margin: 0 }}>Nuevo aviso (sin orden en SAP)</div>
+        <div style={{ ...s.subtitulo, flex: 1, margin: 0 }}>Reportar problema</div>
         <button style={s.boton} onClick={onCancelar} aria-label="Cancelar">✕</button>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
         <input style={{ ...s.input, flex: '1 1 140px', width: 'auto', textTransform: 'uppercase' }} placeholder="Equipo (ej. PS-GR004)"
           value={equipo} onChange={(e) => setEquipo(e.target.value)} aria-label="Equipo" />
-        <input style={{ ...s.input, flex: '1 1 140px', width: 'auto' }} placeholder="N° de aviso" inputMode="numeric"
+        <input style={{ ...s.input, flex: '1 1 140px', width: 'auto' }} placeholder="N° de aviso (opcional)" inputMode="numeric"
           value={aviso} onChange={(e) => setAviso(e.target.value.replace(/\D/g, '').slice(0, 8))} aria-label="Aviso" />
       </div>
-      <input style={{ ...s.input, marginTop: 8 }} placeholder="Descripción de la avería" value={descripcion}
-        onChange={(e) => setDescripcion(e.target.value)} aria-label="Descripción" />
+      <div style={{ ...s.meta, marginTop: 4 }}>Si todavía no tiene aviso, dejalo vacío: David lo crea en SAP.</div>
+      <input style={{ ...s.input, marginTop: 8 }} placeholder="Qué le pasa (ej.: problema de cabo, fisura en el prensado)" value={descripcion}
+        onChange={(e) => setDescripcion(e.target.value)} aria-label="Qué le pasa" />
       <div style={{ ...s.meta, marginTop: 6 }}>Primera novedad:</div>
-      <FormNovedad responsables={responsables} guardando={guardando} textoBoton="Cargar aviso"
+      <FormNovedad responsables={responsables} guardando={guardando} textoBoton="Reportar"
         onGuardar={(nov) => guardar(nov)} />
     </div>
   )
 }
 
 function Fila({ r, onAbrir }) {
-  const urgente = r.alertas?.some((a) => a !== 'sin_seguimiento' && a !== 'terminado_abierta_sap')
+  const urgente = r.alertas?.some((a) => !['sin_seguimiento', 'terminado_abierta_sap', 'ubicacion_distinta'].includes(a))
   return (
     <div onClick={() => onAbrir(r)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onAbrir(r)}
       style={{ padding: '10px 6px', borderBottom: `1px solid ${C.borde}`, cursor: 'pointer', background: r.terminado ? '#f3f4f6' : urgente ? '#fff7f7' : '#fff' }}>
@@ -92,6 +94,7 @@ export default function Seguimiento({ modo = 'completo', recarga }) {
   const [cargando, setCargando] = useState(true)
   const [abierto, setAbierto] = useState(null) // id del hilo
   const [verAlta, setVerAlta] = useState(false)
+  const [verParte, setVerParte] = useState(false)
   // filtros
   const [obra, setObra] = useState('')
   const [situacion, setSituacion] = useState('')
@@ -210,8 +213,13 @@ export default function Seguimiento({ modo = 'completo', recarga }) {
         </label>
         <span style={s.meta}>{num(visibles.length)} de {num(filas.length)}</span>
         <span style={{ flex: 1 }} />
+        {modo === 'residente' && permisos?.residente && (
+          <button style={{ ...s.boton, color: C.azul, borderColor: C.azul, fontWeight: 700 }} onClick={() => setVerParte(true)}>📋 Parte del día</button>
+        )}
         {puedeAlta && !verAlta && (
-          <button style={{ ...s.boton, background: C.azul, color: '#fff', border: 'none', fontWeight: 700 }} onClick={() => setVerAlta(true)}>+ Aviso</button>
+          <button style={{ ...s.boton, background: C.azul, color: '#fff', border: 'none', fontWeight: 700 }} onClick={() => setVerAlta(true)}>
+            {modo === 'residente' ? '+ Reportar problema' : '+ Aviso'}
+          </button>
         )}
         <button style={s.boton} onClick={cargar} disabled={cargando}>{cargando ? '…' : '↻'}</button>
       </div>
@@ -233,6 +241,8 @@ export default function Seguimiento({ modo = 'completo', recarga }) {
           {g.lista.map((r) => <Fila key={r.id} r={r} onAbrir={(x) => setAbierto(x.id)} />)}
         </div>
       ))}
+
+      {verParte && <ParteDelDia onCerrar={() => setVerParte(false)} onAbrirHilo={(id) => { setVerParte(false); setAbierto(id) }} />}
 
       {hilo && (
         <HiloSheet hilo={hilo} permisos={permisos} responsables={responsables}

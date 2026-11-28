@@ -178,7 +178,7 @@ AS $function$
          case when s.fecha is not null and jd.equipo is not null then 0
               when s.fecha is not null and ras.equipo is not null then coalesce(rp.km, 0) end,
          coalesce(jd.hasta, ras.hasta)
-  from (select distinct equipo from universo where coalesce(equipo, '') <> '' and equipo !~ '^(PI-|BM-DA|BM-RM|ST-CL)') u  -- 04/11/2026: plantas PI, dragas BM-DA y remolcadores BM-RM y calderas ST-CL fuera del seguimiento
+  from (select distinct equipo from universo where coalesce(equipo, '') <> '' and equipo !~ '^(PI-|BM-DA|BM-RM|ST-CL|BM-LO004$|BM-LO011$)') u  -- 04/11/2026: plantas PI, dragas BM-DA y remolcadores BM-RM y calderas ST-CL fuera del seguimiento; 27/11/2026: lanchas BM-LO004 y BM-LO011 fuera por tipo de motor
   left join eq on eq.equipo = u.equipo
   left join per on per.equipo = u.equipo
   left join srv s on s.equipo = u.equipo
@@ -262,7 +262,7 @@ AS $function$
     limit 1
   ) pd on true
   where not exists (select 1 from estaticos z where z.equipo = t.equipo)
-    and t.equipo !~ '^(PI-|BM-DA|BM-RM|ST-CL)'  -- 04/11/2026: plantas PI, dragas BM-DA y remolcadores BM-RM y calderas ST-CL fuera del seguimiento
+    and t.equipo !~ '^(PI-|BM-DA|BM-RM|ST-CL|BM-LO004$|BM-LO011$)'  -- 04/11/2026: plantas PI, dragas BM-DA y remolcadores BM-RM y calderas ST-CL fuera del seguimiento; 27/11/2026: lanchas BM-LO004 y BM-LO011 fuera por tipo de motor
   order by 1
 $function$;
 revoke all on function public.mantenimiento_seguimiento() from public, anon;

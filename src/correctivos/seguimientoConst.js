@@ -20,9 +20,12 @@ export const ALERTAS = {
   otes_con_trabajo: { label: '0TES con trabajo', fg: C.rojo, bg: C.rojoBg, ayuda: 'La orden no está liberada en SAP (0TES) pero la reparación está en curso: pedir que se libere.' },
   equipo_distinto: { label: 'Equipo distinto en SAP', fg: C.rojo, bg: C.rojoBg, ayuda: 'El aviso u orden está a nombre de otro equipo en SAP. Revisar el número o corregir SAP.' },
   terminado_abierta_sap: { label: 'Terminado, abierta en SAP', fg: C.azul, bg: C.azulBg, ayuda: 'Se terminó en la app pero la orden sigue abierta en SAP: pedir el cierre.' },
+  ubicacion_distinta: { label: 'Ubicación SAP distinta', fg: C.ambar, bg: C.ambarBg, ayuda: 'Lo reportó un residente de otra obra: corregir la ubicación técnica del equipo en SAP (IE36).' },
 }
 
-export const refOrden = (r) => (r.orden ? `Orden ${r.orden}` : `Aviso ${r.aviso}`)
+export const refOrden = (r) => (r.orden ? `Orden ${r.orden}` : r.aviso ? `Aviso ${r.aviso}` : 'Sin aviso')
+// Hilo reportado sin N° de aviso (lo completa el encargado con corr_seg_completar_aviso)
+export const esSinAviso = (r) => !r.orden && !r.aviso && !r.sin_hilo
 
 // "Qué la frena" calculado desde SAP (corr.par_ordenes). En Seguimiento es solo una etiqueta secundaria:
 // manda la situación cargada a mano.

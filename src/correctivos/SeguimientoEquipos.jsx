@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/ui'
 import { C, s, num, ddmm, ddmmhhmm, coincide, LIMITE } from './constantes'
-import { SITUACIONES, SITUACION_POR_ID, ALERTAS, FRENOS, ALERTAS_ROJAS, refOrden } from './seguimientoConst'
+import { SITUACIONES, SITUACION_POR_ID, ALERTAS, FRENOS, ALERTAS_ROJAS, refOrden, esSinAviso } from './seguimientoConst'
 import HiloSheet, { ChipSituacion, ChipsAlertas } from './HiloSheet'
 import { AltaAviso } from './Seguimiento'
 
@@ -38,7 +38,7 @@ const quitarId = (texto, equipo) => {
 }
 const sinId = (eq) => quitarId(eq.denominacion, eq.equipo)
 
-const ref = (i) => (i.orden ? `Orden ${i.orden}` : `Aviso ${i.aviso || '—'}`)
+const ref = (i) => (i.orden ? `Orden ${i.orden}` : i.aviso ? `Aviso ${i.aviso}` : 'Sin aviso')
 
 function ChipFreno({ freno }) {
   if (!freno || !FRENOS[freno]) return null
@@ -146,19 +146,18 @@ const claveOrden = (o) => (o == null ? '' : String(o).trim().replace(/^0+/, ''))
 
 // Reservas pendientes del equipo, cargadas una vez y repartidas por orden (24/11/2026)
 function useReservas(equipo) {
-  const [reservas, setReservas] = useState(null)
-  const [error, setError] = useState(null)
+  // El resultado queda guardado con su equipo: si cambia el equipo, se muestra «cargando» hasta que llega el nuevo
+  const [res, setRes] = useState({ equipo: null, data: null, error: null })
   useEffect(() => {
     let vivo = true
-    setReservas(null); setError(null)
     supabase.rpc('correctivos_parados_reservas', { p_equipo: equipo }).then(({ data, error: e }) => {
       if (!vivo) return
-      if (e) setError(e.message)
-      else setReservas(data || [])
+      setRes({ equipo, data: e ? null : (data || []), error: e ? e.message : null })
     })
     return () => { vivo = false }
   }, [equipo])
-  return { reservas, error }
+  const actual = res.equipo === equipo
+  return { reservas: actual ? res.data : null, error: actual ? res.error : null }
 }
 
 function TablaReservas({ filas, centroEquipo, conOrden }) {
@@ -318,6 +317,7 @@ export default function SeguimientoEquipos({ recarga }) {
   const [alerta, setAlerta] = useState('')
   const [soloParados, setSoloParados] = useState(false)
   const [soloExterno, setSoloExterno] = useState(false)
+  const [soloSinAviso, setSoloSinAviso] = useState(false) // reportes de residentes sin N° de aviso
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -346,13 +346,14 @@ export default function SeguimientoEquipos({ recarga }) {
   useEffect(() => { cargar() }, [cargar, recarga])
 
   // ---------- filtros por línea (situación, responsable, alerta) ----------
-  const hayFiltroItem = !!(situacion || responsable || alerta || soloExterno)
+  const hayFiltroItem = !!(situacion || responsable || alerta || soloExterno || soloSinAviso)
   const coincideItem = useCallback((i) =>
     (!soloExterno || !!i.taller_externo)
+    && (!soloSinAviso || esSinAviso(i))
     && (!situacion || (situacion === '_sin' ? !i.situacion : i.situacion === situacion))
     && (!responsable || i.responsable === responsable)
     && (!alerta || (alerta === '_alguna' ? (i.alertas || []).length > 0 : (i.alertas || []).includes(alerta)))
-  , [situacion, responsable, alerta, soloExterno])
+  , [situacion, responsable, alerta, soloExterno, soloSinAviso])
 
   const obras = useMemo(() => [...new Set(equipos.map((e) => e.ubicacion || SIN_OBRA))].sort((a, b) => a.localeCompare(b)), [equipos])
   const qq = q.trim()
@@ -370,6 +371,7 @@ export default function SeguimientoEquipos({ recarga }) {
   const conNovedadHoy = abiertos.filter((h) => h.dias_sin_novedad === 0 && h.cant_novedades > 0).length
   const parados = equipos.filter((e) => e.parado).length
   const enTallerExterno = equipos.reduce((n, e) => n + (e.cant_taller_externo || 0), 0)
+  const sinAviso = equipos.reduce((n, e) => n + (e.items || []).filter(esSinAviso).length, 0)
   const terminados = hilos.filter((h) => h.terminado)
 
   // ---------- orden y agrupado por obra ----------
@@ -407,7 +409,7 @@ export default function SeguimientoEquipos({ recarga }) {
 
   if (cargando && !equipos.length) return <div style={s.vacio}>⏳ Cargando…</div>
 
-  const limpiarFiltros = () => { setObra(''); setQ(''); setSituacion(''); setResponsable(''); setAlerta(''); setSoloParados(false); setSoloExterno(false) }
+  const limpiarFiltros = () => { setObra(''); setQ(''); setSituacion(''); setResponsable(''); setAlerta(''); setSoloParados(false); setSoloExterno(false); setSoloSinAviso(false) }
   const filtrando = obra || qq || hayFiltroItem || soloParados
 
   return (
@@ -415,7 +417,8 @@ export default function SeguimientoEquipos({ recarga }) {
       {/* Indicadores (tocables = filtro) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
         {[
-          { label: 'órdenes y avisos abiertos', n: abiertos.length, color: C.texto, on: !alerta && !soloParados && !soloExterno, click: () => { setAlerta(''); setSoloParados(false); setSoloExterno(false) } },
+          { label: 'órdenes y avisos abiertos', n: abiertos.length, color: C.texto, on: !alerta && !soloParados && !soloExterno && !soloSinAviso, click: () => { setAlerta(''); setSoloParados(false); setSoloExterno(false); setSoloSinAviso(false) } },
+          { label: 'sin aviso (reportes de residentes)', n: sinAviso, color: C.ambar, on: soloSinAviso, click: () => setSoloSinAviso(!soloSinAviso) },
           { label: 'con novedad hoy', n: conNovedadHoy, color: C.verde, click: null },
           { label: 'equipos parados', n: parados, color: C.rojo, on: soloParados, click: () => setSoloParados(!soloParados) },
           { label: 'en taller externo (TyE)', n: enTallerExterno, color: VIOLETA.fg, on: soloExterno, click: () => setSoloExterno(!soloExterno) },
