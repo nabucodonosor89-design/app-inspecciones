@@ -6,6 +6,7 @@ import {
   exportarListaObra, exportarListaGeneral, exportarReprogramadas, listaEnvio, textoRitmo,
 } from './bandejaPreventivos/logica'
 import RevisarOrdenModal from './bandejaPreventivos/RevisarOrdenModal.jsx'
+import Insumos from './bandejaPreventivos/Insumos.jsx'
 
 // ============================================================
 // BANDEJA DE PREVENTIVOS (IP30) — reemplaza a "Completar órdenes IP30"
@@ -189,6 +190,7 @@ const PESTANAS = [
   ['cierre', 'Falta cierre técnico'],
   ['sinorden', 'Equipos sin orden'],
   ['contador', 'Contador pendiente'],
+  ['insumos', 'Insumos'],
 ]
 const FILTRO = {
   pendientes: (r) => r.pendiente,
@@ -528,6 +530,8 @@ export default function BandejaPreventivos({ onVolver }) {
             {vista.length > 600 && <div style={{ padding: 8, fontSize: 12, color: C.gris }}>Se muestran 600 de {vista.length}: usá la búsqueda o el filtro de obra.</div>}
           </div>
         )}
+
+        {pestana === 'insumos' && <Insumos />}
 
         {pestana === 'sinorden' && (
           <div style={{ overflow: 'auto', border: `1px solid ${C.borde}`, borderRadius: 8, background: 'white' }}>
