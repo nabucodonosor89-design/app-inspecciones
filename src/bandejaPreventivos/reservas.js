@@ -19,9 +19,10 @@ export function cantidadSAP(v) {
 }
 
 // Una línea por componente, columnas en el orden de la grilla Componentes de IW32:
-// Componente ⇥ Descripción (vacía) ⇥ T… (vacía) ⇥ Ctd.neces. ⇥ UM ⇥ TP (L). Almacén y centro los completa la encargada.
+// Componente ⇥ Descripción (vacía) ⇥ Ctd.neces. ⇥ UM ⇥ TP (L). La columna «Te…» no es editable y SAP la saltea al pegar
+// (probado en IW32 el 28/11/2026). Almacén y centro los completa la encargada.
 export function textoComponentes(filas) {
-  return filas.map((f) => [f.material, '', '', cantidadSAP(f.cantidad), f.unidad || '', 'L'].join('\t')).join('\r\n')
+  return filas.map((f) => [f.material, '', cantidadSAP(f.cantidad), f.unidad || '', 'L'].join('\t')).join('\r\n')
 }
 
 export async function copiarTexto(texto, mensaje) {
